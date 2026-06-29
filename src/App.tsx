@@ -20,6 +20,7 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -59,7 +60,6 @@ import {
   Trash2,
   Utensils,
   Users,
-  UserCircle,
   Upload,
   WalletCards,
   X,
@@ -958,6 +958,10 @@ export function App() {
   const [dataLoading, setDataLoading] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const userId = session?.user.id;
+  // Usa o nome do cadastro (user_metadata) quando existir; senão um padrão.
+  const profileName =
+    ((session?.user.user_metadata?.full_name ?? session?.user.user_metadata?.name) as string | undefined)?.trim() ||
+    'Taylor Felipe Barbosa';
   const [showSplash, setShowSplash] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches,
   );
@@ -1377,7 +1381,7 @@ export function App() {
           <button type="button" onClick={() => setSyncError(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#fff', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Fechar</button>
         </div>
       )}
-      <Topbar activePage={activePage} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
+      <Topbar activePage={activePage} userName={profileName} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
         <Sidebar activePage={activePage} onNavigate={handleNavigate} />
         <main ref={mainContentRef} className={`main-content main-content--${activePage}`}>
@@ -2981,8 +2985,22 @@ function HelpPage() {
     </section>
   );
 }
-function Topbar({ activePage, onNavigate, onLogout, onOpenTransactionFilters, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters, goalFilterOpen, goalActiveFilterCount }: {
+function userInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return ((parts[0][0] ?? '') + (parts[parts.length - 1][0] ?? '')).toUpperCase();
+}
+
+function shortUserName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return name.trim();
+  return `${parts[0]} ${parts[parts.length - 1]}`;
+}
+
+function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionFilters, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters, goalFilterOpen, goalActiveFilterCount }: {
   activePage: AppPage;
+  userName: string;
   onNavigate: (page: AppPage) => void;
   onLogout: () => void;
   onOpenTransactionFilters: () => void;
@@ -3023,13 +3041,13 @@ function Topbar({ activePage, onNavigate, onLogout, onOpenTransactionFilters, on
   const profileMenu = (
     <div className="profile-menu" ref={profileRef}>
       <button type="button" className={`user-profile${profileOpen ? ' active' : ''}`} onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="menu" aria-label="Abrir perfil">
-        <span className="avatar"><UserCircle size={18} /></span>
-        <span className="user-name">Taylor Felipe Barbosa</span>
-        <ChevronRight className="profile-chevron" size={15} />
+        <span className="user-name">{shortUserName(userName)}</span>
+        <span className="avatar avatar--initials">{userInitials(userName)}</span>
+        <ChevronDown className="profile-chevron" size={15} />
       </button>
       {profileOpen ? (
         <div className="profile-dropdown" role="menu">
-          <div className="profile-dropdown-user"><strong>Taylor Felipe Barbosa</strong><span>Perfil do usuário</span></div>
+          <div className="profile-dropdown-user"><strong>{userName}</strong><span>Perfil do usuário</span></div>
           <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('help'); }}><HelpCircle size={16} /> Ajuda</button>
           <button type="button" className="profile-logout" role="menuitem" onClick={() => { setProfileOpen(false); onLogout(); }}><LogOut size={16} /> Sair</button>
         </div>

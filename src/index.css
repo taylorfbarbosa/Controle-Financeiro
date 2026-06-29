@@ -215,6 +215,12 @@ button {
   color: #fff;
 }
 
+.avatar--initials {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
 .profile-chevron {
   color: #7c7c8d;
   transition: transform 0.15s;
@@ -7975,6 +7981,7 @@ button {
     height: 46px;
     background: #fff;
     color: var(--primary);
+    font-size: 16px;
   }
 
   .topbar-right .profile-dropdown {
