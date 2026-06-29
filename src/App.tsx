@@ -4,10 +4,11 @@ import { readSheet, type Row } from 'read-excel-file/browser';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
 import type { Session } from '@supabase/supabase-js';
 import rubyLogoWhite from './assets/rubylife-white.png';
 import rubyLogoColor from './assets/rubylife-color.png';
+import rubyDiamond from './assets/Diamante.png';
 import { supabase } from './lib/supabase';
 import { loadAll, syncAccounts, syncCategories, syncGoals, syncTransactions } from './lib/db';
 import {
@@ -18,6 +19,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
+  Bell,
+  BookOpen,
   BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
@@ -29,6 +32,8 @@ import {
   Clock3,
   Coins,
   CreditCard,
+  Eye,
+  EyeOff,
   FileText,
   FileSpreadsheet,
   Gamepad2,
@@ -170,11 +175,6 @@ export type Goal = {
   movements: GoalMovement[];
 };
 
-type BalanceLabelProps = {
-  x?: number | string;
-  y?: number | string;
-  value?: unknown;
-};
 
 type BalanceDotProps = {
   cx?: number | string;
@@ -722,11 +722,28 @@ function translateAuthError(message: string): string {
   return message;
 }
 
+const REMEMBERED_LOGIN_KEY = 'rubylife:remembered-login';
+
+function loadRememberedLogin(): { email: string; password: string } | null {
+  try {
+    const saved = localStorage.getItem(REMEMBERED_LOGIN_KEY);
+    if (!saved) return null;
+    const parsed = JSON.parse(saved) as { email?: unknown; password?: unknown };
+    if (typeof parsed.email !== 'string' || typeof parsed.password !== 'string') return null;
+    return { email: parsed.email, password: parsed.password };
+  } catch {
+    return null;
+  }
+}
+
 function LoginScreen() {
+  const rememberedLogin = useMemo(loadRememberedLogin, []);
   const [mode, setMode] = useState<'login' | 'recovery' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(rememberedLogin?.email ?? '');
+  const [password, setPassword] = useState(rememberedLogin?.password ?? '');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(Boolean(rememberedLogin));
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -768,7 +785,12 @@ function LoginScreen() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (error) setMessage({ text: translateAuthError(error.message), type: 'error' });
+    if (error) {
+      setMessage({ text: translateAuthError(error.message), type: 'error' });
+      return;
+    }
+    if (rememberLogin) localStorage.setItem(REMEMBERED_LOGIN_KEY, JSON.stringify({ email, password }));
+    else localStorage.removeItem(REMEMBERED_LOGIN_KEY);
     // Sucesso: a sessão muda e a App troca de tela automaticamente.
   }
 
@@ -808,15 +830,26 @@ function LoginScreen() {
                 className="toodledo-input"
               />
               {mode !== 'recovery' && (
-                <input
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  type="password"
-                  placeholder={mode === 'register' ? 'Criar senha' : 'Senha'}
-                  autoComplete="current-password"
-                  required
-                  className="toodledo-input"
-                />
+                <div className="toodledo-password-field">
+                  <input
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder={mode === 'register' ? 'Criar senha' : 'Senha'}
+                    autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                    required
+                    className="toodledo-input"
+                  />
+                  <button
+                    type="button"
+                    className="toodledo-password-toggle"
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                    title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               )}
               {mode === 'register' && (
                 <input
@@ -859,6 +892,21 @@ function LoginScreen() {
                 )}
               </button>
             </div>
+
+            {mode === 'login' ? (
+              <label className="toodledo-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberLogin}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setRememberLogin(checked);
+                    if (!checked) localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+                  }}
+                />
+                <span>Lembrar meus dados</span>
+              </label>
+            ) : null}
 
             {message ? (
               <p className={`toodledo-recovery-msg ${message.type === 'error' ? 'toodledo-msg-error' : ''}`} role="status">
@@ -941,6 +989,7 @@ function UpdatePasswordScreen({ onDone }: { onDone: () => void }) {
                 {loading ? 'Aguarde…' : 'Salvar nova senha'}
               </button>
             </div>
+
 
             {message ? (
               <p className={`toodledo-recovery-msg ${message.type === 'error' ? 'toodledo-msg-error' : ''}`} role="status">
@@ -1474,17 +1523,17 @@ export function App() {
                   <div className="bulk-bar-actions">
                     <button type="button" className="bulk-bar-button bulk-bar-button--clear" onClick={() => setSelectedTxIds(new Set())}><X size={15} /> Limpar seleção</button>
                     <button type="button" className="bulk-bar-button bulk-bar-button--success" disabled={selectedOpenInView.length === 0} onClick={() => setConfirmDialog({
-                      title: 'Marcar como efetivado',
-                      message: `Deseja marcar ${selectedOpenInView.length} ${selectedOpenInView.length === 1 ? 'transação em aberto' : 'transações em aberto'} como efetivado?`,
-                      confirmLabel: 'Efetivar',
+                      title: 'Efetivado',
+                      message: `Deseja efetivar ${selectedOpenInView.length} ${selectedOpenInView.length === 1 ? 'transação em aberto' : 'transações em aberto'}?`,
+                      confirmLabel: 'Efetivado',
                       onConfirm: bulkSettleSelectedTransactions,
-                    })}><CheckCircle2 size={15} /> Marcar como efetivo</button>
+                    })}><CheckCircle2 size={15} /> Efetivado</button>
                     <button type="button" className="bulk-bar-button" disabled={selectedSettledInView.length === 0} onClick={() => setConfirmDialog({
-                      title: 'Marcar como pendente',
-                      message: `Deseja marcar ${selectedSettledInView.length} ${selectedSettledInView.length === 1 ? 'transação efetivada' : 'transações efetivadas'} como pendente?`,
-                      confirmLabel: 'Marcar pendente',
+                      title: 'Desefetivar',
+                      message: `Deseja desefetivar ${selectedSettledInView.length} ${selectedSettledInView.length === 1 ? 'transação efetivada' : 'transações efetivadas'}?`,
+                      confirmLabel: 'Desefetivar',
                       onConfirm: bulkMarkSelectedTransactionsAsPending,
-                    })}><RotateCcw size={15} /> Marcar como pendente</button>
+                    })}><RotateCcw size={15} /> Desefetivar</button>
                     <button type="button" className="bulk-bar-button bulk-bar-button--danger" onClick={() => setConfirmDialog({
                       title: 'Excluir transações',
                       message: `Deseja excluir ${selectedInView.length} ${selectedInView.length === 1 ? 'transação selecionada' : 'transações selecionadas'}?`,
@@ -1875,11 +1924,11 @@ function LongPressOptionsModal({ item, onClose, onEdit, onSettle, onDelete, onMa
           </button>
           {item.status === 'open' ? (
             <button type="button" className="button-secondary" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', color: '#059669', borderColor: '#a7f3d0', backgroundColor: '#ecfdf5', fontWeight: 600 }} onClick={() => { onClose(); onSettle(); }}>
-              <CheckCircle2 size={18} /> Marcar como efetivado
+              <CheckCircle2 size={18} /> Efetivado
             </button>
           ) : (
             <button type="button" className="button-secondary" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', color: '#1B99D8', borderColor: '#bae6fd', backgroundColor: '#eff8ff', fontWeight: 600 }} onClick={() => { onClose(); onMarkPending(); }}>
-              <RotateCcw size={18} /> Marcar como pendente
+              <RotateCcw size={18} /> Desefetivar
             </button>
           )}
           <button type="button" className="button-secondary" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', fontWeight: 600 }} onClick={() => { onClose(); onEdit(); }}>
@@ -2000,7 +2049,7 @@ function SwipeableTransactionRow({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: offsetX > 20 ? 1 : 0, transition: 'opacity 0.2s ease' }}>
           <CheckCircle2 size={20} />
-          <span>Efetivar</span>
+          <span>Efetivado</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: offsetX < -20 ? 1 : 0, transition: 'opacity 0.2s ease' }}>
           <span>Excluir</span>
@@ -2055,8 +2104,8 @@ function SwipeableTransactionRow({
           <RowActions actions={[
             { key: 'edit', label: 'Editar', icon: <Pencil size={15} />, onClick: onEdit },
             ...(item.status === 'open'
-              ? [{ key: 'settle', label: item.type === 'income' ? 'Marcar como recebido' : 'Marcar como pago', icon: <CheckCircle2 size={15} />, onClick: onSettle }]
-              : [{ key: 'pending', label: 'Marcar como pendente', icon: <RotateCcw size={15} />, onClick: onMarkPending }]),
+              ? [{ key: 'settle', label: 'Efetivado', icon: <CheckCircle2 size={15} />, onClick: onSettle }]
+              : [{ key: 'pending', label: 'Desefetivar', icon: <RotateCcw size={15} />, onClick: onMarkPending }]),
             { key: 'delete', label: 'Excluir', icon: <Trash2 size={15} />, onClick: onDelete, danger: true },
           ]} />
         </span>
@@ -2129,6 +2178,22 @@ function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNav
   onChangeDate: (date: Date) => void;
   onNavigate: (page: AppPage) => void;
 }) {
+  const incomeExpenseChartRef = useRef<HTMLDivElement>(null);
+  const balanceChartRef = useRef<HTMLDivElement>(null);
+  const [incomeExpenseChartKey, setIncomeExpenseChartKey] = useState(0);
+  const [balanceChartKey, setBalanceChartKey] = useState(0);
+
+  useEffect(() => {
+    function closeChartTooltips(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!incomeExpenseChartRef.current?.contains(target)) setIncomeExpenseChartKey((key) => key + 1);
+      if (!balanceChartRef.current?.contains(target)) setBalanceChartKey((key) => key + 1);
+    }
+
+    document.addEventListener('pointerdown', closeChartTooltips);
+    return () => document.removeEventListener('pointerdown', closeChartTooltips);
+  }, []);
+
   const monthKeyValue = monthKey(referenceDate);
   const monthTransactions = transactions.filter((item) => item.dueDate.slice(0, 7) === monthKeyValue);
   const income = monthTransactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
@@ -2159,19 +2224,6 @@ function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNav
   const hasNegativeBalance = balanceValues.some((value) => value < 0);
   const balanceLowColor = hasNegativeBalance ? '#dc2626' : '#0284c7';
   const balanceColor = (value: number) => (value < 0 ? '#dc2626' : '#0284c7');
-  const renderBalanceLabel = ({ x, y, value }: BalanceLabelProps) => {
-    const balance = Number(value ?? 0);
-    const labelX = Number(x);
-    const labelY = Number(y);
-
-    if (Number.isNaN(labelX) || Number.isNaN(labelY)) return <g />;
-
-    return (
-      <text x={labelX} y={labelY + (balance < 0 ? 20 : -8)} textAnchor="middle" fill={balanceColor(balance)} fontSize={11} fontWeight={700}>
-        {formatCurrency(balance)}
-      </text>
-    );
-  };
   const renderBalanceDot = ({ cx, cy, payload }: BalanceDotProps) => {
     const dotX = Number(cx);
     const dotY = Number(cy);
@@ -2200,7 +2252,6 @@ function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNav
     .slice(0, 6);
 
 const hasData = transactions.length > 0;
-  const compact = (value: number) => (Math.abs(value) >= 1000 ? `${Math.round(value / 1000)}k` : String(value));
   const settledTotal = monthTransactions.filter((item) => item.status === 'settled').reduce((sum, item) => sum + item.amount, 0);
   const openTotal = pendingIncome + pendingExpense;
   const monthTotal = income + expense;
@@ -2264,13 +2315,12 @@ const hasData = transactions.length > 0;
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
               <div className="chart-head"><strong>Receitas x Despesas</strong><span>Últimos 6 meses</span></div>
-              <div className="chart-box chart-box--wide">
+              <div ref={incomeExpenseChartRef} className="chart-box chart-box--wide">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlySeries} margin={{ top: 12, right: 18, left: 0, bottom: 0 }}>
+                  <BarChart key={incomeExpenseChartKey} data={monthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis tickLine={false} axisLine={false} width={44} tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={compact} />
-                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                    <RechartsTooltip trigger="click" shared={false} formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Bar dataKey="Receitas" fill="#1B99D8" radius={[6, 6, 0, 0]} maxBarSize={30} />
                     <Bar dataKey="Despesas" fill="#dc2626" radius={[6, 6, 0, 0]} maxBarSize={30} />
@@ -2283,12 +2333,11 @@ const hasData = transactions.length > 0;
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
               <div className="chart-head"><strong>Saldo mensal</strong><span>Últimos 6 meses</span></div>
-              <div className="chart-box chart-box--wide">
+              <div ref={balanceChartRef} className="chart-box chart-box--wide">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={monthlySeries} margin={{ top: 28, right: 18, left: 0, bottom: 0 }}>
+                  <LineChart key={balanceChartKey} data={monthlySeries} margin={{ top: 18, right: 18, left: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <YAxis tickLine={false} axisLine={false} width={44} tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={compact} />
                     <defs>
                       <linearGradient id="balanceLineGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#0284c7" />
@@ -2298,10 +2347,8 @@ const hasData = transactions.length > 0;
                       </linearGradient>
                     </defs>
                     <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
-                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#bae6fd', strokeWidth: 1 }} />
-                    <Line type="monotone" dataKey="Saldo" stroke="url(#balanceLineGradient)" strokeWidth={3} dot={renderBalanceDot} activeDot={{ r: 6 }}>
-                      <LabelList dataKey="Saldo" content={renderBalanceLabel} />
-                    </Line>
+                    <RechartsTooltip trigger="click" formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#bae6fd', strokeWidth: 1 }} />
+                    <Line type="monotone" dataKey="Saldo" stroke="url(#balanceLineGradient)" strokeWidth={3} dot={renderBalanceDot} activeDot={{ r: 6 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -2966,30 +3013,62 @@ function HelpPage() {
     },
   ];
 
+  const updatesSection = {
+    title: 'Atualizações do sistema',
+    intro: 'Acompanhe as melhorias recentes aplicadas ao RubyLife para tornar o controle financeiro mais simples e direto.',
+    steps: [
+      'A navegação mobile recebeu ícones maiores e identificação mais clara da página ativa.',
+      'Os cards da visão geral foram atualizados para destacar receitas, despesas e o resultado mensal.',
+      'As ações das transações agora usam os termos Efetivado e Desefetivar em todo o sistema.',
+      'O login ganhou controle para mostrar a senha e a opção de lembrar os dados de acesso.',
+    ],
+  };
+  const [helpArea, setHelpArea] = useState<'guides' | 'updates'>('guides');
+  const [activeModule, setActiveModule] = useState('0');
+  const activeSection = helpArea === 'guides' ? sections[Number(activeModule)] ?? sections[0] : updatesSection;
+
   return (
-    <section className="help-page">
-      <div className="page-header help-header">
-        <div className="page-header-left">
-          <h1 className="page-title help-title">Central de ajuda</h1>
+    <section className="help-page help-center-page">
+      <header className="help-center-hero">
+        <div className="help-center-kicker"><BookOpen size={16} /> Manual prático do sistema</div>
+        <h1>Central de Ajuda</h1>
+        <p>Esta central segue o fluxo real do seu controle financeiro. Os módulos abaixo foram organizados para que você entenda cada etapa com clareza e encontre rapidamente onde agir no sistema.</p>
+        <div className="help-center-actions" role="group" aria-label="Área da Central de Ajuda">
+          <button type="button" className={helpArea === 'guides' ? 'active' : ''} onClick={() => setHelpArea('guides')} aria-pressed={helpArea === 'guides'}><BookOpen size={17} /> Guias do sistema</button>
+          <button type="button" className={helpArea === 'updates' ? 'active' : ''} onClick={() => setHelpArea('updates')} aria-pressed={helpArea === 'updates'}><Bell size={17} /> Atualizações</button>
         </div>
+      </header>
+
+      <div className="help-center-filters">
+        <label className="help-center-field">
+          <span>Área da central</span>
+          <select value={helpArea} onChange={(event) => setHelpArea(event.target.value as 'guides' | 'updates')}>
+            <option value="guides">Guias do sistema</option>
+            <option value="updates">Atualizações</option>
+          </select>
+        </label>
+        <label className="help-center-field">
+          <span>Módulo</span>
+          <select value={helpArea === 'guides' ? activeModule : 'updates'} onChange={(event) => setActiveModule(event.target.value)} disabled={helpArea === 'updates'}>
+            {helpArea === 'guides' ? sections.map((section, index) => <option key={section.title} value={String(index)}>{section.title.replace(/^\d+\.\s*/, '')}</option>) : <option value="updates">Atualizações recentes</option>}
+          </select>
+        </label>
       </div>
 
-      <div className="help-grid">
-        {sections.map((section) => (
-          <article className="help-card" key={section.title}>
-            <h2>{section.title}</h2>
-            <p className="help-card-intro">{section.intro}</p>
-            <ol className="help-step-list">
-              {section.steps.map((item, index) => (
-                <li key={item}>
-                  <span className="help-step-number">{index + 1}</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ol>
-          </article>
-        ))}
-      </div>
+      <article className="help-center-guide" aria-live="polite">
+        <div className="help-center-guide-heading"><h2>{helpArea === 'guides' ? 'Passo a passo' : 'Novidades'}</h2></div>
+        <div className="help-center-guide-context">
+          <strong>{activeSection.title.replace(/^\d+\.\s*/, '')}</strong>
+        </div>
+        <ol className="help-center-steps">
+          {activeSection.steps.map((item, index) => (
+            <li key={item}>
+              <span className="help-center-step-number">{index + 1}</span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ol>
+      </article>
     </section>
   );
 }
@@ -3068,7 +3147,8 @@ function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionF
       <div className="topbar-desktop-shell">
         <div className="topbar-left">
           <button type="button" className="brand brand-btn" aria-label="Ir para transações" onClick={() => onNavigate('transactions')}>
-            <img className="topbar-logo" src={rubyLogoColor} alt="RubyLife" />
+            <img className="topbar-logo topbar-logo--desktop" src={rubyLogoColor} alt="RubyLife" />
+            <img className="topbar-logo topbar-logo--mobile" src={rubyDiamond} alt="RubyLife" />
           </button>
           <div className="topbar-separator" />
           <nav className="breadcrumbs" aria-label="Breadcrumb"><Home className="home-icon" /><ChevronRight size={13} className="breadcrumb-chevron" /><span className="breadcrumb-active">{PAGE_LABELS[activePage]}</span></nav>
