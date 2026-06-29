@@ -735,7 +735,7 @@ function LoginScreen() {
     if (mode === 'recovery') {
       if (!email) return;
       setLoading(true);
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
       setLoading(false);
       setMessage(error
         ? { text: translateAuthError(error.message), type: 'error' }
@@ -868,9 +868,92 @@ function LoginScreen() {
     </main>
   );
 }
+function UpdatePasswordScreen({ onDone }: { onDone: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    if (password.length < 6) {
+      setMessage({ text: 'A senha deve ter pelo menos 6 caracteres.', type: 'error' });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setMessage({ text: 'As senhas não coincidem. Verifique e tente novamente.', type: 'error' });
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) {
+      setMessage({ text: translateAuthError(error.message), type: 'error' });
+      return;
+    }
+    setMessage({ text: 'Senha atualizada com sucesso!', type: 'success' });
+    window.setTimeout(onDone, 900);
+  }
+
+  return (
+    <main className="toodledo-login-shell" aria-label="Definir nova senha">
+      <div className="toodledo-login-container">
+        <div className="toodledo-brand-side">
+          <div className="toodledo-logo-wrapper">
+            <img className="toodledo-logo-image" src={caesarFinanceLogo} alt="Caesar Finance" />
+          </div>
+        </div>
+
+        <div className="toodledo-divider" aria-hidden="true" />
+
+        <div className="toodledo-form-side">
+          <form className="toodledo-form" onSubmit={handleSubmit}>
+            <h1 className="toodledo-form-title">Definir nova senha</h1>
+
+            <div className="toodledo-inputs">
+              <input
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                type="password"
+                placeholder="Nova senha"
+                autoComplete="new-password"
+                required
+                className="toodledo-input"
+              />
+              <input
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                type="password"
+                placeholder="Confirmar nova senha"
+                autoComplete="new-password"
+                required
+                className="toodledo-input"
+              />
+            </div>
+
+            <div className="toodledo-main-action">
+              <button className="toodledo-submit" type="submit" disabled={loading}>
+                {loading ? 'Aguarde…' : 'Salvar nova senha'}
+              </button>
+            </div>
+
+            {message ? (
+              <p className={`toodledo-recovery-msg ${message.type === 'error' ? 'toodledo-msg-error' : ''}`} role="status">
+                {message.text}
+              </p>
+            ) : null}
+          </form>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const userId = session?.user.id;
@@ -933,7 +1016,8 @@ export function App() {
       setSession(data.session);
       setAuthReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
       setSession(nextSession);
     });
     return () => sub.subscription.unsubscribe();
@@ -1277,6 +1361,8 @@ export function App() {
   }
 
   if (showSplash || !authReady) return <SplashScreen />;
+
+  if (recoveryMode) return <UpdatePasswordScreen onDone={() => setRecoveryMode(false)} />;
 
   if (!session) return <LoginScreen />;
 
