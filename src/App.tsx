@@ -704,8 +704,8 @@ function generateTransactions(form: LaunchForm, type: TransactionType): Transact
 
 function SplashScreen() {
   return (
-    <div className="splash-screen" role="status" aria-label="Carregando Caesar Finance">
-      <img className="splash-logo" src={caesarFinanceLogo} alt="Caesar Finance" />
+    <div className="splash-screen" role="status" aria-label="Carregando RubyLife">
+      <img className="splash-logo" src={caesarFinanceLogo} alt="RubyLife" />
       <span className="splash-spinner" aria-hidden="true" />
     </div>
   );
@@ -777,11 +777,11 @@ function LoginScreen() {
   }
 
   return (
-    <main className="toodledo-login-shell" aria-label="Login Caesar Finance">
+    <main className="toodledo-login-shell" aria-label="Login RubyLife">
       <div className="toodledo-login-container">
         <div className="toodledo-brand-side">
           <div className="toodledo-logo-wrapper">
-            <img className="toodledo-logo-image" src={caesarFinanceLogo} alt="Caesar Finance" />
+            <img className="toodledo-logo-image" src={caesarFinanceLogo} alt="RubyLife" />
           </div>
         </div>
 
@@ -902,7 +902,7 @@ function UpdatePasswordScreen({ onDone }: { onDone: () => void }) {
       <div className="toodledo-login-container">
         <div className="toodledo-brand-side">
           <div className="toodledo-logo-wrapper">
-            <img className="toodledo-logo-image" src={caesarFinanceLogo} alt="Caesar Finance" />
+            <img className="toodledo-logo-image" src={caesarFinanceLogo} alt="RubyLife" />
           </div>
         </div>
 
@@ -2894,7 +2894,7 @@ function HelpPage() {
   const sections = [
     {
       title: '1. Como o sistema funciona',
-      intro: 'O Caesar Finance organiza sua vida financeira por mês. A ideia é cadastrar a base correta, lançar receitas e despesas, acompanhar o que está em aberto e conferir tudo pelos relatórios.',
+      intro: 'O RubyLife organiza sua vida financeira por mês. A ideia é cadastrar a base correta, lançar receitas e despesas, acompanhar o que está em aberto e conferir tudo pelos relatórios.',
       steps: [
         'Use a Visão Geral para acompanhar o resumo do mês: receita prevista, despesa prevista, saldo, valores a receber, valores a pagar e evolução dos lançamentos.',
         'Use Transações para registrar tudo que entra e sai. É nessa aba que você controla vencimento, categoria, recorrência, status e conta vinculada.',
@@ -3068,7 +3068,7 @@ function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionF
             <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="17" y="50" width="15" height="35" rx="4" fill="var(--primary)" /><rect x="43" y="30" width="15" height="55" rx="4" fill="var(--primary)" /><rect x="69" y="15" width="15" height="70" rx="4" fill="var(--primary)" /></svg>
           </button>
           <div className="topbar-separator" />
-          <nav className="breadcrumbs" aria-label="Breadcrumb"><Home className="home-icon" /><ChevronRight size={13} className="breadcrumb-chevron" /><span>Caesar Finance</span><ChevronRight size={13} className="breadcrumb-chevron" /><span className="breadcrumb-active">{PAGE_LABELS[activePage]}</span></nav>
+          <nav className="breadcrumbs" aria-label="Breadcrumb"><Home className="home-icon" /><ChevronRight size={13} className="breadcrumb-chevron" /><span>RubyLife</span><ChevronRight size={13} className="breadcrumb-chevron" /><span className="breadcrumb-active">{PAGE_LABELS[activePage]}</span></nav>
         </div>
         <div className="topbar-right">
           {activePage === 'transactions' ? (
