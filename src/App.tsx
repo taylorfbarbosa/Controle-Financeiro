@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { readSheet, type Row } from 'read-excel-file/browser';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -1791,10 +1792,14 @@ function RowActions({ actions }: { actions: RowAction[] }) {
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    function onDown(event: PointerEvent) { if (!wrapRef.current?.contains(event.target as Node)) setOpen(false); }
+    function onDown(event: PointerEvent) {
+      const target = event.target as Node;
+      if (!wrapRef.current?.contains(target) && !menuRef.current?.contains(target)) setOpen(false);
+    }
     function onEsc(event: KeyboardEvent) { if (event.key === 'Escape') setOpen(false); }
     function onScroll() { setOpen(false); }
     document.addEventListener('pointerdown', onDown);
@@ -1810,7 +1815,11 @@ function RowActions({ actions }: { actions: RowAction[] }) {
   function toggle() {
     if (!open && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 6, left: Math.max(12, rect.right - 196) });
+      const menuWidth = 196;
+      const menuHeight = actions.length * 40 + 12;
+      const top = rect.bottom + 6 + menuHeight > window.innerHeight ? rect.top - 6 - menuHeight : rect.bottom + 6;
+      const left = Math.min(window.innerWidth - menuWidth - 12, Math.max(12, rect.right - menuWidth));
+      setPos({ top: Math.max(12, top), left });
     }
     setOpen((value) => !value);
   }
@@ -1820,16 +1829,19 @@ function RowActions({ actions }: { actions: RowAction[] }) {
       <button type="button" ref={buttonRef} className={`row-actions-trigger${open ? ' active' : ''}`} aria-label="Ações" aria-haspopup="menu" aria-expanded={open} onClick={toggle}>
         <MoreVertical size={16} />
       </button>
-      {open ? (
-        <div className="row-actions-menu" role="menu" style={{ top: pos.top, left: pos.left }}>
-          {actions.map((action) => (
-            <button key={action.key} type="button" role="menuitem" className={`row-actions-item${action.danger ? ' row-actions-item--danger' : ''}`} onClick={() => { setOpen(false); action.onClick(); }}>
-              {action.icon}
-              {action.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {open
+        ? createPortal(
+            <div className="row-actions-menu" role="menu" ref={menuRef} style={{ top: pos.top, left: pos.left }}>
+              {actions.map((action) => (
+                <button key={action.key} type="button" role="menuitem" className={`row-actions-item${action.danger ? ' row-actions-item--danger' : ''}`} onClick={() => { setOpen(false); action.onClick(); }}>
+                  {action.icon}
+                  {action.label}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
