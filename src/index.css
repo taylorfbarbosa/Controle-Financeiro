@@ -32,7 +32,7 @@ body,
 #root {
   width: 100%;
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100svh;
   overflow: hidden;
   background: var(--bg-color);
   color: var(--text-primary);
@@ -62,8 +62,8 @@ button {
 .app-layout {
   display: flex;
   width: 100%;
-  height: 100dvh;
-  min-height: 100dvh;
+  height: 100svh;
+  min-height: 100svh;
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-color);
@@ -280,7 +280,7 @@ button {
 .sidebar {
   display: flex;
   width: var(--sidebar-width);
-  height: calc(100dvh - var(--topbar-height));
+  height: calc(100svh - var(--topbar-height));
   flex-shrink: 0;
   flex-direction: column;
   align-items: stretch;
@@ -1901,7 +1901,7 @@ button {
 .modal-card {
   display: flex;
   width: min(100%, 720px);
-  max-height: calc(100dvh - 48px);
+  max-height: calc(100svh - 48px);
   flex-direction: column;
   overflow: hidden;
   border: 1px solid #dbe7ec;
@@ -3322,7 +3322,7 @@ button {
   }
 
   .modal-card {
-    max-height: calc(100dvh - 24px);
+    max-height: calc(100svh - 24px);
     border-radius: 18px;
   }
 
@@ -3352,7 +3352,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100dvh;
+  min-height: 100svh;
   width: 100%;
   padding: 24px;
   overflow: hidden;
@@ -3712,14 +3712,14 @@ button {
   }
 
   .app-layout {
-    height: 100dvh;
-    min-height: 100dvh;
+    height: 100svh;
+    min-height: 100svh;
     overflow: hidden;
     background: #ffffff !important;
   }
 
   .content-layout {
-    height: calc(100dvh - var(--topbar-height));
+    height: calc(100svh - var(--topbar-height));
     overflow: hidden;
   }
 
@@ -5321,7 +5321,7 @@ button {
     z-index: 800 !important;
     display: flex !important;
     width: 100vw !important;
-    height: 100dvh !important;
+    height: 100svh !important;
     flex-direction: column;
     overflow: hidden !important;
     border: 0 !important;
@@ -5399,7 +5399,7 @@ button {
     position: fixed !important;
     inset: 0 !important;
     width: 100vw !important;
-    height: 100dvh !important;
+    height: 100svh !important;
     max-height: none !important;
     border: 0 !important;
     border-radius: 0 !important;
@@ -6594,7 +6594,7 @@ button {
     z-index: 700 !important;
     display: flex;
     width: 100vw !important;
-    height: 100dvh !important;
+    height: 100svh !important;
     max-height: none !important;
     flex-direction: column;
     overflow: hidden;
@@ -6720,7 +6720,7 @@ button {
     position: fixed !important;
     inset: 0 !important;
     width: 100vw !important;
-    height: 100dvh !important;
+    height: 100svh !important;
     max-width: none !important;
     max-height: none !important;
     margin: 0 !important;
@@ -7071,7 +7071,7 @@ button {
     z-index: 800 !important;
     display: flex !important;
     width: 100vw !important;
-    height: 100dvh !important;
+    height: 100svh !important;
     max-height: none !important;
     flex-direction: column;
     overflow: hidden !important;
@@ -8493,5 +8493,16 @@ button {
   }
   .topbar-logo {
     height: 22px;
+  }
+
+  /* Mobile: nunca rolar na horizontal — só vertical */
+  html,
+  body,
+  #root,
+  .app-layout,
+  .content-layout,
+  .main-content {
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }
