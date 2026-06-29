@@ -2132,6 +2132,8 @@ function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNav
   const balanceMax = Math.max(...balanceValues, 0);
   const balanceRange = balanceMax - balanceMin;
   const balanceZeroOffset = balanceRange === 0 ? 0 : (balanceMax / balanceRange) * 100;
+  const hasNegativeBalance = balanceValues.some((value) => value < 0);
+  const balanceLowColor = hasNegativeBalance ? '#dc2626' : '#0284c7';
   const balanceColor = (value: number) => (value < 0 ? '#dc2626' : '#0284c7');
   const renderBalanceLabel = ({ x, y, value }: BalanceLabelProps) => {
     const balance = Number(value ?? 0);
@@ -2267,8 +2269,8 @@ const hasData = transactions.length > 0;
                       <linearGradient id="balanceLineGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#0284c7" />
                         <stop offset={`${balanceZeroOffset}%`} stopColor="#0284c7" />
-                        <stop offset={`${balanceZeroOffset}%`} stopColor="#dc2626" />
-                        <stop offset="100%" stopColor="#dc2626" />
+                        <stop offset={`${balanceZeroOffset}%`} stopColor={balanceLowColor} />
+                        <stop offset="100%" stopColor={balanceLowColor} />
                       </linearGradient>
                     </defs>
                     <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
