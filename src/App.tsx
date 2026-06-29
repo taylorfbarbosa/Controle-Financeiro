@@ -1017,15 +1017,20 @@ export function App() {
 
   // Sessão do Supabase: lê a atual e escuta login/logout.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setAuthReady(true);
-    });
+    let settled = false;
+    // Garante que o app saia do splash mesmo se getSession falhar/demorar
+    // (ex.: Safari mobile com storage bloqueado).
+    const fallback = window.setTimeout(() => { if (!settled) setAuthReady(true); }, 4000);
+    supabase.auth.getSession()
+      .then(({ data }) => { setSession(data.session); })
+      .catch((error) => { console.error('Falha ao obter sessão:', error); })
+      .finally(() => { settled = true; window.clearTimeout(fallback); setAuthReady(true); });
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true);
       setSession(nextSession);
+      setAuthReady(true);
     });
-    return () => sub.subscription.unsubscribe();
+    return () => { window.clearTimeout(fallback); sub.subscription.unsubscribe(); };
   }, []);
 
   // Carrega os dados do usuário quando há sessão; limpa ao sair.
