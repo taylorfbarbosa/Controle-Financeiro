@@ -6676,7 +6676,7 @@ button {
     width: 220px;
     max-width: none;
     transform: translate(-50%, -52%);
-    filter: invert(1) hue-rotate(180deg);
+    filter: none;
   }
 
   .toodledo-form-title {
@@ -7008,7 +7008,7 @@ button {
     max-width: none;
     margin: -80px 0;
     transform: none;
-    filter: invert(1) hue-rotate(180deg);
+    filter: none;
   }
 }
 /* Cores funcionais das ações de Metas em todas as telas */
@@ -8464,4 +8464,34 @@ button {
 
 .splash-spinner {
   margin-top: 4px;
+}
+
+/* ===== Logo RubyLife ===== */
+/* Topo (fundo branco): wordmark colorido */
+.topbar-logo {
+  display: block;
+  height: 26px;
+  width: auto;
+}
+
+/* Login/recuperar: branca no fundo azul (desktop), colorida no fundo branco (mobile) */
+.toodledo-logo-image--light { display: block; }
+.toodledo-logo-image--dark { display: none; }
+
+@media (max-width: 760px) {
+  /* Login mobile tem fundo branco: usa a logo colorida */
+  .toodledo-logo-image--light { display: none; }
+  .toodledo-logo-image--dark { display: block; }
+
+  /* Topo mobile: mostra o wordmark inteiro (sem o circulo fixo) */
+  .brand-btn {
+    width: auto !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .topbar-logo {
+    height: 22px;
+  }
 }

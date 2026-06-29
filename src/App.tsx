@@ -6,7 +6,8 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import type { Session } from '@supabase/supabase-js';
-import caesarFinanceLogo from './assets/caesar-finance-logo.png';
+import rubyLogoWhite from './assets/rubylife-white.png';
+import rubyLogoColor from './assets/rubylife-color.png';
 import { supabase } from './lib/supabase';
 import { loadAll, syncAccounts, syncCategories, syncGoals, syncTransactions } from './lib/db';
 import {
@@ -705,7 +706,7 @@ function generateTransactions(form: LaunchForm, type: TransactionType): Transact
 function SplashScreen() {
   return (
     <div className="splash-screen" role="status" aria-label="Carregando RubyLife">
-      <img className="splash-logo" src={caesarFinanceLogo} alt="RubyLife" />
+      <img className="splash-logo" src={rubyLogoWhite} alt="RubyLife" />
       <span className="splash-spinner" aria-hidden="true" />
     </div>
   );
@@ -781,7 +782,8 @@ function LoginScreen() {
       <div className="toodledo-login-container">
         <div className="toodledo-brand-side">
           <div className="toodledo-logo-wrapper">
-            <img className="toodledo-logo-image" src={caesarFinanceLogo} alt="RubyLife" />
+            <img className="toodledo-logo-image toodledo-logo-image--light" src={rubyLogoWhite} alt="RubyLife" />
+            <img className="toodledo-logo-image toodledo-logo-image--dark" src={rubyLogoColor} alt="RubyLife" />
           </div>
         </div>
 
@@ -902,7 +904,8 @@ function UpdatePasswordScreen({ onDone }: { onDone: () => void }) {
       <div className="toodledo-login-container">
         <div className="toodledo-brand-side">
           <div className="toodledo-logo-wrapper">
-            <img className="toodledo-logo-image" src={caesarFinanceLogo} alt="RubyLife" />
+            <img className="toodledo-logo-image toodledo-logo-image--light" src={rubyLogoWhite} alt="RubyLife" />
+            <img className="toodledo-logo-image toodledo-logo-image--dark" src={rubyLogoColor} alt="RubyLife" />
           </div>
         </div>
 
@@ -3065,10 +3068,10 @@ function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionF
       <div className="topbar-desktop-shell">
         <div className="topbar-left">
           <button type="button" className="brand brand-btn" aria-label="Ir para transações" onClick={() => onNavigate('transactions')}>
-            <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="17" y="50" width="15" height="35" rx="4" fill="var(--primary)" /><rect x="43" y="30" width="15" height="55" rx="4" fill="var(--primary)" /><rect x="69" y="15" width="15" height="70" rx="4" fill="var(--primary)" /></svg>
+            <img className="topbar-logo" src={rubyLogoColor} alt="RubyLife" />
           </button>
           <div className="topbar-separator" />
-          <nav className="breadcrumbs" aria-label="Breadcrumb"><Home className="home-icon" /><ChevronRight size={13} className="breadcrumb-chevron" /><span>RubyLife</span><ChevronRight size={13} className="breadcrumb-chevron" /><span className="breadcrumb-active">{PAGE_LABELS[activePage]}</span></nav>
+          <nav className="breadcrumbs" aria-label="Breadcrumb"><Home className="home-icon" /><ChevronRight size={13} className="breadcrumb-chevron" /><span className="breadcrumb-active">{PAGE_LABELS[activePage]}</span></nav>
         </div>
         <div className="topbar-right">
           {activePage === 'transactions' ? (
