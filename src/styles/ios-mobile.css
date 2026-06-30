@@ -1,0 +1,454 @@
+/* =====================================================================
+   RubyLife — Camada de estilo iOS (mobile)
+   ---------------------------------------------------------------------
+   Reskin "padrão Apple" aplicado APENAS no mobile (<= 760px).
+   Não altera o desktop. Importado depois do index.css em main.tsx.
+   Linguagem: Apple Human Interface Guidelines (iOS) — tipografia SF,
+   fundos agrupados, barras translúcidas, listas inset, bottom sheets.
+   Accent mantém a marca RubyLife (#1B99D8). Suporta claro + escuro.
+   ===================================================================== */
+
+@media (max-width: 760px) {
+  :root {
+    /* Tipografia do sistema (SF Pro em dispositivos Apple) */
+    --ios-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+      'Segoe UI', system-ui, 'Helvetica Neue', Arial, sans-serif;
+
+    /* Cor da marca (mantida) */
+    --ios-accent: #1b99d8;
+    --ios-accent-press: #1784ba;
+
+    /* Paleta iOS — modo claro */
+    --ios-bg: #f2f2f7;           /* systemGroupedBackground */
+    --ios-bg-elevated: #ffffff;  /* barras / topo */
+    --ios-card: #ffffff;         /* secondarySystemGroupedBackground */
+    --ios-card-press: #ededf2;
+    --ios-fill: rgba(118, 118, 128, 0.12);   /* tertiarySystemFill (inputs) */
+    --ios-fill-strong: rgba(118, 118, 128, 0.2);
+    --ios-label: #1c1c1e;
+    --ios-label-2: rgba(60, 60, 67, 0.6);    /* secondaryLabel */
+    --ios-label-3: rgba(60, 60, 67, 0.3);    /* tertiaryLabel */
+    --ios-separator: rgba(60, 60, 67, 0.29);
+    --ios-separator-opaque: #e5e5ea;
+    --ios-red: #ff3b30;
+    --ios-green: #34c759;
+
+    /* Barras translúcidas */
+    --ios-bar: rgba(249, 249, 249, 0.82);
+    --ios-bar-border: rgba(0, 0, 0, 0.18);
+
+    /* Raio e sombra */
+    --ios-radius: 12px;
+    --ios-radius-lg: 16px;
+    --ios-radius-sheet: 14px;
+    --ios-shadow-sheet: 0 -1px 0 rgba(0, 0, 0, 0.04);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ios-accent: #1fa6e6;
+      --ios-accent-press: #46b7eb;
+
+      --ios-bg: #000000;
+      --ios-bg-elevated: #1c1c1e;
+      --ios-card: #1c1c1e;
+      --ios-card-press: #2c2c2e;
+      --ios-fill: rgba(118, 118, 128, 0.24);
+      --ios-fill-strong: rgba(118, 118, 128, 0.36);
+      --ios-label: #ffffff;
+      --ios-label-2: rgba(235, 235, 245, 0.6);
+      --ios-label-3: rgba(235, 235, 245, 0.3);
+      --ios-separator: rgba(84, 84, 88, 0.65);
+      --ios-separator-opaque: #38383a;
+      --ios-red: #ff453a;
+      --ios-green: #30d158;
+
+      --ios-bar: rgba(30, 30, 32, 0.8);
+      --ios-bar-border: rgba(255, 255, 255, 0.15);
+    }
+  }
+
+  /* ---------- Base ---------- */
+  * {
+    font-family: var(--ios-font);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body,
+  #root,
+  .app-layout {
+    background: var(--ios-bg);
+    color: var(--ios-label);
+  }
+
+  .main-content {
+    background: var(--ios-bg);
+    color: var(--ios-label);
+    padding: 16px 16px calc(60px + env(safe-area-inset-bottom) + 16px);
+  }
+
+  /* ---------- Nav bar (topbar) ---------- */
+  .topbar {
+    height: calc(50px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 12px 0;
+    background: var(--ios-bar);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 0.5px solid var(--ios-bar-border);
+    box-shadow: none;
+  }
+
+  .topbar .breadcrumbs .home-icon,
+  .topbar .breadcrumb-chevron {
+    display: none;
+  }
+
+  .topbar .breadcrumb-active {
+    color: var(--ios-label);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+
+  /* Botões de ação da nav bar = estilo "plain" iOS (texto/ícone accent) */
+  .topbar-more-button,
+  .topbar-account-filter-button,
+  .topbar-category-filter-button,
+  .topbar-goal-filter-button {
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ios-accent);
+  }
+
+  .topbar-more-button:active,
+  .topbar-account-filter-button:active,
+  .topbar-category-filter-button:active,
+  .topbar-goal-filter-button:active {
+    background: var(--ios-fill);
+  }
+
+  .topbar-actions-popover {
+    border-radius: 14px;
+    border: 0.5px solid var(--ios-separator);
+    background: var(--ios-bg-elevated);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+  }
+
+  .topbar-actions-popover button {
+    color: var(--ios-label);
+  }
+
+  .topbar-actions-popover button:active {
+    background: var(--ios-fill);
+  }
+
+  /* ---------- Large title ---------- */
+  .page-title {
+    color: var(--ios-label);
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    line-height: 1.12;
+  }
+
+  .page-subtitle {
+    color: var(--ios-label-2);
+    font-size: 15px;
+  }
+
+  /* ---------- Cards / painéis agrupados ---------- */
+  .resource-panel,
+  .chart-panel,
+  .dashboard-category-panel,
+  .goals-overview-panel,
+  .report-cards-section,
+  .signature-stat-card,
+  .transaction-summary-card,
+  .report-summary-card,
+  .goal-card {
+    background: var(--ios-card);
+    border-radius: var(--ios-radius-lg);
+    border: 0;
+    box-shadow: none;
+  }
+
+  /* Texto dentro dos cards adapta ao tema */
+  .signature-stat-card,
+  .transaction-summary-card,
+  .report-summary-card,
+  .goal-card,
+  .resource-panel {
+    color: var(--ios-label);
+  }
+
+  /* ---------- Listas inset (linhas) ---------- */
+  .documents-report-row {
+    background: var(--ios-card);
+    border-color: var(--ios-separator) !important;
+    color: var(--ios-label);
+  }
+
+  .documents-report-row + .documents-report-row {
+    border-top: 0.5px solid var(--ios-separator);
+  }
+
+  .documents-report-row:active {
+    background: var(--ios-card-press);
+  }
+
+  .documents-report-row.is-selected {
+    background: color-mix(in srgb, var(--ios-accent) 12%, var(--ios-card));
+  }
+
+  .mobile-date-separator {
+    color: var(--ios-label-2);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    text-transform: none;
+    padding: 18px 4px 8px;
+  }
+
+  /* ---------- Botões ---------- */
+  .page-primary-action,
+  .button-primary {
+    min-height: 50px;
+    border-radius: var(--ios-radius);
+    background: var(--ios-accent);
+    box-shadow: none;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+
+  .page-primary-action:hover,
+  .button-primary:hover {
+    background: var(--ios-accent);
+    transform: none;
+  }
+
+  .page-primary-action:active,
+  .button-primary:active {
+    background: var(--ios-accent-press);
+    transform: scale(0.985);
+  }
+
+  .button-secondary,
+  .page-secondary-action,
+  .filter-trigger {
+    min-height: 50px;
+    border-radius: var(--ios-radius);
+    border: 0;
+    background: var(--ios-fill);
+    color: var(--ios-accent);
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  .button-secondary:active,
+  .page-secondary-action:active,
+  .filter-trigger:active {
+    background: var(--ios-fill-strong);
+  }
+
+  .button-danger {
+    min-height: 50px;
+    border-radius: var(--ios-radius);
+    font-size: 17px;
+    font-weight: 600;
+  }
+
+  /* FAB de adicionar: pílula compacta accent, acima da tab bar */
+  .page-header-actions .page-primary-action.btn-icon-only {
+    width: 56px !important;
+    height: 56px;
+    min-height: 56px;
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(27, 153, 216, 0.35);
+  }
+
+  /* ---------- Campos de formulário ---------- */
+  .form-label,
+  .filter-field span,
+  .profile-field span {
+    color: var(--ios-label-2);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .form-input,
+  .form-input-wrap,
+  .filter-field input,
+  .filter-field select,
+  .profile-input-wrap {
+    min-height: 44px;
+    border-radius: 10px;
+    border: 0.5px solid var(--ios-separator);
+    background: var(--ios-card);
+    color: var(--ios-label);
+    font-size: 17px;
+  }
+
+  .form-input::placeholder {
+    color: var(--ios-label-3);
+  }
+
+  .form-input:focus,
+  .form-input-wrap:focus-within,
+  .filter-field input:focus,
+  .filter-field select:focus {
+    border-color: var(--ios-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ios-accent) 18%, transparent);
+  }
+
+  /* ---------- Tab bar inferior (estilo iOS, adapta ao tema) ---------- */
+  .mobile-tab-bar {
+    height: calc(50px + env(safe-area-inset-bottom));
+    background: var(--ios-bar);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-top: 0.5px solid var(--ios-bar-border);
+  }
+
+  .mobile-tab-item {
+    gap: 4px;
+    color: var(--ios-label-2);
+  }
+
+  .mobile-tab-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  .mobile-tab-item--active,
+  .mobile-tab-item.active {
+    color: var(--ios-accent);
+  }
+
+  /* ---------- Bottom sheets ---------- */
+  .modal-overlay {
+    background: rgba(0, 0, 0, 0.4);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal-card {
+    width: 100% !important;
+    max-width: 100%;
+    max-height: 92svh;
+    border: 0;
+    border-radius: var(--ios-radius-sheet) var(--ios-radius-sheet) 0 0;
+    background: var(--ios-bg-elevated);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: var(--ios-shadow-sheet);
+  }
+
+  /* Grabber (puxador) no topo da folha */
+  .modal-card::before,
+  .mobile-more-sheet::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--ios-label-3);
+    z-index: 2;
+  }
+
+  .modal-card {
+    position: relative;
+  }
+
+  .modal-header {
+    padding-top: 22px;
+    border-bottom: 0.5px solid var(--ios-separator);
+  }
+
+  .modal-title {
+    color: var(--ios-label);
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .modal-close-button {
+    color: var(--ios-accent);
+  }
+
+  .modal-body {
+    color: var(--ios-label);
+  }
+
+  .confirmation-message p {
+    color: var(--ios-label-2);
+  }
+
+  .confirmation-message strong {
+    color: var(--ios-label);
+  }
+
+  /* Menu "Mais" e popovers herdam superfície do tema */
+  .mobile-more-sheet {
+    position: relative;
+    padding-top: 22px;
+    background: var(--ios-bg-elevated);
+    border-radius: var(--ios-radius-sheet) var(--ios-radius-sheet) 0 0;
+  }
+
+  .mobile-more-item {
+    color: var(--ios-label);
+    font-size: 17px;
+    font-weight: 400;
+  }
+
+  .mobile-more-item:hover,
+  .mobile-more-item:active {
+    background: var(--ios-fill);
+  }
+
+  .mobile-more-item--logout {
+    color: var(--ios-red);
+  }
+
+  .mobile-more-item--logout:hover,
+  .mobile-more-item--logout:active {
+    background: color-mix(in srgb, var(--ios-red) 12%, transparent);
+  }
+
+  .mobile-more-divider {
+    border-top-color: var(--ios-separator);
+  }
+
+  .mobile-more-user strong {
+    color: var(--ios-label);
+  }
+
+  .mobile-more-user span {
+    color: var(--ios-label-2);
+  }
+
+  .mobile-more-user:hover,
+  .mobile-more-user:active {
+    background: var(--ios-fill);
+  }
+
+  /* Filtros em popover viram folha clara/escura coerente */
+  .filter-popover {
+    background: var(--ios-bg-elevated);
+    border: 0.5px solid var(--ios-separator);
+    border-radius: 14px;
+    color: var(--ios-label);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  }
+}
