@@ -3276,13 +3276,20 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
   };
 
   const hasData = transactions.length > 0;
-  const settledTotal = monthTransactions.filter((item) => item.status === 'settled').reduce((sum, item) => sum + item.amount, 0);
+  const monthTransactions = useMemo(
+    () => transactions.filter((item) => item.dueDate.slice(0, 7) === monthKeyValue),
+    [transactions, monthKeyValue],
+  );
+  const settledTotal = useMemo(
+    () => monthTransactions.filter((item) => item.status === 'settled').reduce((sum, item) => sum + item.amount, 0),
+    [monthTransactions],
+  );
   const openTotal = pendingIncome + pendingExpense;
   const monthTotal = income + expense;
   const settledPercent = monthTotal > 0 ? Math.round((settledTotal / monthTotal) * 100) : 0;
 
   // Relatório de transações do mês (listar + exportar)
-  const reportItems = [...monthTransactions].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const reportItems = useMemo(() => [...monthTransactions].sort((a, b) => a.dueDate.localeCompare(b.dueDate)), [monthTransactions]);
   const exportMonthLabel = `${MONTH_OPTIONS[referenceDate.getMonth()]?.label ?? ''} de ${referenceDate.getFullYear()}`;
   const reportTitle = `Relatório de ${exportMonthLabel}`;
   const exportPdf = () => exportReportPdf(reportItems, reportTitle);
