@@ -3534,14 +3534,11 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
                   </div>
 
                   <div className="goal-card-buttons">
-                    <button type="button" className="goal-button goal-button--deposit" onClick={() => onDeposit(goal)}><Plus size={15} /> <span className="goal-btn-text">Depositar</span></button>
-                    <button type="button" className="goal-button goal-button--withdraw" onClick={() => onWithdraw(goal)} disabled={saved <= 0}><Minus size={15} /> <span className="goal-btn-text">Resgatar</span></button>
-                    {goal.movements.length > 0 ? (
-                      <button type="button" className="goal-view-movements" onClick={() => setMovementsGoal(goal)} title="Ver lançamentos">
-                        <ReceiptText size={15} />
-                        <span className="goal-view-movements-text">Lançamentos ({goal.movements.length})</span>
-                      </button>
-                    ) : null}
+                    <button type="button" className="goal-button goal-button--deposit" onClick={() => onDeposit(goal)}><Plus size={15} /><span className="goal-btn-text">Depositar</span></button>
+                    <button type="button" className="goal-button goal-button--withdraw" onClick={() => onWithdraw(goal)} disabled={saved <= 0}><Minus size={15} /><span className="goal-btn-text">Resgatar</span></button>
+                    <button type="button" className="goal-button goal-history-btn" onClick={() => setMovementsGoal(goal)} title="Ver histórico">
+                      <ReceiptText size={15} /><span className="goal-btn-text">Histórico{goal.movements.length > 0 ? ` (${goal.movements.length})` : ''}</span>
+                    </button>
                   </div>
 
                   <div className="goal-card-actions">

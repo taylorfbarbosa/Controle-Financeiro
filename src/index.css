@@ -2941,6 +2941,10 @@ button {
   gap: 10px;
 }
 
+.goal-history-btn {
+  display: none;
+}
+
 .goal-button {
   display: inline-flex;
   height: 38px;
@@ -3048,8 +3052,21 @@ button {
   }
 
   .goal-card-buttons .goal-button {
-    height: 38px;
-    padding: 0 14px;
+    height: 40px;
+    padding: 0 16px;
+    font-size: 13px;
+  }
+
+  .goal-history-btn {
+    display: inline-flex;
+    border-color: #d1d5db;
+    color: #64748b;
+  }
+
+  .goal-history-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #334155;
   }
 
   .goal-view-movements {
@@ -7247,7 +7264,7 @@ button {
 
   .main-content--goals .goal-progress {
     display: grid;
-    grid-template-rows: auto 8px auto;
+    grid-template-rows: auto 4px auto;
     gap: 9px;
   }
 
@@ -7262,7 +7279,7 @@ button {
 
   .main-content--goals .goal-progress-bar {
     grid-row: 2;
-    height: 8px;
+    height: 4px;
   }
 
   .main-content--goals .goal-progress-meta > span:last-child {
@@ -14053,8 +14070,21 @@ h1, h2, h3, h4, h5, h6,
   }
 
   .goal-card-buttons .goal-button {
-    height: 38px;
-    padding: 0 14px;
+    height: 40px;
+    padding: 0 16px;
+    font-size: 13px;
+  }
+
+  .goal-history-btn {
+    display: inline-flex;
+    border-color: #d1d5db;
+    color: #64748b;
+  }
+
+  .goal-history-btn:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #334155;
   }
 
   .goal-view-movements {
