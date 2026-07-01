@@ -67,20 +67,20 @@ function isMissingProfilePhone(error) {
   return (error.code === '42703' || error.code === 'PGRST204') && message.includes('phone');
 }
 
-async function loadProfile(client) {
-  const profile = await client.from('profiles').select('full_name, email, phone, avatar_url').maybeSingle();
+async function loadProfile(client, userId) {
+  const profile = await client.from('profiles').select('full_name, email, phone, avatar_url').eq('id', userId).maybeSingle();
   if (!isMissingProfilePhone(profile.error)) return profile;
 
-  const fallback = await client.from('profiles').select('full_name, email, avatar_url').maybeSingle();
+  const fallback = await client.from('profiles').select('full_name, email, avatar_url').eq('id', userId).maybeSingle();
   return {
     ...fallback,
     data: fallback.data ? { ...fallback.data, phone: null } : null,
   };
 }
 
-async function loadAll(client) {
+async function loadAll(client, userId) {
   const [profile, accounts, categories, transactions, goals, movements] = await Promise.all([
-    loadProfile(client),
+    loadProfile(client, userId),
     client.from('accounts').select('*').order('created_at', { ascending: true }),
     client.from('categories').select('*').order('created_at', { ascending: true }),
     client.from('transactions').select('*').order('due_date', { ascending: true }),
@@ -102,7 +102,7 @@ export default async function handler(req, res) {
     if (!context) return sendJson(res, 401, { error: 'Unauthorized' });
 
     if (req.method === 'GET') {
-      const data = await loadAll(context.client);
+      const data = await loadAll(context.client, context.user.id);
       const friendId = computeFriendId(context.user.id);
       try {
         const admin = createServiceRoleClient();
