@@ -1594,6 +1594,7 @@
     box-shadow: none;
     border-radius: 0;
     padding: 0;
+    margin: 0;
   }
 
   /* Some o divisor vertical do layout desktop no mobile */
