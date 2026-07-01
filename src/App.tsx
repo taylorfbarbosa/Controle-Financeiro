@@ -6347,6 +6347,8 @@ function AccountModal({ accounts, account, onClose, onSave }: { accounts: Accoun
   const [initialBalance, setInitialBalance] = useState(() => (account ? formatCurrencyInput(account.initialBalance) : ''));
   const [color, setColor] = useState(account?.color ?? ACCOUNT_COLORS[0] ?? '#1B99D8');
   const [icon, setIcon] = useState<AccountIconKey>(account?.icon ?? 'wallet');
+  const [accountIconPickerOpen, setAccountIconPickerOpen] = useState(false);
+  const [accountColorPickerOpen, setAccountColorPickerOpen] = useState(false);
   const [error, setError] = useState('');
 
   function submit(event: FormEvent) {
@@ -6386,39 +6388,35 @@ function AccountModal({ accounts, account, onClose, onSave }: { accounts: Accoun
                 {Object.entries(ACCOUNT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
-            <div className="form-field form-field-full">
-              <span className="form-label form-label-optional">Cor</span>
-              <div className="account-color-options" role="group" aria-label="Cor da conta">
-                {ACCOUNT_COLORS.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={`account-color-swatch${color === option ? ' active' : ''}`}
-                    style={{ backgroundColor: option }}
-                    onClick={() => setColor(option)}
-                    aria-label={`Selecionar cor ${option}`}
-                    aria-pressed={color === option}
-                  />
-                ))}
+            <div className="category-selector-grid">
+              <div className="form-field">
+                <span className="form-label form-label-optional">Ícone</span>
+                <button
+                  type="button"
+                  className="form-input category-selector-btn"
+                  aria-haspopup="dialog"
+                  aria-expanded={accountIconPickerOpen}
+                  onClick={() => setAccountIconPickerOpen(true)}
+                >
+                  <span className="category-selector-icon" style={{ backgroundColor: `${color}18`, color }}>
+                    <AccountIconGraphic icon={icon} size={16} />
+                  </span>
+                  <span className="category-selector-label">{ACCOUNT_ICON_OPTIONS.find((option) => option.key === icon)?.label ?? 'Ícone'}</span>
+                </button>
               </div>
-            </div>
-            <div className="form-field form-field-full">
-              <span className="form-label form-label-optional">Ícone</span>
-              <div className="account-icon-options" role="group" aria-label="Ícone da conta">
-                {ACCOUNT_ICON_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    className={`account-icon-option${icon === option.key ? ' active' : ''}`}
-                    style={icon === option.key ? { borderColor: color, color, backgroundColor: `${color}12` } : undefined}
-                    onClick={() => setIcon(option.key)}
-                    title={option.label}
-                    aria-label={option.label}
-                    aria-pressed={icon === option.key}
-                  >
-                    <AccountIconGraphic icon={option.key} size={18} />
-                  </button>
-                ))}
+
+              <div className="form-field">
+                <span className="form-label form-label-optional">Cor</span>
+                <button
+                  type="button"
+                  className="form-input category-selector-btn"
+                  aria-haspopup="dialog"
+                  aria-expanded={accountColorPickerOpen}
+                  onClick={() => setAccountColorPickerOpen(true)}
+                >
+                  <span className="category-selector-color" style={{ backgroundColor: color }} />
+                  <span className="category-selector-label">Escolher cor</span>
+                </button>
               </div>
             </div>
             <label className="form-field form-field-full">
@@ -6436,6 +6434,27 @@ function AccountModal({ accounts, account, onClose, onSave }: { accounts: Accoun
           <button type="submit" className="button-primary">{account ? 'Salvar conta' : 'Criar conta'}</button>
         </div>
       </form>
+      {accountColorPickerOpen ? <ColorSpectrumSheet value={color} onChange={setColor} onClose={() => setAccountColorPickerOpen(false)} /> : null}
+      {accountIconPickerOpen
+        ? createPortal(
+          <div className="category-icon-picker-layer" onClick={() => setAccountIconPickerOpen(false)}>
+            <div className="category-icon-picker-dialog" role="dialog" aria-modal="true" aria-label="Escolher ícone" onClick={(event) => event.stopPropagation()}>
+              <div className="category-icon-picker-head">
+                <strong>Escolher ícone</strong>
+                <button type="button" onClick={() => setAccountIconPickerOpen(false)} aria-label="Fechar seletor"><X size={18} /></button>
+              </div>
+              <div className="category-icon-picker-grid">
+                {ACCOUNT_ICON_OPTIONS.map((option) => (
+                  <button key={option.key} type="button" className={icon === option.key ? 'active' : ''} style={{ color }} aria-label={`Selecionar ${option.label}`} aria-pressed={icon === option.key} onClick={() => { setIcon(option.key); setAccountIconPickerOpen(false); }}>
+                    <AccountIconGraphic icon={option.key} size={20} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+        : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   PackageOpen,
   Pencil,
   Plus,
+  Save,
   Search,
   ShoppingCart,
   Trash2,
@@ -430,7 +431,7 @@ function CreateShoppingListModal({ friends, onClose, onCreate }: { friends: Frie
   );
 }
 
-function ShoppingListDetail({ list, currentUser, friends, allLists, onBack: _onBack, onChange, onListItemAdded, onDuplicate, onFinalize, onCancel, children }: { list: ShoppingList; currentUser: FriendUser; friends: FriendUser[]; allLists: ShoppingList[]; onBack: () => void; onChange: (list: ShoppingList) => void; onListItemAdded?: (event: { listId: string; listName: string; itemName: string; participantIds: string[] }) => void; onDuplicate: () => void; onFinalize: () => void; onCancel: () => void; children?: React.ReactNode }) {
+function ShoppingListDetail({ list, currentUser, friends, allLists, onBack, onChange, onListItemAdded, onDuplicate, onFinalize, onCancel, children }: { list: ShoppingList; currentUser: FriendUser; friends: FriendUser[]; allLists: ShoppingList[]; onBack: () => void; onChange: (list: ShoppingList) => void; onListItemAdded?: (event: { listId: string; listName: string; itemName: string; participantIds: string[] }) => void; onDuplicate: () => void; onFinalize: () => void; onCancel: () => void; children?: React.ReactNode }) {
   const [draft, setDraft] = useState<ItemDraft>(emptyItem);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -464,6 +465,7 @@ function ShoppingListDetail({ list, currentUser, friends, allLists, onBack: _onB
   }
   function editItem(item: ShoppingListItem) { setEditingId(item.id); setDraft({ name: item.name, quantity: String(item.quantity).replace('.', ','), unitPrice: item.unitPrice > 0 ? item.unitPrice.toFixed(2).replace('.', ',') : '' }); }
   function removeItem(id: string) { onChange({ ...list, items: list.items.filter((item) => item.id !== id) }); if (editingId === id) resetDraft(); }
+  function saveList() { onChange(list); onBack(); }
   const total = listTotal(list);
 
   return (
@@ -476,7 +478,7 @@ function ShoppingListDetail({ list, currentUser, friends, allLists, onBack: _onB
             <p><CalendarDays size={14} /> {dateLabel(list.date)}</p>
           </div>
           <div className="shopping-detail-actions shopping-detail-actions--desktop">
-            {list.status === 'open' ? <><button type="button" className="page-secondary-action shopping-cancel-action" onClick={onCancel}><X size={16} /> Cancelar lista</button><button type="button" className="page-primary-action" onClick={onFinalize}><CheckCircle2 size={16} /> Finalizar compra</button></> : <button type="button" className="page-primary-action" onClick={onDuplicate}><Copy size={16} /> Duplicar lista</button>}
+            {list.status === 'open' ? <><button type="button" className="page-secondary-action shopping-save-action" onClick={saveList}><Save size={16} /> Salvar lista</button><button type="button" className="page-secondary-action shopping-cancel-action" onClick={onCancel}><X size={16} /> Cancelar lista</button><button type="button" className="page-primary-action" onClick={onFinalize}><CheckCircle2 size={16} /> Finalizar compra</button></> : <button type="button" className="page-primary-action" onClick={onDuplicate}><Copy size={16} /> Duplicar lista</button>}
           </div>
         </div>
         <div className="shopping-participants"><span><Users size={15} /> Participantes</span><div>{participants.map((person) => <span className="shopping-participant-chip" key={person.id}>{participantAvatar(person, true)} {person.id === currentUser.id ? 'Você' : person.name}</span>)}</div></div>
@@ -495,6 +497,7 @@ function ShoppingListDetail({ list, currentUser, friends, allLists, onBack: _onB
 
       {list.status === 'open' ? (
         <div className="shopping-detail-actions shopping-detail-actions--mobile">
+          <button type="button" className="page-secondary-action shopping-save-action" onClick={saveList}><Save size={16} /> Salvar lista</button>
           <button type="button" className="page-secondary-action shopping-cancel-action" onClick={onCancel}><X size={16} /> Cancelar lista</button>
           <button type="button" className="page-primary-action" onClick={onFinalize}><CheckCircle2 size={16} /> Finalizar compra</button>
         </div>

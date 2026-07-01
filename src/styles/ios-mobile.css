@@ -2588,3 +2588,159 @@
     color: var(--text-primary) !important;
   }
 }
+/* Dark visual fixes: mobile sheets and cards that override base dark mode */
+@media (max-width: 760px) {
+  :root[data-theme='dark'] .modal-card,
+  :root[data-theme='dark'] .modal-header,
+  :root[data-theme='dark'] .modal-body,
+  :root[data-theme='dark'] .modal-actions,
+  :root[data-theme='dark'] .friend-search-modal-body,
+  :root[data-theme='dark'] .shopping-modal-body,
+  :root[data-theme='dark'] .shopping-modal-actions {
+    border-color: var(--border-color) !important;
+    background: var(--surface-color) !important;
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .friend-id-search-form,
+  :root[data-theme='dark'] .friend-search-empty,
+  :root[data-theme='dark'] .friend-result-card,
+  :root[data-theme='dark'] .friend-request-card,
+  :root[data-theme='dark'] .friend-own-id-card,
+  :root[data-theme='dark'] .import-modal .import-upload,
+  :root[data-theme='dark'] .import-modal .import-columns,
+  :root[data-theme='dark'] .import-modal .import-summary,
+  :root[data-theme='dark'] .import-modal .import-preview,
+  :root[data-theme='dark'] .goal-movement-summary,
+  :root[data-theme='dark'] .resource-empty-state,
+  :root[data-theme='dark'] .shopping-empty {
+    border-color: var(--border-color) !important;
+    background: var(--surface-raised) !important;
+    color: var(--text-primary) !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme='dark'] .friend-id-search-field div,
+  :root[data-theme='dark'] .friend-id-search-field input,
+  :root[data-theme='dark'] .import-template-button,
+  :root[data-theme='dark'] .form-input,
+  :root[data-theme='dark'] .form-input-wrap,
+  :root[data-theme='dark'] .shopping-field input,
+  :root[data-theme='dark'] .shopping-field textarea {
+    border-color: var(--border-color) !important;
+    background: var(--surface-color) !important;
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .friend-id-search-field > span,
+  :root[data-theme='dark'] .friend-search-empty span,
+  :root[data-theme='dark'] .friend-result-main span,
+  :root[data-theme='dark'] .friend-result-main small,
+  :root[data-theme='dark'] .import-upload small,
+  :root[data-theme='dark'] .import-columns span,
+  :root[data-theme='dark'] .import-columns small,
+  :root[data-theme='dark'] .goal-movement-summary span,
+  :root[data-theme='dark'] .help-card-intro,
+  :root[data-theme='dark'] .help-step-list li,
+  :root[data-theme='dark'] .resource-empty-state p {
+    color: var(--text-secondary) !important;
+  }
+
+  :root[data-theme='dark'] .friend-search-empty strong,
+  :root[data-theme='dark'] .friend-result-main strong,
+  :root[data-theme='dark'] .import-upload strong,
+  :root[data-theme='dark'] .import-columns strong,
+  :root[data-theme='dark'] .goal-movement-summary strong,
+  :root[data-theme='dark'] .help-card h2,
+  :root[data-theme='dark'] .resource-empty-state strong {
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .categories-report-grid.documents-report-row,
+  :root[data-theme='dark'] .accounts-report-grid.documents-report-row {
+    border-color: var(--border-color) !important;
+    background: var(--surface-color) !important;
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .categories-report-grid.documents-report-row .category-report-name,
+  :root[data-theme='dark'] .categories-report-grid.documents-report-row .category-desktop-label {
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .categories-report-grid.documents-report-row .category-card-actions {
+    border-top-color: var(--border-color) !important;
+  }
+
+  :root[data-theme='dark'] .category-card-action {
+    border-color: rgba(91, 196, 240, 0.52) !important;
+    background: rgba(27, 153, 216, 0.12) !important;
+    color: #5bc4f0 !important;
+  }
+
+  :root[data-theme='dark'] .category-card-action--danger {
+    border-color: rgba(248, 113, 113, 0.56) !important;
+    background: rgba(127, 29, 29, 0.16) !important;
+    color: #fca5a5 !important;
+  }
+
+  :root[data-theme='dark'] .category-type--income {
+    background: rgba(27, 153, 216, 0.16) !important;
+    color: #5bc4f0 !important;
+  }
+
+  :root[data-theme='dark'] .category-type--expense {
+    background: rgba(248, 113, 113, 0.16) !important;
+    color: #fca5a5 !important;
+  }
+
+  :root[data-theme='dark'] .help-hero,
+  :root[data-theme='dark'] .help-center-guide {
+    border-color: rgba(91, 196, 240, 0.18) !important;
+    background: linear-gradient(135deg, #111827 0%, #0f172a 58%, #103247 100%) !important;
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .help-hero .page-title,
+  :root[data-theme='dark'] .help-center-guide .page-title {
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .help-hero .page-subtitle,
+  :root[data-theme='dark'] .help-center-guide .page-subtitle {
+    color: var(--text-secondary) !important;
+  }
+}
+
+@media (max-width: 760px) {
+  :root[data-theme='dark'] .help-center-hero {
+    border-color: rgba(91, 196, 240, 0.18) !important;
+    background: linear-gradient(135deg, #111827 0%, #0f172a 58%, #103247 100%) !important;
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .help-center-hero h1,
+  :root[data-theme='dark'] .help-center-guide-heading,
+  :root[data-theme='dark'] .help-center-guide-heading svg,
+  :root[data-theme='dark'] .help-center-guide-heading h2,
+  :root[data-theme='dark'] .help-center-guide-context strong {
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .help-center-hero > p,
+  :root[data-theme='dark'] .help-center-guide-context p,
+  :root[data-theme='dark'] .help-center-field {
+    color: var(--text-secondary) !important;
+  }
+
+  :root[data-theme='dark'] .help-center-kicker {
+    background: rgba(27, 153, 216, 0.16) !important;
+    color: #5bc4f0 !important;
+  }
+
+  :root[data-theme='dark'] .help-center-field select {
+    border-color: var(--border-color) !important;
+    background: var(--surface-raised) !important;
+    color: var(--text-primary) !important;
+  }
+}

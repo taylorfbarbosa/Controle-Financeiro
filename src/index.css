@@ -14627,3 +14627,199 @@ h1, h2, h3, h4, h5, h6,
 :root[data-theme='dark'] .profile-dropdown :where(strong, span, small, p) {
   color: var(--text-primary) !important;
 }
+/* Dark visual fixes: nested panels, empty states and mobile cards */
+:root[data-theme='dark'] .modal-overlay {
+  background: rgba(5, 5, 8, 0.78) !important;
+}
+
+:root[data-theme='dark'] .modal-card,
+:root[data-theme='dark'] .friend-search-modal,
+:root[data-theme='dark'] .import-modal,
+:root[data-theme='dark'] .settle-modal {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .friend-search-modal-body,
+:root[data-theme='dark'] .friend-id-search-panel,
+:root[data-theme='dark'] .friend-requests-panel,
+:root[data-theme='dark'] .import-modal-body {
+  background: var(--surface-color) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .friend-id-search-form,
+:root[data-theme='dark'] .friend-search-empty,
+:root[data-theme='dark'] .friend-result-card,
+:root[data-theme='dark'] .friend-request-card,
+:root[data-theme='dark'] .import-upload,
+:root[data-theme='dark'] .import-columns,
+:root[data-theme='dark'] .goal-movement-summary {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme='dark'] .friend-id-search-field > span,
+:root[data-theme='dark'] .friend-own-id-card span,
+:root[data-theme='dark'] .friend-own-id-card small,
+:root[data-theme='dark'] .friend-search-empty span,
+:root[data-theme='dark'] .friend-result-main span,
+:root[data-theme='dark'] .friend-result-main small,
+:root[data-theme='dark'] .import-upload small,
+:root[data-theme='dark'] .import-columns span,
+:root[data-theme='dark'] .import-columns small,
+:root[data-theme='dark'] .goal-movement-summary span,
+:root[data-theme='dark'] .help-card-intro,
+:root[data-theme='dark'] .help-step-list li {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .friend-id-search-field div,
+:root[data-theme='dark'] .friend-id-search-field input,
+:root[data-theme='dark'] .import-template-button,
+:root[data-theme='dark'] .launch-type-segmented,
+:root[data-theme='dark'] .launch-type-segment {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .friend-id-search-field input::placeholder,
+:root[data-theme='dark'] .form-input::placeholder,
+:root[data-theme='dark'] .shopping-field input::placeholder,
+:root[data-theme='dark'] .shopping-field textarea::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 1 !important;
+}
+
+:root[data-theme='dark'] .friend-search-empty strong,
+:root[data-theme='dark'] .friend-result-main strong,
+:root[data-theme='dark'] .import-upload strong,
+:root[data-theme='dark'] .import-columns strong,
+:root[data-theme='dark'] .goal-movement-summary strong,
+:root[data-theme='dark'] .help-card h2,
+:root[data-theme='dark'] .help-flow-card h2,
+:root[data-theme='dark'] .help-title {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .friend-own-id-icon,
+:root[data-theme='dark'] .import-upload-icon,
+:root[data-theme='dark'] .help-step-number,
+:root[data-theme='dark'] .help-card-index {
+  background: rgba(27, 153, 216, 0.16) !important;
+  color: #5bc4f0 !important;
+}
+
+:root[data-theme='dark'] .launch-type-segment--expense.active {
+  border-color: rgba(248, 113, 113, 0.55) !important;
+  background: rgba(127, 29, 29, 0.2) !important;
+  color: #fca5a5 !important;
+}
+
+:root[data-theme='dark'] .launch-type-segment--income.active,
+:root[data-theme='dark'] .shopping-share-mode button.active {
+  border-color: rgba(91, 196, 240, 0.45) !important;
+  background: rgba(27, 153, 216, 0.16) !important;
+  color: #5bc4f0 !important;
+}
+
+:root[data-theme='dark'] .category-type--income {
+  background: rgba(27, 153, 216, 0.16) !important;
+  color: #5bc4f0 !important;
+}
+
+:root[data-theme='dark'] .category-type--expense {
+  background: rgba(248, 113, 113, 0.16) !important;
+  color: #fca5a5 !important;
+}
+
+:root[data-theme='dark'] .category-type--transfer {
+  background: rgba(148, 163, 184, 0.16) !important;
+  color: #cbd5e1 !important;
+}
+
+:root[data-theme='dark'] .category-card-action {
+  border-color: rgba(91, 196, 240, 0.52) !important;
+  background: rgba(27, 153, 216, 0.12) !important;
+  color: #5bc4f0 !important;
+}
+
+:root[data-theme='dark'] .category-card-action--danger {
+  border-color: rgba(248, 113, 113, 0.56) !important;
+  background: rgba(127, 29, 29, 0.16) !important;
+  color: #fca5a5 !important;
+}
+
+:root[data-theme='dark'] .category-card-actions {
+  border-top-color: var(--border-color) !important;
+}
+
+:root[data-theme='dark'] .help-hero,
+:root[data-theme='dark'] .help-center-guide {
+  border-color: rgba(91, 196, 240, 0.18) !important;
+  background: linear-gradient(135deg, #111827 0%, #0f172a 58%, #103247 100%) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .help-hero::before,
+:root[data-theme='dark'] .help-hero::after,
+:root[data-theme='dark'] .help-center-guide::before,
+:root[data-theme='dark'] .help-center-guide::after {
+  opacity: 0.22 !important;
+}
+
+:root[data-theme='dark'] .help-hero .page-subtitle,
+:root[data-theme='dark'] .help-center-guide .page-subtitle,
+:root[data-theme='dark'] .help-hero p,
+:root[data-theme='dark'] .help-center-guide p {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .shopping-private-note,
+:root[data-theme='dark'] .shopping-no-friends,
+:root[data-theme='dark'] .shopping-share-mode,
+:root[data-theme='dark'] .shopping-friends-picker label {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .help-center-hero {
+  border-color: rgba(91, 196, 240, 0.18) !important;
+  background: linear-gradient(135deg, #111827 0%, #0f172a 58%, #103247 100%) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .help-center-hero::after {
+  background: rgba(91, 196, 240, 0.14) !important;
+}
+
+:root[data-theme='dark'] .help-center-hero h1,
+:root[data-theme='dark'] .help-center-guide-heading,
+:root[data-theme='dark'] .help-center-guide-heading svg,
+:root[data-theme='dark'] .help-center-guide-heading h2,
+:root[data-theme='dark'] .help-center-guide-context strong {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .help-center-hero > p,
+:root[data-theme='dark'] .help-center-guide-context p,
+:root[data-theme='dark'] .help-center-field {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .help-center-kicker {
+  background: rgba(27, 153, 216, 0.16) !important;
+  color: #5bc4f0 !important;
+}
+
+:root[data-theme='dark'] .help-center-actions button,
+:root[data-theme='dark'] .help-center-field select {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
