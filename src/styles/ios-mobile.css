@@ -1,4 +1,4 @@
-﻿/* =====================================================================
+/* =====================================================================
    RubyLife â€” Camada de estilo iOS (mobile)
    ---------------------------------------------------------------------
    Reskin "padrÃ£o Apple" aplicado APENAS no mobile (<= 760px).
@@ -2436,7 +2436,6 @@
   :root[data-theme='dark'] .report-summary-card--negative,
   :root[data-theme='dark'] .mobile-tx-summary-card,
   :root[data-theme='dark'] .mobile-tx-bottom-sheet,
-  :root[data-theme='dark'] .mobile-tx-sheet-header,
   :root[data-theme='dark'] .goal-card,
   :root[data-theme='dark'] .report-transaction-card,
   :root[data-theme='dark'] .launches-report-row,
@@ -2620,6 +2619,13 @@
     box-shadow: none !important;
   }
 
+  :root[data-theme='dark'] .mobile-tx-bottom-sheet .resource-empty-state {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+
   :root[data-theme='dark'] .friend-id-search-field div,
   :root[data-theme='dark'] .friend-id-search-field input,
   :root[data-theme='dark'] .import-template-button,
@@ -2681,7 +2687,7 @@
   :root[data-theme='dark'] .category-card-action--danger {
     border-color: rgba(248, 113, 113, 0.56) !important;
     background: rgba(127, 29, 29, 0.16) !important;
-    color: #fca5a5 !important;
+    color: var(--text-secondary) !important;
   }
 
   :root[data-theme='dark'] .category-type--income {
@@ -2696,8 +2702,8 @@
 
   :root[data-theme='dark'] .help-hero,
   :root[data-theme='dark'] .help-center-guide {
-    border-color: rgba(91, 196, 240, 0.18) !important;
-    background: linear-gradient(135deg, #111827 0%, #0f172a 58%, #103247 100%) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    background: #141414 !important;
     color: var(--text-primary) !important;
   }
 
@@ -2714,8 +2720,8 @@
 
 @media (max-width: 760px) {
   :root[data-theme='dark'] .help-center-hero {
-    border-color: rgba(91, 196, 240, 0.18) !important;
-    background: linear-gradient(135deg, #111827 0%, #0f172a 58%, #103247 100%) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    background: #141414 !important;
     color: var(--text-primary) !important;
   }
 
@@ -2742,5 +2748,21 @@
     border-color: var(--border-color) !important;
     background: var(--surface-raised) !important;
     color: var(--text-primary) !important;
+  }
+
+  .mobile-tx-sheet-header,
+  :root[data-theme='dark'] .mobile-tx-sheet-header {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 6px 0 16px !important;
+  }
+
+  :root[data-theme='dark'] .mobile-tx-bottom-sheet .resource-empty-state,
+  :root[data-theme='dark'] .mobile-tx-bottom-sheet .mobile-tx-empty {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
   }
 }
