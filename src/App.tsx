@@ -2419,16 +2419,17 @@ export function App() {
                       {mobileCategoryBreakdown.list.length === 0 ? (
                         <div className="mobile-tx-chart-empty">Sem transações no período</div>
                       ) : (
-                        <div className="mobile-tx-col-chart">
+                        <div className="mobile-tx-hbar-list">
                           {mobileCategoryBreakdown.list.map((cat) => {
-                            const heightPct = Math.max(16, Math.round((cat.total / mobileCategoryBreakdown.max) * 100));
+                            const widthPct = Math.max(8, Math.round((cat.total / mobileCategoryBreakdown.max) * 100));
                             return (
-                              <div key={cat.name} className="mobile-tx-col-item">
-                                <span className="mobile-tx-col-val">{formatCurrency(cat.total)}</span>
-                                <div className="mobile-tx-col-track">
-                                  <div className="mobile-tx-col-fill" style={{ height: `${heightPct}%`, backgroundColor: cat.color }} />
+                              <div key={cat.name} className="mobile-tx-hbar-row">
+                                <span className="mobile-tx-hbar-dot" style={{ background: cat.color }} />
+                                <span className="mobile-tx-hbar-name" title={cat.name}>{cat.name}</span>
+                                <div className="mobile-tx-hbar-track">
+                                  <div className="mobile-tx-hbar-fill" style={{ width: `${widthPct}%`, background: cat.color }} />
                                 </div>
-                                <span className="mobile-tx-col-label" title={cat.name}>{cat.name}</span>
+                                <span className="mobile-tx-hbar-val">{formatCurrency(cat.total)}</span>
                               </div>
                             );
                           })}
