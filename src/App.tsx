@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { readSheet, type Row } from 'read-excel-file/browser';
 import { jsPDF } from 'jspdf';
@@ -295,7 +295,7 @@ type ImportPreviewRow = {
 };
 
 function normalizePublicFriendId(value: string) {
-  return value.replace(/\D/g, '');
+  return value.trim().replace(/^#/, '');
 }
 
 function publicFriendIdForUser(userId: string) {
@@ -1385,6 +1385,7 @@ export function App() {
   );
   const [activePage, setActivePage] = useState<AppPage>('dashboard');
   const [previousPage, setPreviousPage] = useState<AppPage>('dashboard');
+  const [, startNavTransition] = useTransition();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
     return localStorage.getItem('rubylife-theme') === 'dark' ? 'dark' : 'light';
@@ -1542,12 +1543,14 @@ export function App() {
   }
 
   function handleNavigate(page: AppPage) {
-    setActivePage((current) => {
-      if (current !== 'notifications' && current !== 'help' && current !== 'profile') {
-        setPreviousPage(current);
-      }
-      if (current === page) scrollContentToTop();
-      return page;
+    startNavTransition(() => {
+      setActivePage((current) => {
+        if (current !== 'notifications' && current !== 'help' && current !== 'profile') {
+          setPreviousPage(current);
+        }
+        if (current === page) scrollContentToTop();
+        return page;
+      });
     });
   }
 
@@ -1993,16 +1996,19 @@ export function App() {
     categoryItems.forEach((category) => map.set(`${category.kind}:${category.name}`, category));
     return map;
   }, [categoryItems]);
-  const monthItems = transactions
-    .filter((item) => (dateFilter ? item.dueDate === dateFilter : item.dueDate.slice(0, 7) === currentMonth))
-    .filter((item) => categoryFilter === 'all' || item.category === categoryFilter)
-    .filter((item) => typeFilter === 'all' || item.type === typeFilter)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const monthItems = useMemo(() =>
+    transactions
+      .filter((item) => (dateFilter ? item.dueDate === dateFilter : item.dueDate.slice(0, 7) === currentMonth))
+      .filter((item) => categoryFilter === 'all' || item.category === categoryFilter)
+      .filter((item) => typeFilter === 'all' || item.type === typeFilter)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    [transactions, dateFilter, currentMonth, categoryFilter, typeFilter],
+  );
 
-  const selectedInView = monthItems.filter((item) => selectedTxIds.has(item.id));
-  const selectedOpenInView = selectedInView.filter((item) => item.status === 'open');
-  const selectedSettledInView = selectedInView.filter((item) => item.status === 'settled');
-  const selectedOpenWithoutAccount = selectedOpenInView.filter((item) => !accounts.some((account) => account.id === item.accountId || account.name === item.account));
+  const selectedInView = useMemo(() => monthItems.filter((item) => selectedTxIds.has(item.id)), [monthItems, selectedTxIds]);
+  const selectedOpenInView = useMemo(() => selectedInView.filter((item) => item.status === 'open'), [selectedInView]);
+  const selectedSettledInView = useMemo(() => selectedInView.filter((item) => item.status === 'settled'), [selectedInView]);
+  const selectedOpenWithoutAccount = useMemo(() => selectedOpenInView.filter((item) => !accounts.some((account) => account.id === item.accountId || account.name === item.account)), [selectedOpenInView, accounts]);
   const allSelected = monthItems.length > 0 && selectedInView.length === monthItems.length;
 
   function toggleSelectTx(id: string) {
@@ -2470,7 +2476,7 @@ export function App() {
                   </div>
 
                   <div className="mobile-tx-sheet-header">
-                    <h2 className="mobile-tx-sheet-title">Transações</h2>
+                    <h2 className="mobile-tx-sheet-title">Lançamentos do mês</h2>
                   </div>
 
                   {selectedInView.length > 0 ? (
@@ -3188,7 +3194,7 @@ function MonthNavigator({ date, onChange }: { date: Date; onChange: (date: Date)
   );
 }
 
-function DashboardPage({ transactions, referenceDate, onChangeDate, onNavigate }: {
+const DashboardPage = memo(function DashboardPage({ transactions, referenceDate, onChangeDate, onNavigate }: {
   transactions: Transaction[];
   referenceDate: Date;
   onChangeDate: (date: Date) => void;
@@ -3211,26 +3217,34 @@ function DashboardPage({ transactions, referenceDate, onChangeDate, onNavigate }
   }, []);
 
   const monthKeyValue = monthKey(referenceDate);
-  const monthTransactions = transactions.filter((item) => item.dueDate.slice(0, 7) === monthKeyValue);
-  const income = monthTransactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
-  const expense = monthTransactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
-  const pendingIncome = monthTransactions.filter((item) => item.type === 'income' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0);
-  const pendingExpense = monthTransactions.filter((item) => item.type === 'expense' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0);
+
+  const { income, expense, pendingIncome, pendingExpense } = useMemo(() => {
+    const monthTxs = transactions.filter((item) => item.dueDate.slice(0, 7) === monthKeyValue);
+    return {
+      income: monthTxs.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0),
+      expense: monthTxs.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0),
+      pendingIncome: monthTxs.filter((item) => item.type === 'income' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0),
+      pendingExpense: monthTxs.filter((item) => item.type === 'expense' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0),
+    };
+  }, [transactions, monthKeyValue]);
+
   const projectedBalance = income - expense;
 
-  const dashboardWindow = Array.from({ length: 12 }, (_, index) => new Date(referenceDate.getFullYear(), index, 1));
-  const monthlySeries = dashboardWindow.map((date) => {
-    const key = monthKey(date);
-    const monthIncome = transactions.filter((item) => item.type === 'income' && item.dueDate.slice(0, 7) === key).reduce((sum, item) => sum + item.amount, 0);
-    const monthExpense = transactions.filter((item) => item.type === 'expense' && item.dueDate.slice(0, 7) === key).reduce((sum, item) => sum + item.amount, 0);
-
-    return {
-      month: new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(date).replace('.', ''),
-      Receitas: monthIncome,
-      Despesas: monthExpense,
-      Saldo: monthIncome - monthExpense,
-    };
-  });
+  const monthlySeries = useMemo(() => {
+    const year = referenceDate.getFullYear();
+    return Array.from({ length: 12 }, (_, index) => {
+      const date = new Date(year, index, 1);
+      const key = monthKey(date);
+      const monthIncome = transactions.filter((item) => item.type === 'income' && item.dueDate.slice(0, 7) === key).reduce((sum, item) => sum + item.amount, 0);
+      const monthExpense = transactions.filter((item) => item.type === 'expense' && item.dueDate.slice(0, 7) === key).reduce((sum, item) => sum + item.amount, 0);
+      return {
+        month: new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(date).replace('.', ''),
+        Receitas: monthIncome,
+        Despesas: monthExpense,
+        Saldo: monthIncome - monthExpense,
+      };
+    });
+  }, [transactions, referenceDate]);
 
   const mobileChartEnd = referenceDate.getMonth() + 1;
   const mobileChartStart = Math.max(0, mobileChartEnd - 6);
@@ -3405,7 +3419,7 @@ function DashboardPage({ transactions, referenceDate, onChangeDate, onNavigate }
       ) : null}
     </>
   );
-}
+});
 function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onDeposit, onWithdraw }: {
   goals: Goal[];
   filters: GoalFilters;
@@ -5010,7 +5024,6 @@ function FriendsManageView({ currentUser, users, invitations, activeTab, onTabCh
     setHasSearched(false);
     const normalized = normalizePublicFriendId(query);
     if (!normalized) { setMessage({ type: 'error', text: 'Digite o ID do amigo.' }); return; }
-    if (normalized.length !== 6) { setMessage({ type: 'error', text: 'O ID deve ter exatamente 6 números.' }); return; }
     setSearchLoading(true);
     try {
       const result = await searchUserByFriendId(normalized);
@@ -5077,7 +5090,7 @@ function FriendsManageView({ currentUser, users, invitations, activeTab, onTabCh
           <form className="friend-id-search-form" onSubmit={submitSearch}>
             <label className="friend-id-search-field">
               <span>Buscar por ID</span>
-              <div><Search size={18} /><input value={query} onChange={(event) => { setQuery(event.target.value.replace(/\D/g, '').slice(0, 6)); setMessage(null); }} placeholder="Digite 6 números" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="off" /></div>
+              <div><Search size={18} /><input value={query} onChange={(event) => { setQuery(event.target.value); setMessage(null); }} placeholder="Digite o ID de 6 dígitos ou UUID" autoComplete="off" /></div>
             </label>
             <button type="submit" className="page-primary-action" disabled={searchLoading}><Search size={16} /> {searchLoading ? 'Buscando…' : 'Buscar'}</button>
           </form>
