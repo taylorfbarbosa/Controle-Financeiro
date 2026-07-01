@@ -1089,7 +1089,8 @@
     box-shadow: 0 4px 12px rgba(27,153,216,0.35) !important;
   }
 
-  .main-content--goals .page-header-actions > .page-primary-action {
+  .main-content--goals .page-header-actions > .page-primary-action,
+  .main-content--categories .page-header-actions .page-primary-action {
     display: none !important;
   }
 
