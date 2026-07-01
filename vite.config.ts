@@ -10,7 +10,7 @@ function localApiPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const path = req.url?.split('?')[0]
-        if (path !== '/api/auth' && path !== '/api/data' && path !== '/api/push') return next()
+        if (path !== '/api/auth' && path !== '/api/data' && path !== '/api/push' && path !== '/api/users') return next()
 
         try {
           if (req.method === 'POST') {
@@ -27,7 +27,7 @@ function localApiPlugin(): Plugin {
           }
 
           // @ts-ignore Local development loads the same JavaScript handlers used by Vercel.
-          const module = path === '/api/auth' ? await import('./api/auth.js') : path === '/api/push' ? await import('./api/push.js') : await import('./api/data.js')
+          const module = path === '/api/auth' ? await import('./api/auth.js') : path === '/api/push' ? await import('./api/push.js') : path === '/api/users' ? await import('./api/users.js') : await import('./api/data.js')
           await module.default(req, res)
         } catch (error) {
           console.error('Local API failure', error)

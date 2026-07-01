@@ -142,20 +142,24 @@ const localLimits = new Map();
 export async function enforceRateLimit(key, limit, windowSeconds) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (serviceRoleKey) {
-    const { url } = supabaseConfig();
-    const admin = createClient(url, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
-    const { data, error } = await admin.rpc('consume_rate_limit', {
-      p_key: key,
-      p_limit: limit,
-      p_window_seconds: windowSeconds,
-    });
-    if (error) throw new Error('Rate limit service unavailable');
-    return data === true;
+    try {
+      const { url } = supabaseConfig();
+      const admin = createClient(url, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      });
+      const { data, error } = await admin.rpc('consume_rate_limit', {
+        p_key: key,
+        p_limit: limit,
+        p_window_seconds: windowSeconds,
+      });
+      if (!error) return data === true;
+      console.error('[rate-limit] RPC error, falling back to memory:', error.message);
+    } catch (err) {
+      console.error('[rate-limit] unexpected error, falling back to memory:', err);
+    }
   }
 
-  if (process.env.VERCEL_ENV === 'production') {
+  if (process.env.VERCEL_ENV === 'production' && !serviceRoleKey) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is required in production');
   }
 
