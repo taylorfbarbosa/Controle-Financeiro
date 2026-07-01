@@ -7,6 +7,11 @@ import {
   sendJson,
 } from './_security.js';
 
+function computeFriendId(userId) {
+  const hex = userId.replace(/-/g, '');
+  return (BigInt('0x' + hex) % 1000000n).toString().padStart(6, '0');
+}
+
 const uuid = z.string().uuid();
 const nullableUuid = uuid.nullable();
 const shortText = z.string().trim().min(1).max(160);
@@ -95,7 +100,12 @@ export default async function handler(req, res) {
     const context = await getAuthenticatedContext(req, res);
     if (!context) return sendJson(res, 401, { error: 'Unauthorized' });
 
-    if (req.method === 'GET') return sendJson(res, 200, await loadAll(context.client));
+    if (req.method === 'GET') {
+      const data = await loadAll(context.client);
+      const friendId = computeFriendId(context.user.id);
+      context.client.from('profiles').update({ friend_id: friendId }).eq('id', context.user.id).is('friend_id', null).then(() => {}).catch(() => {});
+      return sendJson(res, 200, data);
+    }
     if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
     if (!assertSameOrigin(req)) return sendJson(res, 403, { error: 'Invalid request origin' });
 

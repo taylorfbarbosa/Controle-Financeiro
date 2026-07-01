@@ -234,6 +234,13 @@ export async function syncTransactions(_userId: string, prev: Transaction[], nex
   await apiRequest('POST', { resource: 'transactions', deleteIds: toDelete, upsert: toUpsert.map(transactionToRow) });
 }
 
+export async function searchUserByFriendId(friendId: string): Promise<{ id: string; publicFriendId: string; name: string; email: string; avatarUrl: string | null } | null> {
+  const res = await fetch(`/api/users?friendId=${encodeURIComponent(friendId)}`, { credentials: 'same-origin' });
+  if (!res.ok) return null;
+  const data = await res.json() as { user: { id: string; publicFriendId: string; name: string; email: string; avatarUrl: string | null } | null };
+  return data.user ?? null;
+}
+
 export async function syncGoals(_userId: string, prev: Goal[], next: Goal[]) {
   const { toUpsert, toDelete } = diff(prev, next);
   if (!toDelete.length && !toUpsert.length) return;

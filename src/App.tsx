@@ -10,7 +10,7 @@ import rubyLogoWhite from './assets/rubylife-white.png';
 import rubyLogoColor from './assets/rubylife-color.png';
 import rubyDiamond from './assets/Diamante.png';
 import { authClient as supabase } from './lib/auth';
-import { loadAll, syncAccounts, syncCategories, syncGoals, syncTransactions, updateProfile } from './lib/db';
+import { loadAll, searchUserByFriendId, syncAccounts, syncCategories, syncGoals, syncTransactions, updateProfile } from './lib/db';
 import { DEFAULT_PUSH_PREFERENCES, PUSH_PREFERENCE_LABELS, enablePushNotifications, getPushStatus, savePushPreferences, sendPushNotification, type PushPreferences, type PushStatus } from './lib/push';
 import { ShoppingListsPage } from './ShoppingListsFeature';
 import {
@@ -4962,9 +4962,11 @@ type FriendsManageViewProps = {
 
 function FriendsManageView({ currentUser, users, invitations, activeTab, onTabChange, onSendInvitation, onAcceptInvitation, onDeclineInvitation, onRemoveFriend, onBack, showHeader = true, showTabs = true, showOwnId = true }: FriendsManageViewProps) {
   const [query, setQuery] = useState('');
-  const [searchedId, setSearchedId] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [idCopied, setIdCopied] = useState(false);
+  const [foundUser, setFoundUser] = useState<FriendUser | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const userById = useMemo(() => new Map(users.map((user) => [user.id, user] as const)), [users]);
 
   function resolveUser(id: string): FriendUser {
@@ -4972,31 +4974,31 @@ function FriendsManageView({ currentUser, users, invitations, activeTab, onTabCh
   }
 
   const receivedInvitations = invitations.filter((invitation) => invitation.receiverId === currentUser.id && invitation.status === 'pending');
-  const foundUser = searchedId ? users.find((user) => normalizePublicFriendId(user.publicFriendId) === searchedId) ?? null : null;
   const searchedSelf = Boolean(foundUser && foundUser.id === currentUser.id);
   const pendingSentToFound = foundUser ? invitations.find((invitation) => invitation.requesterId === currentUser.id && invitation.receiverId === foundUser.id && invitation.status === 'pending') : null;
   const pendingReceivedFromFound = foundUser ? invitations.find((invitation) => invitation.requesterId === foundUser.id && invitation.receiverId === currentUser.id && invitation.status === 'pending') : null;
   const foundIsFriend = foundUser ? areUsersFriends(currentUser.id, foundUser.id, invitations) : false;
 
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
+  async function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
+    setFoundUser(null);
+    setHasSearched(false);
     const normalized = normalizePublicFriendId(query);
-    setSearchedId(normalized);
-    if (!normalized) {
-      setMessage({ type: 'error', text: 'Digite o ID do amigo.' });
-      return;
+    if (!normalized) { setMessage({ type: 'error', text: 'Digite o ID do amigo.' }); return; }
+    if (normalized.length !== 6) { setMessage({ type: 'error', text: 'O ID deve ter exatamente 6 números.' }); return; }
+    setSearchLoading(true);
+    try {
+      const result = await searchUserByFriendId(normalized);
+      setHasSearched(true);
+      if (!result) return;
+      if (result.id === currentUser.id) { setMessage({ type: 'error', text: 'Você não pode pesquisar ou convidar a si mesmo.' }); return; }
+      setFoundUser(result);
+    } catch {
+      setMessage({ type: 'error', text: 'Erro ao buscar usuário. Tente novamente.' });
+    } finally {
+      setSearchLoading(false);
     }
-    if (normalized.length !== 6) {
-      setMessage({ type: 'error', text: 'O ID deve ter exatamente 6 números.' });
-      return;
-    }
-    const match = users.find((user) => normalizePublicFriendId(user.publicFriendId) === normalized);
-    if (!match) {
-      setMessage({ type: 'error', text: 'Nenhum usuário encontrado com esse ID. Verifique se o ID foi digitado corretamente.' });
-      return;
-    }
-    if (match.id === currentUser.id) setMessage({ type: 'error', text: 'Você não pode pesquisar ou convidar a si mesmo.' });
   }
 
   function inviteFoundUser(user: FriendUser) {
@@ -5053,10 +5055,10 @@ function FriendsManageView({ currentUser, users, invitations, activeTab, onTabCh
               <span>Buscar por ID</span>
               <div><Search size={18} /><input value={query} onChange={(event) => { setQuery(event.target.value.replace(/\D/g, '').slice(0, 6)); setMessage(null); }} placeholder="Digite 6 números" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="off" /></div>
             </label>
-            <button type="submit" className="page-primary-action"><Search size={16} /> Buscar</button>
+            <button type="submit" className="page-primary-action" disabled={searchLoading}><Search size={16} /> {searchLoading ? 'Buscando…' : 'Buscar'}</button>
           </form>
 
-          {searchedId && !foundUser ? (
+          {hasSearched && !foundUser && !searchLoading ? (
             <div className="friend-search-empty"><AlertCircle size={24} /><strong>Nenhum usuário encontrado com esse ID.</strong><span>Verifique se o ID foi digitado corretamente.</span></div>
           ) : null}
 
