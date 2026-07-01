@@ -1580,7 +1580,7 @@
   /* ---------- Login / Recuperação / Nova senha ---------- */
   .toodledo-login-shell {
     background: var(--ios-bg);
-    padding: 72px 24px calc(36px + env(safe-area-inset-bottom));
+    padding: calc(env(safe-area-inset-top) + 16px) 24px calc(36px + env(safe-area-inset-bottom));
     align-items: center;
     justify-content: flex-start;
   }
