@@ -11,6 +11,16 @@ node_modules
 dist
 dist-ssr
 *.local
+*.map
+*.tsbuildinfo
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 
 # Env
 .env

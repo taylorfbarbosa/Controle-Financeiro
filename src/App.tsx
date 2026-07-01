@@ -3,14 +3,16 @@ import { createPortal } from 'react-dom';
 import { readSheet, type Row } from 'read-excel-file/browser';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
-import type { Session } from '@supabase/supabase-js';
+import writeXlsxFile, { type Cell, type SheetData } from 'write-excel-file/browser';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
+import type { Session } from './lib/auth';
 import rubyLogoWhite from './assets/rubylife-white.png';
 import rubyLogoColor from './assets/rubylife-color.png';
 import rubyDiamond from './assets/Diamante.png';
-import { supabase } from './lib/supabase';
-import { loadAll, syncAccounts, syncCategories, syncGoals, syncTransactions } from './lib/db';
+import { authClient as supabase } from './lib/auth';
+import { loadAll, syncAccounts, syncCategories, syncGoals, syncTransactions, updateProfile } from './lib/db';
+import { DEFAULT_PUSH_PREFERENCES, PUSH_PREFERENCE_LABELS, enablePushNotifications, getPushStatus, savePushPreferences, sendPushNotification, type PushPreferences, type PushStatus } from './lib/push';
+import { ShoppingListsPage } from './ShoppingListsFeature';
 import {
   AlertCircle,
   BadgeDollarSign,
@@ -23,14 +25,17 @@ import {
   BookOpen,
   BriefcaseBusiness,
   CalendarDays,
+  Camera,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   Car,
+  Check,
   Clock3,
   Coins,
+  Copy,
   CreditCard,
   Eye,
   EyeOff,
@@ -48,17 +53,28 @@ import {
   ListFilter,
   Landmark,
   LogOut,
+  Mail,
+  Search,
   Minus,
   MoreVertical,
+  MoreHorizontal,
+  Moon,
+  Music,
+  Dumbbell,
+  Plane,
+  Sun,
   PiggyBank,
+  Phone,
   PawPrint,
   Pencil,
   Plus,
   ReceiptText,
   RotateCcw,
   Repeat2,
+  Save,
   Share,
   ShoppingBag,
+  ShoppingCart,
   Target,
   Tags,
   TrendingDown,
@@ -67,12 +83,16 @@ import {
   Utensils,
   Users,
   Upload,
+  UserPlus,
+  UserRound,
+  UserX,
   WalletCards,
+  Wrench,
   X,
 } from 'lucide-react';
 
 type TransactionType = 'income' | 'expense';
-type AppPage = 'dashboard' | 'transactions' | 'categories' | 'goals' | 'reports' | 'accounts' | 'help';
+type AppPage = 'dashboard' | 'transactions' | 'categories' | 'goals' | 'reports' | 'accounts' | 'shopping' | 'friends' | 'profile' | 'help' | 'notifications';
 const PAGE_LABELS: Record<AppPage, string> = {
   dashboard: 'Visão Geral',
   transactions: 'Transações',
@@ -80,8 +100,14 @@ const PAGE_LABELS: Record<AppPage, string> = {
   goals: 'Metas',
   reports: 'Relatórios',
   accounts: 'Contas',
+  shopping: 'Listas de compras',
+  friends: 'Amigos',
+  profile: 'Meu perfil',
   help: 'Ajuda',
+  notifications: 'Notificações',
 };
+export type FriendshipInvitationStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+export type SharedTransactionStatus = 'pending' | 'approved' | 'declined' | 'cancelled';
 type GoalMovementType = 'deposit' | 'withdraw';
 type RecurrenceType = 'single' | 'fixed' | 'installment';
 type TransactionStatus = 'open' | 'settled';
@@ -103,7 +129,7 @@ type GoalFilters = {
 };
 type AccountIconKey = 'wallet' | 'card' | 'bank' | 'savings' | 'investment' | 'cash';
 type CategoryKind = 'income' | 'expense' | 'transfer';
-type CategoryIconKey = 'salary' | 'money' | 'work' | 'shopping' | 'refund' | 'investment' | 'home' | 'card' | 'gift' | 'food' | 'car' | 'health' | 'education' | 'leisure' | 'repeat' | 'family' | 'pets' | 'donation' | 'wallet' | 'transfer' | 'tag';
+type CategoryIconKey = 'salary' | 'money' | 'work' | 'shopping' | 'refund' | 'investment' | 'home' | 'card' | 'gift' | 'food' | 'car' | 'health' | 'education' | 'leisure' | 'repeat' | 'family' | 'pets' | 'donation' | 'wallet' | 'transfer' | 'tag' | 'travel' | 'fitness' | 'music' | 'maintenance';
 
 export type Account = {
   id: string;
@@ -154,6 +180,9 @@ export type Transaction = {
   accountId?: string;
   account?: string;
   notes?: string;
+  sharedRequestId?: string;
+  sharedCreatedBy?: string;
+  sharedCreatedByName?: string;
 };
 
 export type GoalMovement = {
@@ -175,6 +204,59 @@ export type Goal = {
   movements: GoalMovement[];
 };
 
+export type FriendUser = {
+  id: string;
+  publicFriendId: string;
+  name: string;
+  email: string;
+  avatarUrl?: string | null;
+};
+
+export type FriendshipInvitation = {
+  id: string;
+  requesterId: string;
+  receiverId: string;
+  status: FriendshipInvitationStatus;
+  createdAt: string;
+  respondedAt?: string;
+};
+
+export type SharedTransactionRequest = {
+  id: string;
+  creatorId: string;
+  receiverId: string;
+  type: TransactionType;
+  description: string;
+  amount: number;
+  dueDate: string;
+  category: string;
+  note?: string;
+  declineReason?: string;
+  status: SharedTransactionStatus;
+  createdAt: string;
+  respondedAt?: string;
+  approvedTransactionId?: string;
+};
+
+type SharedTransactionForm = {
+  type: TransactionType;
+  friendId: string;
+  description: string;
+  amount: string;
+  dueDate: string;
+  category: string;
+  note: string;
+};
+
+type AppNotification = {
+  id: string;
+  userId: string;
+  type: 'friend_invite' | 'friend_accepted' | 'shared_created' | 'shared_approved' | 'shared_declined' | 'shared_cancelled';
+  message: string;
+  createdAt: string;
+  read?: boolean;
+};
+
 
 type BalanceDotProps = {
   cx?: number | string;
@@ -182,11 +264,18 @@ type BalanceDotProps = {
   payload?: { Saldo?: number };
 };
 
+type BalanceLabelProps = {
+  x?: number | string;
+  y?: number | string;
+  value?: unknown;
+};
+
 const TRANSACTION_DESCRIPTION_MAX_LENGTH = 24;
 
 type LaunchForm = {
   description: string;
   category: string;
+  accountId: string;
   amount: string;
   dueDate: string;
   recurrence: RecurrenceType;
@@ -205,7 +294,244 @@ type ImportPreviewRow = {
   error?: string;
 };
 
-const DEFAULT_ACCOUNT: Account = { id: 'wallet', name: 'Carteira', type: 'wallet', initialBalance: 0, color: '#1B99D8', icon: 'wallet' };
+function normalizePublicFriendId(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+function publicFriendIdForUser(userId: string) {
+  const uuidHex = userId.replace(/-/g, '');
+  if (/^[0-9a-f]{32}$/i.test(uuidHex)) return (BigInt(`0x${uuidHex}`) % 1000000n).toString().padStart(6, '0');
+
+  const encoded = new TextEncoder().encode(userId || '0');
+  const hex = Array.from(encoded, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return (BigInt(`0x${hex || '0'}`) % 1000000n).toString().padStart(6, '0');
+}
+
+function friendshipPairKey(a: string, b: string) {
+  return [a, b].sort().join(':');
+}
+
+function invitationConnectsUsers(invitation: FriendshipInvitation, a: string, b: string) {
+  return friendshipPairKey(invitation.requesterId, invitation.receiverId) === friendshipPairKey(a, b);
+}
+
+export function areUsersFriends(currentUserId: string, targetUserId: string, invitations: FriendshipInvitation[]) {
+  return invitations.some((invitation) => invitation.status === 'accepted' && invitationConnectsUsers(invitation, currentUserId, targetUserId));
+}
+
+export function canShareWithUser(currentUserId: string, targetUserId: string, invitations: FriendshipInvitation[]) {
+  return areUsersFriends(currentUserId, targetUserId, invitations);
+}
+
+function findBlockingFriendInvitation(currentUserId: string, target: FriendUser, invitations: FriendshipInvitation[]) {
+  if (!currentUserId || currentUserId === target.id) return 'Você não pode enviar convite para si mesmo.';
+  if (areUsersFriends(currentUserId, target.id, invitations)) return 'Este usuário já está conectado como amigo.';
+  const pending = invitations.find((invitation) => invitation.status === 'pending' && invitationConnectsUsers(invitation, currentUserId, target.id));
+  if (pending) return 'Já existe um convite pendente entre vocês.';
+  return null;
+}
+
+const PUBLIC_USERS_STORAGE_KEY = 'rubylife-public-users';
+const FRIEND_INVITATIONS_STORAGE_KEY = 'rubylife-friend-invitations';
+const APP_NOTIFICATIONS_STORAGE_KEY = 'rubylife-notifications';
+
+function loadPublicUsers(): FriendUser[] {
+  try {
+    const raw = localStorage.getItem(PUBLIC_USERS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as FriendUser[];
+    if (!Array.isArray(parsed)) return [];
+    const migrated = parsed
+      .filter((user) => user.id)
+      .map((user) => ({ ...user, publicFriendId: publicFriendIdForUser(user.id) }));
+    return [...new Map(migrated.map((user) => [user.id, user])).values()];
+  } catch {
+    return [];
+  }
+}
+
+function storePublicUsers(users: FriendUser[]) {
+  try {
+    localStorage.setItem(PUBLIC_USERS_STORAGE_KEY, JSON.stringify(users));
+  } catch {
+    // armazenamento local indisponível
+  }
+}
+
+function upsertPublicUser(user: FriendUser) {
+  const users = loadPublicUsers();
+  const next = [user, ...users.filter((item) => item.id !== user.id && normalizePublicFriendId(item.publicFriendId) !== normalizePublicFriendId(user.publicFriendId))];
+  storePublicUsers(next);
+  return next;
+}
+
+function loadStoredFriendInvitations(currentUserId?: string): FriendshipInvitation[] {
+  try {
+    const raw = localStorage.getItem(FRIEND_INVITATIONS_STORAGE_KEY);
+    const globalInvitations = raw ? JSON.parse(raw) as FriendshipInvitation[] : [];
+    if (Array.isArray(globalInvitations) && globalInvitations.length) return globalInvitations;
+    if (!currentUserId) return [];
+    const legacy = localStorage.getItem(`rubylife-friend-invitations-${currentUserId}`);
+    const parsedLegacy = legacy ? JSON.parse(legacy) as FriendshipInvitation[] : [];
+    return Array.isArray(parsedLegacy) ? parsedLegacy : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeFriendInvitations(invitations: FriendshipInvitation[]) {
+  try {
+    localStorage.setItem(FRIEND_INVITATIONS_STORAGE_KEY, JSON.stringify(invitations));
+  } catch {
+    // armazenamento local indisponível
+  }
+}
+
+function loadNotifications(): AppNotification[] {
+  try {
+    const raw = localStorage.getItem(APP_NOTIFICATIONS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as AppNotification[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeNotifications(notifications: AppNotification[]) {
+  try {
+    localStorage.setItem(APP_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
+  } catch {
+    // armazenamento local indisponível
+  }
+}
+const SHARED_TRANSACTIONS_STORAGE_KEY = 'rubylife-shared-transactions';
+
+function loadStoredSharedTransactions(): SharedTransactionRequest[] {
+  try {
+    const raw = localStorage.getItem(SHARED_TRANSACTIONS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as SharedTransactionRequest[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeSharedTransactions(requests: SharedTransactionRequest[]) {
+  try {
+    localStorage.setItem(SHARED_TRANSACTIONS_STORAGE_KEY, JSON.stringify(requests));
+  } catch {
+    // armazenamento local indisponível
+  }
+}
+
+function sharedTransactionLabel(item: Transaction) {
+  if (!item.sharedCreatedByName) return null;
+  return `${item.type === 'income' ? 'Receita' : 'Despesa'} compartilhada por ${item.sharedCreatedByName}`;
+}
+
+const DEMO_SOCIAL_SEED_PREFIX = 'rubylife-demo-social-seed-v1';
+const SHOPPING_LISTS_STORAGE_KEY = 'rubylife-shopping-lists';
+
+type DemoShoppingListItem = {
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  addedById: string;
+  createdAt: string;
+};
+
+type DemoShoppingList = {
+  id: string;
+  name: string;
+  date: string;
+  note?: string;
+  status: 'open' | 'finalized' | 'cancelled';
+  participantIds: string[];
+  items: DemoShoppingListItem[];
+  createdById: string;
+  createdAt: string;
+  finalizedAt?: string;
+  finalizedById?: string;
+};
+
+function seedDemoSocialData(currentUser: FriendUser) {
+  const seedKey = `${DEMO_SOCIAL_SEED_PREFIX}-${currentUser.id}`;
+  if (localStorage.getItem(seedKey)) return null;
+
+  const demoUsers: FriendUser[] = [
+    { id: 'demo-friend-marina', name: 'Marina Costa', email: 'marina.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-friend-marina') },
+    { id: 'demo-friend-lucas', name: 'Lucas Almeida', email: 'lucas.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-friend-lucas') },
+    { id: 'demo-friend-bianca', name: 'Bianca Rocha', email: 'bianca.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-friend-bianca') },
+    { id: 'demo-request-rafael', name: 'Rafael Mendes', email: 'rafael.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-request-rafael') },
+    { id: 'demo-request-julia', name: 'Júlia Fernandes', email: 'julia.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-request-julia') },
+  ];
+
+  const existingUsers = loadPublicUsers();
+  const usersById = new Map<string, FriendUser>([currentUser, ...existingUsers, ...demoUsers].map((user) => [user.id, user]));
+  const nextUsers = [...usersById.values()];
+  storePublicUsers(nextUsers);
+
+  const now = new Date().toISOString();
+  const demoInvitations: FriendshipInvitation[] = [
+    { id: `demo-invite-${currentUser.id}-marina`, requesterId: currentUser.id, receiverId: 'demo-friend-marina', status: 'accepted', createdAt: '2026-06-20T12:00:00.000Z', respondedAt: '2026-06-20T12:10:00.000Z' },
+    { id: `demo-invite-${currentUser.id}-lucas`, requesterId: 'demo-friend-lucas', receiverId: currentUser.id, status: 'accepted', createdAt: '2026-06-21T12:00:00.000Z', respondedAt: '2026-06-21T12:08:00.000Z' },
+    { id: `demo-invite-${currentUser.id}-bianca`, requesterId: currentUser.id, receiverId: 'demo-friend-bianca', status: 'accepted', createdAt: '2026-06-22T12:00:00.000Z', respondedAt: '2026-06-22T12:12:00.000Z' },
+    { id: `demo-request-${currentUser.id}-rafael`, requesterId: 'demo-request-rafael', receiverId: currentUser.id, status: 'pending', createdAt: '2026-06-29T14:30:00.000Z' },
+    { id: `demo-request-${currentUser.id}-julia`, requesterId: 'demo-request-julia', receiverId: currentUser.id, status: 'pending', createdAt: '2026-06-30T09:15:00.000Z' },
+  ];
+  const invitationById = new Map<string, FriendshipInvitation>([...loadStoredFriendInvitations(currentUser.id), ...demoInvitations].map((invitation) => [invitation.id, invitation]));
+  const nextInvitations = [...invitationById.values()];
+  storeFriendInvitations(nextInvitations);
+
+  const demoShared: SharedTransactionRequest[] = [
+    { id: `demo-shared-${currentUser.id}-market`, creatorId: 'demo-friend-marina', receiverId: currentUser.id, type: 'expense', description: 'Mercado do churrasco', amount: 184.9, dueDate: '2026-06-30', category: 'Alimentação', note: 'Dividir carnes e bebidas.', status: 'pending', createdAt: '2026-06-30T10:00:00.000Z' },
+    { id: `demo-shared-${currentUser.id}-uber`, creatorId: currentUser.id, receiverId: 'demo-friend-lucas', type: 'expense', description: 'Uber ida ao shopping', amount: 42.5, dueDate: '2026-06-28', category: 'Transporte', note: 'Volta ficou por conta do Lucas.', status: 'approved', createdAt: '2026-06-28T20:10:00.000Z', respondedAt: '2026-06-28T20:25:00.000Z' },
+  ];
+  const sharedById = new Map<string, SharedTransactionRequest>([...loadStoredSharedTransactions(), ...demoShared].map((request) => [request.id, request]));
+  const nextSharedTransactions = [...sharedById.values()];
+  storeSharedTransactions(nextSharedTransactions);
+
+  const demoShoppingLists: DemoShoppingList[] = [
+    { id: `demo-shopping-${currentUser.id}-churrasco`, name: 'Churrasco de sábado', date: '2026-07-04', note: 'Cada um adiciona o que lembrar antes de sexta.', status: 'open', participantIds: [currentUser.id, 'demo-friend-marina', 'demo-friend-lucas'], createdById: currentUser.id, createdAt: now, items: [
+      { id: 'demo-item-carne', name: 'Picanha', quantity: 2, unitPrice: 89.9, addedById: currentUser.id, createdAt: now },
+      { id: 'demo-item-carvao', name: 'Carvão', quantity: 1, unitPrice: 24.9, addedById: 'demo-friend-lucas', createdAt: now },
+      { id: 'demo-item-refri', name: 'Refrigerante', quantity: 4, unitPrice: 8.49, addedById: 'demo-friend-marina', createdAt: now },
+    ] },
+    { id: `demo-shopping-${currentUser.id}-casa`, name: 'Compras da casa', date: '2026-07-02', note: 'Lista compartilhada com itens de limpeza e mercado.', status: 'open', participantIds: [currentUser.id, 'demo-friend-bianca'], createdById: 'demo-friend-bianca', createdAt: now, items: [
+      { id: 'demo-item-arroz', name: 'Arroz 5kg', quantity: 1, unitPrice: 28.9, addedById: 'demo-friend-bianca', createdAt: now },
+      { id: 'demo-item-detergente', name: 'Detergente', quantity: 3, unitPrice: 2.79, addedById: currentUser.id, createdAt: now },
+      { id: 'demo-item-cafe', name: 'Café', quantity: 2, unitPrice: 17.5, addedById: currentUser.id, createdAt: now },
+    ] },
+    { id: `demo-shopping-${currentUser.id}-finalizada`, name: 'Aniversário da Júlia', date: '2026-06-25', note: 'Lista finalizada para testar histórico.', status: 'finalized', participantIds: [currentUser.id, 'demo-friend-marina', 'demo-friend-bianca'], createdById: currentUser.id, createdAt: '2026-06-23T10:00:00.000Z', finalizedAt: '2026-06-25T18:00:00.000Z', finalizedById: currentUser.id, items: [
+      { id: 'demo-item-bolo', name: 'Bolo', quantity: 1, unitPrice: 95, addedById: currentUser.id, createdAt: '2026-06-23T10:00:00.000Z' },
+      { id: 'demo-item-salgados', name: 'Salgados cento', quantity: 2, unitPrice: 72, addedById: 'demo-friend-marina', createdAt: '2026-06-23T10:05:00.000Z' },
+    ] },
+  ];
+  try {
+    const raw = localStorage.getItem(SHOPPING_LISTS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) as DemoShoppingList[] : [];
+    const existingLists = Array.isArray(parsed) ? parsed : [];
+    const listById = new Map<string, DemoShoppingList>([...existingLists, ...demoShoppingLists].map((list) => [list.id, list]));
+    localStorage.setItem(SHOPPING_LISTS_STORAGE_KEY, JSON.stringify([...listById.values()]));
+    window.dispatchEvent(new CustomEvent('rubylife-shopping-lists-change'));
+  } catch {
+    // armazenamento local indisponível
+  }
+
+  const demoNotifications: AppNotification[] = [
+    { id: `demo-notification-${currentUser.id}-rafael`, userId: currentUser.id, type: 'friend_invite', message: 'Rafael Mendes enviou um convite de amizade para você.', createdAt: '2026-06-29T14:30:00.000Z' },
+    { id: `demo-notification-${currentUser.id}-julia`, userId: currentUser.id, type: 'friend_invite', message: 'Júlia Fernandes enviou um convite de amizade para você.', createdAt: '2026-06-30T09:15:00.000Z' },
+  ];
+  const notificationById = new Map<string, AppNotification>([...loadNotifications(), ...demoNotifications].map((notification) => [notification.id, notification]));
+  const nextNotifications = [...notificationById.values()];
+  storeNotifications(nextNotifications);
+
+  localStorage.setItem(seedKey, '1');
+  return { nextUsers, nextInvitations, nextSharedTransactions, nextNotifications };
+}
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   wallet: 'Carteira',
   checking: 'Conta corrente',
@@ -223,20 +549,6 @@ const ACCOUNT_ICON_OPTIONS: Array<{ key: AccountIconKey; label: string }> = [
   { key: 'savings', label: 'Poupança' },
   { key: 'investment', label: 'Investimentos' },
   { key: 'cash', label: 'Dinheiro' },
-];
-const CATEGORY_ICON_OPTIONS: Array<{ key: CategoryIconKey; label: string }> = [
-  { key: 'tag', label: 'Etiqueta' },
-  { key: 'money', label: 'Dinheiro' },
-  { key: 'work', label: 'Trabalho' },
-  { key: 'shopping', label: 'Compras' },
-  { key: 'home', label: 'Moradia' },
-  { key: 'food', label: 'Alimentação' },
-  { key: 'car', label: 'Transporte' },
-  { key: 'health', label: 'Saúde' },
-  { key: 'education', label: 'Educação' },
-  { key: 'gift', label: 'Presente' },
-  { key: 'family', label: 'Família' },
-  { key: 'transfer', label: 'Transferência' },
 ];
 const CATEGORY_KIND_LABELS: Record<CategoryKind, string> = {
   income: 'Receita',
@@ -259,6 +571,7 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, month) => ({
 const initialForm: LaunchForm = {
   description: '',
   category: 'Outros',
+  accountId: '',
   amount: '',
   dueDate: new Date().toISOString().slice(0, 10),
   recurrence: 'single',
@@ -320,7 +633,7 @@ function slugifyFileName(value: string) {
   return value
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'relatorio';
 }
@@ -387,65 +700,44 @@ function exportReportPdf(items: Transaction[], title: string) {
   doc.save(`${slugifyFileName(title)}.pdf`);
 }
 
-function exportReportExcel(items: Transaction[], title: string) {
+const excelHeader = (value: string): Cell => ({ value, fontWeight: 'bold', backgroundColor: '#1B99D8', textColor: '#FFFFFF' });
+const excelCurrency = (value: number): Cell => ({ value, type: Number, format: '"R$" #,##0.00' });
+
+async function exportReportExcel(items: Transaction[], title: string) {
   const totals = reportTotals(items);
-  const workbook = XLSX.utils.book_new();
-
-  // Summary sheet
-  const summaryData = [
-    ['', 'Receitas', 'Despesas', 'Saldo'],
-    ['Previsto', totals.income, totals.expense, totals.balance],
-    ['Realizado', totals.settledIncome, totals.settledExpense, totals.settledIncome - totals.settledExpense],
-    ['Pendente', totals.pendingIncome, totals.pendingExpense, totals.pendingIncome - totals.pendingExpense],
+  const summaryData: SheetData = [
+    ['', excelHeader('Receitas'), excelHeader('Despesas'), excelHeader('Saldo')],
+    [excelHeader('Previsto'), excelCurrency(totals.income), excelCurrency(totals.expense), excelCurrency(totals.balance)],
+    [excelHeader('Realizado'), excelCurrency(totals.settledIncome), excelCurrency(totals.settledExpense), excelCurrency(totals.settledIncome - totals.settledExpense)],
+    [excelHeader('Pendente'), excelCurrency(totals.pendingIncome), excelCurrency(totals.pendingExpense), excelCurrency(totals.pendingIncome - totals.pendingExpense)],
   ];
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-  summarySheet['!cols'] = [{ wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
-  for (let row = 2; row <= 4; row++) {
-    ['B', 'C', 'D'].forEach((col) => {
-      const cell = summarySheet[`${col}${row}`];
-      if (cell && typeof cell.v === 'number') cell.z = '"R$" #,##0.00';
-    });
-  }
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumo');
-
-  // Transactions sheet
-  const rows = items.map((item) => ({
-    Tipo: item.type === 'income' ? 'Receita' : 'Despesa',
-    'Descrição': item.description,
-    Categoria: item.category,
-    Vencimento: formatDate(item.dueDate),
-    'Valor previsto': item.amount,
-    'Valor real': item.status === 'settled' ? (item.settledAmount ?? item.amount) : '',
-    Status: item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
-    Conta: item.status === 'settled' ? (item.account ?? '') : '',
-  }));
-  const worksheet = XLSX.utils.json_to_sheet(rows, { header: REPORT_COLUMNS });
-  worksheet['!cols'] = [{ wch: 10 }, { wch: 28 }, { wch: 18 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 16 }];
-  const range = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1');
-  for (let row = range.s.r + 1; row <= range.e.r; row += 1) {
-    ['E', 'F'].forEach((column) => {
-      const cell = worksheet[`${column}${row + 1}`];
-      if (cell && typeof cell.v === 'number') cell.z = '"R$" #,##0.00';
-    });
-  }
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Transações');
-
-  XLSX.writeFile(workbook, `${slugifyFileName(title)}.xlsx`);
+  const transactionData: SheetData = [
+    REPORT_COLUMNS.map(excelHeader),
+    ...items.map((item) => [
+      item.type === 'income' ? 'Receita' : 'Despesa', item.description, item.category, formatDate(item.dueDate),
+      excelCurrency(item.amount), item.status === 'settled' ? excelCurrency(item.settledAmount ?? item.amount) : '',
+      item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+      item.status === 'settled' ? (item.account ?? '') : '',
+    ]),
+  ];
+  await writeXlsxFile([
+    { data: summaryData, sheet: 'Resumo', columns: [14, 18, 18, 18].map((width) => ({ width })) },
+    { data: transactionData, sheet: 'Transações', columns: [10, 28, 18, 12, 15, 15, 12, 16].map((width) => ({ width })), stickyRowsCount: 1 },
+  ]).toFile(`${slugifyFileName(title)}.xlsx`);
 }
 
-function downloadImportTemplate() {
+async function downloadImportTemplate() {
   const headers = ['Tipo', 'Descrição', 'Valor', 'Vencimento', 'Categoria', 'Recorrência', 'Parcelas'];
-  const rows = [
-    { Tipo: 'Receita', 'Descrição': 'Salário', Valor: 3500, Vencimento: '05/01/2026', Categoria: 'Salário', 'Recorrência': 'Fixa', Parcelas: '' },
-    { Tipo: 'Despesa', 'Descrição': 'Aluguel', Valor: 1200, Vencimento: '10/01/2026', Categoria: 'Moradia', 'Recorrência': 'Fixa', Parcelas: '' },
-    { Tipo: 'Despesa', 'Descrição': 'Notebook', Valor: 4800, Vencimento: '15/01/2026', Categoria: 'Compras', 'Recorrência': 'Parcelada', Parcelas: 12 },
-    { Tipo: 'Receita', 'Descrição': 'Freelance', Valor: 800, Vencimento: '20/01/2026', Categoria: 'Freelance', 'Recorrência': 'Única', Parcelas: '' },
+  const data: SheetData = [
+    headers.map(excelHeader),
+    ['Receita', 'Salário', excelCurrency(3500), '05/01/2026', 'Salário', 'Fixa', ''],
+    ['Despesa', 'Aluguel', excelCurrency(1200), '10/01/2026', 'Moradia', 'Fixa', ''],
+    ['Despesa', 'Notebook', excelCurrency(4800), '15/01/2026', 'Compras', 'Parcelada', 12],
+    ['Receita', 'Freelance', excelCurrency(800), '20/01/2026', 'Freelance', 'Única', ''],
   ];
-  const worksheet = XLSX.utils.json_to_sheet(rows, { header: headers });
-  worksheet['!cols'] = [{ wch: 10 }, { wch: 26 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 10 }];
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Modelo');
-  XLSX.writeFile(workbook, 'modelo-importacao-transacoes.xlsx');
+  await writeXlsxFile(data, {
+    sheet: 'Modelo', columns: [10, 26, 12, 14, 18, 14, 10].map((width) => ({ width })), stickyRowsCount: 1,
+  }).toFile('modelo-importacao-transacoes.xlsx');
 }
 
 function accountIconFor(account: Account): AccountIconKey {
@@ -467,15 +759,14 @@ function AccountIconGraphic({ icon, size = 17 }: { icon: AccountIconKey; size?: 
 
 function defaultCategoryIcon(name: string, kind: CategoryKind): CategoryIconKey {
   const icons: Record<string, CategoryIconKey> = {
-    'Salário': 'salary', Extra: 'money', Freelance: 'work', Vendas: 'shopping', Reembolso: 'refund', Investimentos: 'investment',
-    Aluguel: 'home', Cashback: 'card', Presente: 'gift', Empréstimo: 'money', Moradia: 'home', Alimentação: 'food',
-    Transporte: 'car', Saúde: 'health', Educação: 'education', Lazer: 'leisure', Compras: 'shopping', Assinaturas: 'repeat',
-    Dívidas: 'money', Cartão: 'card', Família: 'family', Pets: 'pets', Impostos: 'money', Trabalho: 'work', Doações: 'donation',
-    Saques: 'wallet', 'Entre contas': 'transfer', 'Para carteira': 'wallet', 'Para poupança': 'money', 'Para investimentos': 'investment',
+    'Salário': 'salary', 'Extra': 'money', 'Freelance': 'work', 'Vendas': 'shopping', 'Reembolso': 'refund', 'Investimentos': 'investment',
+    'Aluguel': 'home', 'Cashback': 'card', 'Presente': 'gift', 'Empréstimo': 'money', 'Moradia': 'home', 'Alimentação': 'food',
+    'Transporte': 'car', 'Saúde': 'health', 'Educação': 'education', 'Lazer': 'leisure', 'Compras': 'shopping', 'Assinaturas': 'repeat',
+    'Dívidas': 'money', 'Cartão': 'card', 'Família': 'family', 'Pets': 'pets', 'Impostos': 'money', 'Trabalho': 'work', 'Doações': 'donation',
+    'Saques': 'wallet', 'Entre contas': 'transfer', 'Para carteira': 'wallet', 'Para poupança': 'money', 'Para investimentos': 'investment',
   };
   return icons[name] ?? (kind === 'transfer' ? 'transfer' : 'tag');
 }
-
 function CategoryIconGraphic({ icon, size = 17 }: { icon: CategoryIconKey; size?: number }) {
   if (icon === 'salary') return <BadgeDollarSign size={size} />;
   if (icon === 'money') return <Coins size={size} />;
@@ -497,11 +788,121 @@ function CategoryIconGraphic({ icon, size = 17 }: { icon: CategoryIconKey; size?
   if (icon === 'donation') return <HandHeart size={size} />;
   if (icon === 'wallet') return <WalletCards size={size} />;
   if (icon === 'transfer') return <ArrowLeftRight size={size} />;
+  if (icon === 'travel') return <Plane size={size} />;
+  if (icon === 'fitness') return <Dumbbell size={size} />;
+  if (icon === 'music') return <Music size={size} />;
+  if (icon === 'maintenance') return <Wrench size={size} />;
   return <Tags size={size} />;
 }
 
+type HsvColor = { h: number; s: number; v: number };
+
+function hexToHsv(hex: string): HsvColor {
+  const normalized = hex.replace('#', '').padEnd(6, '0').slice(0, 6);
+  const red = Number.parseInt(normalized.slice(0, 2), 16) / 255;
+  const green = Number.parseInt(normalized.slice(2, 4), 16) / 255;
+  const blue = Number.parseInt(normalized.slice(4, 6), 16) / 255;
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  let hue = 0;
+  if (delta) {
+    if (max === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (max === green) hue = 60 * ((blue - red) / delta + 2);
+    else hue = 60 * ((red - green) / delta + 4);
+  }
+  return { h: hue < 0 ? hue + 360 : hue, s: max ? (delta / max) * 100 : 0, v: max * 100 };
+}
+
+function hsvToRgb({ h, s, v }: HsvColor) {
+  const saturation = s / 100;
+  const value = v / 100;
+  const chroma = value * saturation;
+  const section = h / 60;
+  const x = chroma * (1 - Math.abs((section % 2) - 1));
+  const offset = value - chroma;
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  if (section < 1) [red, green] = [chroma, x];
+  else if (section < 2) [red, green] = [x, chroma];
+  else if (section < 3) [green, blue] = [chroma, x];
+  else if (section < 4) [green, blue] = [x, chroma];
+  else if (section < 5) [red, blue] = [x, chroma];
+  else [red, blue] = [chroma, x];
+  return {
+    r: Math.round((red + offset) * 255),
+    g: Math.round((green + offset) * 255),
+    b: Math.round((blue + offset) * 255),
+  };
+}
+
+function hsvToHex(hsv: HsvColor) {
+  const { r, g, b } = hsvToRgb(hsv);
+  return `#${[r, g, b].map((channel) => channel.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
+}
+
+function ColorSpectrumSheet({ value, onChange, onClose }: { value: string; onChange: (color: string) => void; onClose: () => void }) {
+  const [hsv, setHsv] = useState<HsvColor>(() => hexToHsv(value));
+  const rgb = hsvToRgb(hsv);
+
+  useEffect(() => {
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
+  function applyColor(next: HsvColor) {
+    setHsv(next);
+    onChange(hsvToHex(next));
+  }
+
+  function updateSpectrum(event: React.PointerEvent<HTMLDivElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const saturation = Math.min(100, Math.max(0, ((event.clientX - bounds.left) / bounds.width) * 100));
+    const brightness = 100 - Math.min(100, Math.max(0, ((event.clientY - bounds.top) / bounds.height) * 100));
+    applyColor({ ...hsv, s: saturation, v: brightness });
+  }
+
+  return createPortal(
+    <div className="category-icon-picker-layer" onClick={onClose}>
+      <div className="category-icon-picker-dialog color-spectrum-dialog" role="dialog" aria-modal="true" aria-label="Escolher cor" onClick={(event) => event.stopPropagation()}>
+        <div className="category-icon-picker-head">
+          <strong>Escolher cor</strong>
+          <button type="button" onClick={onClose} aria-label="Fechar seletor de cor"><X size={18} /></button>
+        </div>
+        <div className="color-spectrum-body">
+          <div
+            className="color-spectrum-area"
+            style={{ backgroundColor: `hsl(${hsv.h} 100% 50%)` }}
+            role="slider"
+            aria-label="Saturação e brilho"
+            aria-valuetext={hsvToHex(hsv)}
+            onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); updateSpectrum(event); }}
+            onPointerMove={(event) => { if (event.currentTarget.hasPointerCapture(event.pointerId)) updateSpectrum(event); }}
+          >
+            <span className="color-spectrum-cursor" style={{ left: `${hsv.s}%`, top: `${100 - hsv.v}%` }} />
+          </div>
+          <div className="color-hue-row">
+            <span className="color-preview" style={{ backgroundColor: hsvToHex(hsv) }} />
+            <input type="range" min="0" max="359" value={Math.round(hsv.h)} onChange={(event) => applyColor({ ...hsv, h: Number(event.target.value) })} aria-label="Tonalidade" />
+          </div>
+          <div className="color-value-row">
+            <span><strong>{rgb.r}</strong><small>R</small></span>
+            <span><strong>{rgb.g}</strong><small>G</small></span>
+            <span><strong>{rgb.b}</strong><small>B</small></span>
+            <span className="color-hex-value"><strong>{hsvToHex(hsv)}</strong><small>HEX</small></span>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 function parseAmount(value: string) {
-  const normalized = value.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
+  const normalized = value.replace(/\./g, '').replace(',', '.').replace(/[\u0300-\u036f]/g, '');
   return Number(normalized || 0);
 }
 
@@ -514,7 +915,7 @@ function formatCurrencyInput(value: string | number) {
       raw = raw.slice(0, lastDot) + ',' + raw.slice(lastDot + 1);
     }
   }
-  const clean = raw.replace(/[^\d,]/g, '');
+  const clean = raw.replace(/[\u0300-\u036f]/g, '');
   if (!clean) return '';
   const parts = clean.split(',');
   let intPart = parts[0].replace(/^0+(?=\d)/, '');
@@ -562,7 +963,7 @@ function isValidCalendarDate(value: string) {
 
 function parseImportedAmount(value: unknown) {
   if (typeof value === 'number') return Math.abs(value);
-  const text = String(value ?? '').replace(/[^\d,.-]/g, '').trim();
+  const text = String(value ?? '').replace(/[\u0300-\u036f]/g, '').trim();
   if (!text) return 0;
   const normalized = text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text;
   return Math.abs(Number(normalized) || 0);
@@ -583,9 +984,54 @@ function parseImportedRecurrence(value: unknown): RecurrenceType | null {
   return null;
 }
 
+const MAX_IMPORT_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_IMPORT_UNCOMPRESSED_SIZE = 25 * 1024 * 1024;
+
+async function isSafeXlsxContainer(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) return false;
+  const validMagic = (bytes[2] === 0x03 && bytes[3] === 0x04)
+    || (bytes[2] === 0x05 && bytes[3] === 0x06)
+    || (bytes[2] === 0x07 && bytes[3] === 0x08);
+  if (!validMagic) return false;
+
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const decoder = new TextDecoder();
+  let entries = 0;
+  let totalUncompressed = 0;
+  let hasContentTypes = false;
+  let hasWorkbook = false;
+
+  for (let offset = 0; offset + 46 <= bytes.length;) {
+    if (view.getUint32(offset, true) !== 0x02014b50) {
+      offset += 1;
+      continue;
+    }
+    const uncompressedSize = view.getUint32(offset + 24, true);
+    const fileNameLength = view.getUint16(offset + 28, true);
+    const extraLength = view.getUint16(offset + 30, true);
+    const commentLength = view.getUint16(offset + 32, true);
+    const entryEnd = offset + 46 + fileNameLength + extraLength + commentLength;
+    if (entryEnd > bytes.length || uncompressedSize === 0xffffffff) return false;
+
+    const name = decoder.decode(bytes.slice(offset + 46, offset + 46 + fileNameLength)).replace(/\\/g, '/');
+    if (name.startsWith('/') || name.split('/').includes('..')) return false;
+    hasContentTypes ||= name === '[Content_Types].xml';
+    hasWorkbook ||= name === 'xl/workbook.xml';
+    totalUncompressed += uncompressedSize;
+    entries += 1;
+    if (entries > 1000 || totalUncompressed > MAX_IMPORT_UNCOMPRESSED_SIZE) return false;
+    offset = entryEnd;
+  }
+
+  return entries > 0 && hasContentTypes && hasWorkbook;
+}
+
 async function parseExcelTransactions(file: File): Promise<ImportPreviewRow[]> {
   const rows: Row[] = await readSheet(file);
   if (rows.length < 2) throw new Error('A planilha precisa ter um cabeçalho e pelo menos uma transação.');
+  if (rows.length > 5001) throw new Error('A planilha pode conter no máximo 5.000 transações.');
+  if ((rows[0]?.length ?? 0) > 50) throw new Error('A planilha possui colunas demais.');
 
   const headers = rows[0]?.map(normalizeHeader) ?? [];
   const columnAliases = {
@@ -642,6 +1088,7 @@ async function parseExcelTransactions(file: File): Promise<ImportPreviewRow[]> {
       amount: String(amount),
       dueDate,
       category,
+      accountId: '',
       recurrence,
       installments,
       fixedUntil: '',
@@ -667,6 +1114,7 @@ function generateTransactions(form: LaunchForm, type: TransactionType): Transact
     groupId,
     description: form.description.trim().slice(0, TRANSACTION_DESCRIPTION_MAX_LENGTH),
     category: form.category,
+    accountId: form.accountId || undefined,
     amount,
     type,
     recurrence: form.recurrence,
@@ -722,28 +1170,13 @@ function translateAuthError(message: string): string {
   return message;
 }
 
-const REMEMBERED_LOGIN_KEY = 'rubylife:remembered-login';
-
-function loadRememberedLogin(): { email: string; password: string } | null {
-  try {
-    const saved = localStorage.getItem(REMEMBERED_LOGIN_KEY);
-    if (!saved) return null;
-    const parsed = JSON.parse(saved) as { email?: unknown; password?: unknown };
-    if (typeof parsed.email !== 'string' || typeof parsed.password !== 'string') return null;
-    return { email: parsed.email, password: parsed.password };
-  } catch {
-    return null;
-  }
-}
-
 function LoginScreen() {
-  const rememberedLogin = useMemo(loadRememberedLogin, []);
   const [mode, setMode] = useState<'login' | 'recovery' | 'register'>('login');
-  const [email, setEmail] = useState(rememberedLogin?.email ?? '');
-  const [password, setPassword] = useState(rememberedLogin?.password ?? '');
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberLogin, setRememberLogin] = useState(Boolean(rememberedLogin));
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -763,12 +1196,20 @@ function LoginScreen() {
     }
 
     if (mode === 'register') {
+      if (fullName.trim().length < 2) {
+        setMessage({ text: 'Informe seu nome completo.', type: 'error' });
+        return;
+      }
+      if (password.length < 8) {
+        setMessage({ text: 'A senha deve ter pelo menos 8 caracteres.', type: 'error' });
+        return;
+      }
       if (password !== confirmPassword) {
         setMessage({ text: 'As senhas não coincidem. Verifique e tente novamente.', type: 'error' });
         return;
       }
       setLoading(true);
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email, password, fullName: fullName.trim() });
       setLoading(false);
       if (error) {
         setMessage({ text: translateAuthError(error.message), type: 'error' });
@@ -789,8 +1230,6 @@ function LoginScreen() {
       setMessage({ text: translateAuthError(error.message), type: 'error' });
       return;
     }
-    if (rememberLogin) localStorage.setItem(REMEMBERED_LOGIN_KEY, JSON.stringify({ email, password }));
-    else localStorage.removeItem(REMEMBERED_LOGIN_KEY);
     // Sucesso: a sessão muda e a App troca de tela automaticamente.
   }
 
@@ -820,6 +1259,19 @@ function LoginScreen() {
             </h1>
 
             <div className="toodledo-inputs">
+              {mode === 'register' && (
+                <input
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  type="text"
+                  placeholder="Nome completo"
+                  autoComplete="name"
+                  minLength={2}
+                  maxLength={160}
+                  required
+                  className="toodledo-input"
+                />
+              )}
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -838,6 +1290,7 @@ function LoginScreen() {
                     placeholder={mode === 'register' ? 'Criar senha' : 'Senha'}
                     autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                     required
+                    minLength={mode === 'register' ? 8 : undefined}
                     className="toodledo-input"
                   />
                   <button
@@ -893,21 +1346,6 @@ function LoginScreen() {
               </button>
             </div>
 
-            {mode === 'login' ? (
-              <label className="toodledo-remember">
-                <input
-                  type="checkbox"
-                  checked={rememberLogin}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setRememberLogin(checked);
-                    if (!checked) localStorage.removeItem(REMEMBERED_LOGIN_KEY);
-                  }}
-                />
-                <span>Lembrar meus dados</span>
-              </label>
-            ) : null}
-
             {message ? (
               <p className={`toodledo-recovery-msg ${message.type === 'error' ? 'toodledo-msg-error' : ''}`} role="status">
                 {message.text}
@@ -928,8 +1366,8 @@ function UpdatePasswordScreen({ onDone }: { onDone: () => void }) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
-    if (password.length < 6) {
-      setMessage({ text: 'A senha deve ter pelo menos 6 caracteres.', type: 'error' });
+    if (password.length < 8) {
+      setMessage({ text: 'A senha deve ter pelo menos 8 caracteres.', type: 'error' });
       return;
     }
     if (password !== confirmPassword) {
@@ -970,6 +1408,7 @@ function UpdatePasswordScreen({ onDone }: { onDone: () => void }) {
                 type="password"
                 placeholder="Nova senha"
                 autoComplete="new-password"
+                minLength={8}
                 required
                 className="toodledo-input"
               />
@@ -1009,21 +1448,47 @@ export function App() {
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [dataLoading, setDataLoading] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [storedProfileName, setStoredProfileName] = useState('');
+  const [storedProfilePhone, setStoredProfilePhone] = useState('');
+  const [storedAvatarUrl, setStoredAvatarUrl] = useState<string | null>(null);
   const userId = session?.user.id;
-  // Usa o nome do cadastro (user_metadata) quando existir; senão um padrão.
+  const emailFallback = session?.user.email?.split('@')[0]?.replace(/[._-]+/g, ' ').trim();
   const profileName =
+    storedProfileName.trim() ||
     ((session?.user.user_metadata?.full_name ?? session?.user.user_metadata?.name) as string | undefined)?.trim() ||
-    'Taylor Felipe Barbosa';
+    emailFallback ||
+    'Usuário';
   const [showSplash, setShowSplash] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches,
   );
   const [activePage, setActivePage] = useState<AppPage>('dashboard');
+  const [previousPage, setPreviousPage] = useState<AppPage>('dashboard');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window === 'undefined') return 'light';
+    return localStorage.getItem('rubylife-theme') === 'dark' ? 'dark' : 'light';
+  });
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('rubylife-theme', theme); } catch { /* storage bloqueado */ }
+  }, [theme]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [friendInvitations, setFriendInvitations] = useState<FriendshipInvitation[]>([]);
+  const [publicUsers, setPublicUsers] = useState<FriendUser[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [friendsTab, setFriendsTab] = useState<'search' | 'received'>('search');
+  const [sharedTransactions, setSharedTransactions] = useState<SharedTransactionRequest[]>([]);
   const [referenceDate, setReferenceDate] = useState(() => new Date(2026, 5, 1));
   const [launchOpen, setLaunchOpen] = useState(false);
+  const [launchType, setLaunchType] = useState<TransactionType>('expense');
+  const [shoppingCreateSignal, setShoppingCreateSignal] = useState(0);
+  const [friendSearchSignal, setFriendSearchSignal] = useState(0);
+  const [friendBackSignal, setFriendBackSignal] = useState(0);
+  const [activeFriendThreadName, setActiveFriendThreadName] = useState<string | null>(null);
+  const [activeShoppingListName, setActiveShoppingListName] = useState<string | null>(null);
+  const [shoppingBackSignal, setShoppingBackSignal] = useState(0);
   const [importOpen, setImportOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -1088,10 +1553,17 @@ export function App() {
   // Carrega os dados do usuário quando há sessão; limpa ao sair.
   useEffect(() => {
     if (!userId) {
+      setStoredProfileName('');
+      setStoredProfilePhone('');
+      setStoredAvatarUrl(null);
       setAccounts([]);
       setCustomCategories([]);
       setTransactions([]);
       setGoals([]);
+      setFriendInvitations([]);
+      setPublicUsers([]);
+      setNotifications([]);
+      setSharedTransactions([]);
       return;
     }
     let cancelled = false;
@@ -1100,10 +1572,17 @@ export function App() {
     loadAll()
       .then((data) => {
         if (cancelled) return;
+        setStoredProfileName(data.profileName ?? '');
+        setStoredProfilePhone(data.profilePhone ?? '');
+        setStoredAvatarUrl(data.profileAvatarUrl ?? null);
         setAccounts(data.accounts);
         setCustomCategories(data.categories);
         setTransactions(data.transactions);
         setGoals(data.goals);
+        setFriendInvitations(loadStoredFriendInvitations(userId));
+        setPublicUsers(loadPublicUsers());
+        setNotifications(loadNotifications());
+        setSharedTransactions(loadStoredSharedTransactions());
       })
       .catch((error) => {
         console.error('Falha ao carregar dados do Supabase:', error);
@@ -1142,10 +1621,37 @@ export function App() {
 
   function handleNavigate(page: AppPage) {
     setActivePage((current) => {
+      if (current !== 'notifications' && current !== 'help' && current !== 'profile') {
+        setPreviousPage(current);
+      }
       if (current === page) scrollContentToTop();
       return page;
     });
   }
+
+  function navigateFromUrl(rawUrl: string) {
+    const url = new URL(rawUrl, window.location.origin);
+    const path = url.pathname.replace(/\/$/, '');
+    if (path === '/amigos' || url.searchParams.get('page') === 'friends') {
+      setActivePage('friends');
+      setFriendsTab(url.searchParams.get('aba') === 'solicitacoes' || url.searchParams.get('tab') === 'received' ? 'received' : 'search');
+    } else if (path === '/listas-compras' || path.startsWith('/listas-compras/') || url.searchParams.get('page') === 'shopping') {
+      setActivePage('shopping');
+    } else if (path === '/transacoes-compartilhadas' || url.searchParams.get('page') === 'transactions') {
+      setActivePage('friends');
+    } else if (path === '/perfil') {
+      setActivePage('profile');
+    }
+  }
+
+  useEffect(() => {
+    navigateFromUrl(window.location.href);
+    function onServiceWorkerMessage(event: MessageEvent) {
+      if (event.data?.type === 'RUBYLIFE_PUSH_NAVIGATE' && event.data.url) navigateFromUrl(event.data.url);
+    }
+    navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
+  }, []);
 
   useLayoutEffect(() => {
     scrollContentToTop();
@@ -1155,7 +1661,10 @@ export function App() {
     if (!filterOpen) return;
 
     function closeOnOutsideClick(event: PointerEvent) {
-      if (!filterControlRef.current?.contains(event.target as Node)) setFilterOpen(false);
+      const target = event.target as Element | null;
+      if (!filterControlRef.current?.contains(target) && !target?.closest('.filter-popover') && !target?.closest('.mobile-tx-quick-btn--filter')) {
+        setFilterOpen(false);
+      }
     }
 
     function closeOnEscape(event: KeyboardEvent) {
@@ -1262,6 +1771,254 @@ export function App() {
     if (userId) void syncGoals(userId, prev, next).catch((error) => reportSyncError('metas', error));
   }
 
+  function commitFriendInvitations(next: FriendshipInvitation[]) {
+    setFriendInvitations(next);
+    storeFriendInvitations(next);
+  }
+
+  function commitNotifications(next: AppNotification[]) {
+    setNotifications(next);
+    storeNotifications(next);
+  }
+
+  function commitSharedTransactions(next: SharedTransactionRequest[]) {
+    setSharedTransactions(next);
+    storeSharedTransactions(next);
+  }
+
+  function notifyUser(input: Parameters<typeof sendPushNotification>[0]) {
+    void sendPushNotification(input).catch((error) => {
+      console.warn('Falha ao enviar push notification:', error);
+    });
+  }
+
+  const currentFriendUser = useMemo<FriendUser>(() => ({
+    id: userId ?? 'current-user',
+    publicFriendId: userId ? publicFriendIdForUser(userId) : '000000',
+    name: profileName,
+    email: session?.user.email ?? '',
+    avatarUrl: storedAvatarUrl,
+  }), [profileName, session?.user.email, storedAvatarUrl, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    setPublicUsers(upsertPublicUser(currentFriendUser));
+  }, [currentFriendUser, userId]);
+  useEffect(() => {
+    if (!userId || dataLoading) return;
+    const seeded = seedDemoSocialData(currentFriendUser);
+    if (!seeded) return;
+    setPublicUsers(seeded.nextUsers);
+    setFriendInvitations(seeded.nextInvitations);
+    setSharedTransactions(seeded.nextSharedTransactions);
+    setNotifications(seeded.nextNotifications);
+  }, [currentFriendUser, dataLoading, userId]);
+
+  const friendDirectory = useMemo<FriendUser[]>(() => {
+    const byId = new Map<string, FriendUser>();
+    [currentFriendUser, ...publicUsers].forEach((user) => { if (user.id) byId.set(user.id, user); });
+    return [...byId.values()];
+  }, [currentFriendUser, publicUsers]);
+
+  function sendFriendInvitation(target: FriendUser) {
+    if (!userId) return 'Sessão inválida para enviar convite.';
+    const blockingMessage = findBlockingFriendInvitation(userId, target, friendInvitations);
+    if (blockingMessage) return blockingMessage;
+    const invitation: FriendshipInvitation = {
+      id: crypto.randomUUID(),
+      requesterId: userId,
+      receiverId: target.id,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    commitFriendInvitations([...friendInvitations, invitation]);
+    commitNotifications([
+      ...notifications,
+      {
+        id: crypto.randomUUID(),
+        userId: target.id,
+        type: 'friend_invite',
+        message: `${currentFriendUser.name} enviou um convite de amizade para você.`,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    notifyUser({ userId: target.id, title: 'Novo convite de amizade', body: currentFriendUser.name + ' enviou um convite de amizade para você.', url: '/amigos?aba=solicitacoes', type: 'friend_invite' });
+    return null;
+  }
+
+  function acceptFriendInvitation(invitationId: string) {
+    const invitation = friendInvitations.find((item) => item.id === invitationId);
+    if (!invitation || invitation.receiverId !== currentFriendUser.id || invitation.status !== 'pending') return;
+    commitFriendInvitations(friendInvitations.map((item) => (
+      item.id === invitationId ? { ...item, status: 'accepted', respondedAt: new Date().toISOString() } : item
+    )));
+    commitNotifications([
+      ...notifications,
+      {
+        id: crypto.randomUUID(),
+        userId: invitation.requesterId,
+        type: 'friend_accepted',
+        message: `${currentFriendUser.name} aceitou seu convite de amizade.`,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    notifyUser({ userId: invitation.requesterId, title: 'Convite aceito', body: currentFriendUser.name + ' aceitou seu convite de amizade.', url: '/amigos', type: 'friend_accepted' });
+  }
+
+  function declineFriendInvitation(invitationId: string) {
+    commitFriendInvitations(friendInvitations.map((invitation) => (
+      invitation.id === invitationId && invitation.receiverId === currentFriendUser.id && invitation.status === 'pending'
+        ? { ...invitation, status: 'declined', respondedAt: new Date().toISOString() }
+        : invitation
+    )));
+  }
+
+  function removeFriend(friendId: string) {
+    commitFriendInvitations(friendInvitations.filter((invitation) => !(
+      invitation.status === 'accepted' && invitationConnectsUsers(invitation, currentFriendUser.id, friendId)
+    )));
+  }
+
+  function openFriendRequestsFromNotification() {
+    setFriendsTab('received');
+    setActivePage('friends');
+    commitNotifications(notifications.map((notification) => (
+      notification.userId === currentFriendUser.id && notification.type === 'friend_invite' ? { ...notification, read: true } : notification
+    )));
+  }
+  const acceptedFriends = useMemo(() => {
+    const byId = new Map(friendDirectory.map((friend) => [friend.id, friend] as const));
+    return friendInvitations
+      .filter((invitation) => invitation.status === 'accepted' && (invitation.requesterId === currentFriendUser.id || invitation.receiverId === currentFriendUser.id))
+      .map((invitation) => byId.get(invitation.requesterId === currentFriendUser.id ? invitation.receiverId : invitation.requesterId))
+      .filter((friend): friend is FriendUser => Boolean(friend));
+  }, [currentFriendUser.id, friendDirectory, friendInvitations]);
+
+  function createSharedTransaction(form: SharedTransactionForm) {
+    if (!userId) return 'Sessão inválida para criar transação compartilhada.';
+    const friend = acceptedFriends.find((candidate) => candidate.id === form.friendId);
+    if (!friend || !canShareWithUser(userId, friend.id, friendInvitations)) return 'Apenas amigos conectados podem receber transações compartilhadas.';
+    const amount = parseAmount(form.amount);
+    if (!form.description.trim() || amount <= 0 || !form.dueDate || !form.category) return 'Preencha descrição, valor, vencimento e categoria.';
+    const description = form.description.trim().slice(0, TRANSACTION_DESCRIPTION_MAX_LENGTH);
+    const requestId = crypto.randomUUID();
+    commitSharedTransactions([
+      ...sharedTransactions,
+      {
+        id: requestId,
+        creatorId: userId,
+        receiverId: friend.id,
+        type: form.type,
+        description,
+        amount,
+        dueDate: form.dueDate,
+        category: form.category,
+        note: form.note.trim() || undefined,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    commitNotifications([
+      ...notifications,
+      {
+        id: crypto.randomUUID(),
+        userId: friend.id,
+        type: 'shared_created',
+        message: `${currentFriendUser.name} criou uma ${form.type === 'income' ? 'receita' : 'despesa'} para você aprovar: ${description}.`,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    notifyUser({
+      userId: friend.id,
+      title: form.type === 'income' ? 'Nova receita para aprovar' : 'Nova despesa para aprovar',
+      body: `${currentFriendUser.name} criou uma ${form.type === 'income' ? 'receita' : 'despesa'} de ${formatCurrency(amount)} para você aprovar.`,
+      url: '/transacoes-compartilhadas?aba=pendentes',
+      type: form.type === 'income' ? 'shared_income_created' : 'shared_expense_created',
+      data: { requestId },
+    });
+    return null;
+  }
+  function approveSharedTransaction(requestId: string) {
+    if (!userId) return;
+    const request = sharedTransactions.find((item) => item.id === requestId);
+    if (!request || request.receiverId !== userId || request.status !== 'pending') return;
+    const creator = friendDirectory.find((item) => item.id === request.creatorId);
+    const newTransactionId = crypto.randomUUID();
+    const newTransaction: Transaction = {
+      id: newTransactionId,
+      groupId: crypto.randomUUID(),
+      description: request.description,
+      category: request.category,
+      amount: request.amount,
+      type: request.type,
+      dueDate: request.dueDate,
+      recurrence: 'single',
+      status: 'open',
+      notes: request.note,
+      sharedRequestId: request.id,
+      sharedCreatedBy: request.creatorId,
+      sharedCreatedByName: creator?.name ?? 'Amigo',
+    };
+    commitTransactions([...transactions, newTransaction]);
+    commitSharedTransactions(sharedTransactions.map((item) => (
+      item.id === requestId
+        ? { ...item, status: 'approved', respondedAt: new Date().toISOString(), approvedTransactionId: newTransactionId }
+        : item
+    )));
+    commitNotifications([
+      ...notifications,
+      {
+        id: crypto.randomUUID(),
+        userId: request.creatorId,
+        type: 'shared_approved',
+        message: `${currentFriendUser.name} aprovou a transação: ${request.description}.`,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    notifyUser({ userId: request.creatorId, title: 'Transação aprovada', body: currentFriendUser.name + ' aprovou a transação compartilhada.', url: '/transacoes-compartilhadas?aba=pendentes', type: 'shared_approved', data: { requestId } });
+  }
+
+  function declineSharedTransaction(requestId: string, reason: string) {
+    if (!userId) return;
+    const declineReason = reason.trim();
+    if (!declineReason) return;
+    const request = sharedTransactions.find((item) => item.id === requestId);
+    if (!request || request.receiverId !== userId || request.status !== 'pending') return;
+    commitSharedTransactions(sharedTransactions.map((item) => (
+      item.id === requestId ? { ...item, status: 'declined', declineReason, respondedAt: new Date().toISOString() } : item
+    )));
+    commitNotifications([
+      ...notifications,
+      {
+        id: crypto.randomUUID(),
+        userId: request.creatorId,
+        type: 'shared_declined',
+        message: `${currentFriendUser.name} recusou a transação: ${request.description}. Motivo: ${declineReason}`,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+    notifyUser({ userId: request.creatorId, title: 'Transação recusada', body: `${currentFriendUser.name} recusou a transação compartilhada. Motivo: ${declineReason}`, url: '/transacoes-compartilhadas?aba=pendentes', type: 'shared_declined', data: { requestId } });
+  }
+
+  function cancelSharedTransaction(requestId: string) {
+    if (!userId) return;
+    const request = sharedTransactions.find((item) => item.id === requestId);
+    if (!request || request.creatorId !== userId || request.status !== 'pending') return;
+    commitSharedTransactions(sharedTransactions.map((item) => (
+      item.id === requestId ? { ...item, status: 'cancelled', respondedAt: new Date().toISOString() } : item
+    )));
+    commitNotifications([
+      ...notifications,
+      {
+        id: crypto.randomUUID(),
+        userId: request.receiverId,
+        type: 'shared_cancelled',
+        message: `${currentFriendUser.name} cancelou a transação: ${request.description}.`,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+  }
+
   const currentMonth = monthKey(referenceDate);
   const categoryItems = useMemo<CategoryItem[]>(() => (
     customCategories.filter((category) => !category.deleted).map((category, index) => ({
@@ -1293,6 +2050,7 @@ export function App() {
   const selectedInView = monthItems.filter((item) => selectedTxIds.has(item.id));
   const selectedOpenInView = selectedInView.filter((item) => item.status === 'open');
   const selectedSettledInView = selectedInView.filter((item) => item.status === 'settled');
+  const selectedOpenWithoutAccount = selectedOpenInView.filter((item) => !accounts.some((account) => account.id === item.accountId || account.name === item.account));
   const allSelected = monthItems.length > 0 && selectedInView.length === monthItems.length;
 
   function toggleSelectTx(id: string) {
@@ -1318,19 +2076,19 @@ export function App() {
 
   function bulkSettleSelectedTransactions() {
     const selectedIds = new Set(selectedOpenInView.map((item) => item.id));
-    const fallbackAccount = accounts[0];
     const settledAt = new Date().toISOString().slice(0, 10);
 
     commitTransactions(transactions.map((item) => {
       if (!selectedIds.has(item.id) || item.status === 'settled') return item;
-      const account = accounts.find((candidate) => candidate.id === item.accountId || candidate.name === item.account) ?? fallbackAccount;
+      const account = accounts.find((candidate) => candidate.id === item.accountId || candidate.name === item.account);
+      if (!account) return item;
       return {
         ...item,
         status: 'settled',
         settledAt,
         settledAmount: item.amount,
-        accountId: account?.id ?? item.accountId,
-        account: account?.name ?? item.account,
+        accountId: account.id,
+        account: account.name,
       };
     }));
     setSelectedTxIds(new Set());
@@ -1364,6 +2122,33 @@ export function App() {
     const pendingExpense = monthItems.filter((item) => item.type === 'expense' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0);
     return { income, expense, balance: income - expense, pendingIncome, pendingExpense };
   }, [monthItems]);
+
+  const mobileCategoryBreakdown = useMemo(() => {
+    const expenseMap = new Map<string, { total: number; color?: string }>();
+    const allMap = new Map<string, { total: number; color?: string }>();
+    let expenseMax = 0;
+    let allMax = 0;
+    for (const item of monthItems) {
+      const meta = categoryLookup.get(`${item.type}:${item.category}`);
+      const color = meta?.color ?? (item.type === 'income' ? '#10b981' : '#ef4444');
+      const currentAll = allMap.get(item.category) ?? { total: 0, color };
+      currentAll.total += item.amount;
+      if (currentAll.total > allMax) allMax = currentAll.total;
+      allMap.set(item.category, currentAll);
+
+      if (item.type === 'expense') {
+        const currentExp = expenseMap.get(item.category) ?? { total: 0, color };
+        currentExp.total += item.amount;
+        if (currentExp.total > expenseMax) expenseMax = currentExp.total;
+        expenseMap.set(item.category, currentExp);
+      }
+    }
+    const expenseList = Array.from(expenseMap.entries()).map(([name, val]) => ({ name, ...val })).sort((a, b) => b.total - a.total).slice(0, 5);
+    if (expenseList.length > 0) return { list: expenseList, max: expenseMax || 1 };
+    const allList = Array.from(allMap.entries()).map(([name, val]) => ({ name, ...val })).sort((a, b) => b.total - a.total).slice(0, 5);
+    return { list: allList, max: allMax || 1 };
+  }, [monthItems, categoryLookup]);
+
 
   const accountBalances = useMemo(() => {
     const balances = Object.fromEntries(accounts.map((account) => [account.id, account.initialBalance])) as Record<string, number>;
@@ -1438,159 +2223,364 @@ export function App() {
           <button type="button" onClick={() => setSyncError(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#fff', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Fechar</button>
         </div>
       )}
-      <Topbar activePage={activePage} userName={profileName} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
+      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} notificationCount={notifications.filter((notification) => notification.userId === currentFriendUser.id && !notification.read).length} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendRequests={openFriendRequestsFromNotification} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
         <Sidebar activePage={activePage} onNavigate={handleNavigate} />
+        <MobileTabBar
+          activePage={activePage}
+          onNavigate={handleNavigate}
+          onNewIncome={() => { setLaunchType('income'); setLaunchOpen(true); }}
+          onNewExpense={() => { setLaunchType('expense'); setLaunchOpen(true); }}
+          onNewGoal={() => { setEditingGoal(null); setGoalOpen(true); }}
+          onNewCategory={() => { setEditingCategory(null); setCategoryOpen(true); }}
+          onNewSharedTransaction={() => { handleNavigate('friends'); }}
+          onNewShoppingList={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }}
+        />
         <main ref={mainContentRef} className={`main-content main-content--${activePage}`}>
           {activePage === 'dashboard' ? (
             <DashboardPage
               transactions={transactions}
-              goals={goals}
               referenceDate={referenceDate}
               onChangeDate={setReferenceDate}
               onNavigate={handleNavigate}
             />
           ) : activePage === 'transactions' ? (
             <>
-              <section className="page-header page-header-split">
-                <div className="page-header-left">
-                  <h1 className="page-title">Transações</h1>
-                </div>
-                <div className="page-header-center">
-                  <MonthNavigator date={referenceDate} onChange={(next) => { setReferenceDate(next); setDateFilter(''); }} />
-                </div>
-                <div className="page-header-actions">
-                  <div className="filter-control" ref={filterControlRef}>
-                    <button type="button" className={`filter-trigger btn-icon-only${filterOpen ? ' active' : ''}`} onClick={openFilters} aria-expanded={filterOpen} aria-haspopup="dialog" title="Filtros">
-                      <ListFilter size={16} />
-                      {activeFilterCount > 0 ? <span className="filter-badge">{activeFilterCount}</span> : null}
-                    </button>
-
-                    {filterOpen ? (
-                      <div className="filter-popover" role="dialog" aria-label="Filtros das transações">
-                        <div className="filter-popover-header">
-                          <strong>Filtrar transações</strong>
-                          <button type="button" className="filter-popover-close" onClick={() => setFilterOpen(false)} aria-label="Fechar filtros"><X size={18} /></button>
-                        </div>
-                        <div className="filter-grid filter-grid--stacked">
-                          <label className="filter-field">
-                            <span>Data fixa</span>
-                            <input type="date" value={draftFilters.date} onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))} />
-                          </label>
-                          <label className="filter-field">
-                            <span>Categoria</span>
-                            <select value={draftFilters.category} onChange={(event) => setDraftFilters((current) => ({ ...current, category: event.target.value }))}>
-                              <option value="all">Todas</option>
-                              {transactionCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
-                            </select>
-                          </label>
-                          <label className="filter-field">
-                            <span>Tipo</span>
-                            <select value={draftFilters.type} onChange={(event) => setDraftFilters((current) => ({ ...current, type: event.target.value as TransactionTypeFilter }))}>
-                              <option value="all">Todos</option>
-                              <option value="income">Receita</option>
-                              <option value="expense">Despesa</option>
-                            </select>
-                          </label>
-                        </div>
-                        <div className="filter-popover-actions">
-                          <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', category: 'all', type: 'all' })}>
-                            <RotateCcw size={14} /> Limpar
-                          </button>
-                          <button type="button" className="filter-apply" onClick={applyFilters}>Aplicar filtros</button>
-                        </div>
-                      </div>
-                    ) : null}
+              <div className="tx-desktop-view">
+                <section className="page-header page-header-split">
+                  <div className="page-header-left">
+                    <h1 className="page-title">Transações</h1>
                   </div>
-                  <button type="button" className="page-secondary-action btn-icon-only" onClick={() => setImportOpen(true)} title="Importar Excel">
-                    <Upload size={16} />
-                  </button>
-                  <button type="button" className="page-primary-action" onClick={() => setLaunchOpen(true)}>
-                    <Plus size={16} />
-                    Nova transação
-                  </button>
-                </div>
-              </section>
+                  <div className="page-header-center">
+                    <MonthNavigator date={referenceDate} onChange={(next) => { setReferenceDate(next); setDateFilter(''); }} />
+                  </div>
+                  <div className="page-header-actions">
+                    <div className="filter-control" ref={filterControlRef}>
+                      <button type="button" className={`filter-trigger btn-icon-only${filterOpen ? ' active' : ''}`} onClick={openFilters} aria-expanded={filterOpen} aria-haspopup="dialog" title="Filtros">
+                        <ListFilter size={16} />
+                        {activeFilterCount > 0 ? <span className="filter-badge">{activeFilterCount}</span> : null}
+                      </button>
 
-              <div className="transaction-summary-grid">
-                <TransactionSummaryCard summary={summary} activeMode={transactionSummaryMode} onModeChange={setTransactionSummaryMode} />
-                <TransactionSummaryStats summary={summary} />
+                      {filterOpen ? (
+                        <div className="filter-popover" role="dialog" aria-label="Filtros das transações">
+                          <div className="filter-popover-header">
+                            <strong>Filtrar transações</strong>
+                            <button type="button" className="filter-popover-close" onClick={() => setFilterOpen(false)} aria-label="Fechar filtros"><X size={18} /></button>
+                          </div>
+                          <div className="filter-grid filter-grid--stacked">
+                            <label className="filter-field">
+                              <span>Data fixa</span>
+                              <input type="date" value={draftFilters.date} onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))} />
+                            </label>
+                            <label className="filter-field">
+                              <span>Categoria</span>
+                              <select value={draftFilters.category} onChange={(event) => setDraftFilters((current) => ({ ...current, category: event.target.value }))}>
+                                <option value="all">Todas</option>
+                                {transactionCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+                              </select>
+                            </label>
+                            <label className="filter-field">
+                              <span>Tipo</span>
+                              <select value={draftFilters.type} onChange={(event) => setDraftFilters((current) => ({ ...current, type: event.target.value as TransactionTypeFilter }))}>
+                                <option value="all">Todos</option>
+                                <option value="income">Receita</option>
+                                <option value="expense">Despesa</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div className="filter-popover-actions">
+                            <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', category: 'all', type: 'all' })}>
+                              <RotateCcw size={14} /> Limpar
+                            </button>
+                            <button type="button" className="filter-apply" onClick={applyFilters}>Aplicar filtros</button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                    <button type="button" className="page-secondary-action btn-icon-only" onClick={() => setImportOpen(true)} title="Importar Excel">
+                      <Upload size={16} />
+                    </button>
+                    <button type="button" className="page-primary-action" onClick={() => setLaunchOpen(true)}>
+                      <Plus size={16} />
+                      Nova transação
+                    </button>
+                  </div>
+                </section>
+
+                <div className="transaction-summary-grid">
+                  <TransactionSummaryCard summary={summary} activeMode={transactionSummaryMode} onModeChange={setTransactionSummaryMode} />
+                  <TransactionSummaryStats summary={summary} />
+                </div>
+
+                {selectedInView.length > 0 ? (
+                  <div className="bulk-bar">
+                    <span className="bulk-bar-count"><strong>{selectedInView.length}</strong> {selectedInView.length === 1 ? 'selecionada' : 'selecionadas'}</span>
+                    <div className="bulk-bar-actions">
+                      <button type="button" className="bulk-bar-button bulk-bar-button--clear" onClick={() => setSelectedTxIds(new Set())}><X size={15} /> Limpar seleção</button>
+                      <button type="button" className="bulk-bar-button bulk-bar-button--success" disabled={selectedOpenInView.length === 0 || selectedOpenWithoutAccount.length > 0} title={selectedOpenWithoutAccount.length ? 'Defina o banco ou conta antes de efetivar.' : undefined} onClick={() => setConfirmDialog({
+                        title: 'Efetivado',
+                        message: `Deseja efetivar ${selectedOpenInView.length} ${selectedOpenInView.length === 1 ? 'transação em aberto' : 'transações em aberto'}?`,
+                        confirmLabel: 'Efetivado',
+                        onConfirm: bulkSettleSelectedTransactions,
+                      })}><CheckCircle2 size={15} /> Efetivado</button>
+                      <button type="button" className="bulk-bar-button" disabled={selectedSettledInView.length === 0} onClick={() => setConfirmDialog({
+                        title: 'Desefetivar',
+                        message: `Deseja desefetivar ${selectedSettledInView.length} ${selectedSettledInView.length === 1 ? 'transação efetivada' : 'transações efetivadas'}?`,
+                        confirmLabel: 'Desefetivar',
+                        onConfirm: bulkMarkSelectedTransactionsAsPending,
+                      })}><RotateCcw size={15} /> Desefetivar</button>
+                      <button type="button" className="bulk-bar-button bulk-bar-button--danger" onClick={() => setConfirmDialog({
+                        title: 'Excluir transações',
+                        message: `Deseja excluir ${selectedInView.length} ${selectedInView.length === 1 ? 'transação selecionada' : 'transações selecionadas'}?`,
+                        confirmLabel: 'Excluir',
+                        onConfirm: () => { commitTransactions(transactions.filter((item) => !selectedTxIds.has(item.id))); setSelectedTxIds(new Set()); },
+                      })}><Trash2 size={15} /> Excluir selecionadas</button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <section className="resource-panel">
+                  <div className="documents-report launches-report">
+                    <div className="documents-report-head launches-report-head">
+                      <span className="row-check-col"><input type="checkbox" className="row-check" checked={allSelected} onChange={toggleSelectAllTx} aria-label="Selecionar todas" /></span>
+                      <span>Descrição</span>
+                      <span>Categoria</span>
+                      <span>Tipo</span>
+                      <span>Recorrência</span>
+                      <span>Vencimento</span>
+                      <span>Valor previsto</span>
+                      <span>Valor real</span>
+                      <span>Conta</span>
+                      <span>Status</span>
+                      <span>Ações</span>
+                    </div>
+                    <div className="documents-report-body">
+                      {monthItems.length === 0 ? (
+                        <div className="resource-empty-state">
+                          <ReceiptText size={30} />
+                          <strong>Nenhuma transação encontrada</strong>
+                          <p>Use o botão de nova transação para registrar receitas, despesas, parcelas ou valores fixos.</p>
+                        </div>
+                      ) : monthItems.map((item, index) => {
+                        const showDateGroup = index === 0 || monthItems[index - 1]?.dueDate !== item.dueDate;
+
+                        return (
+                          <Fragment key={item.id}>
+                            {showDateGroup ? <div className="mobile-date-separator">{formatDateGroup(item.dueDate)}</div> : null}
+                            <SwipeableTransactionRow
+                              item={item}
+                              isSelected={selectedTxIds.has(item.id)}
+                              selectionMode={selectedTxIds.size > 0}
+                              onToggleSelect={() => toggleSelectTx(item.id)}
+                              onEdit={() => setEditingTransaction(item)}
+                              onSettle={() => setSettleTarget(item)}
+                              onDelete={() => setDeletingTransaction(item)}
+                              onMarkPending={() => markTransactionAsPending(item.id)}
+                              onLongPress={() => setLongPressTransaction(item)}
+                              categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
+                            />
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </section>
               </div>
 
-              {selectedInView.length > 0 ? (
-                <div className="bulk-bar">
-                  <span className="bulk-bar-count"><strong>{selectedInView.length}</strong> {selectedInView.length === 1 ? 'selecionada' : 'selecionadas'}</span>
-                  <div className="bulk-bar-actions">
-                    <button type="button" className="bulk-bar-button bulk-bar-button--clear" onClick={() => setSelectedTxIds(new Set())}><X size={15} /> Limpar seleção</button>
-                    <button type="button" className="bulk-bar-button bulk-bar-button--success" disabled={selectedOpenInView.length === 0} onClick={() => setConfirmDialog({
-                      title: 'Efetivado',
-                      message: `Deseja efetivar ${selectedOpenInView.length} ${selectedOpenInView.length === 1 ? 'transação em aberto' : 'transações em aberto'}?`,
-                      confirmLabel: 'Efetivado',
-                      onConfirm: bulkSettleSelectedTransactions,
-                    })}><CheckCircle2 size={15} /> Efetivado</button>
-                    <button type="button" className="bulk-bar-button" disabled={selectedSettledInView.length === 0} onClick={() => setConfirmDialog({
-                      title: 'Desefetivar',
-                      message: `Deseja desefetivar ${selectedSettledInView.length} ${selectedSettledInView.length === 1 ? 'transação efetivada' : 'transações efetivadas'}?`,
-                      confirmLabel: 'Desefetivar',
-                      onConfirm: bulkMarkSelectedTransactionsAsPending,
-                    })}><RotateCcw size={15} /> Desefetivar</button>
-                    <button type="button" className="bulk-bar-button bulk-bar-button--danger" onClick={() => setConfirmDialog({
-                      title: 'Excluir transações',
-                      message: `Deseja excluir ${selectedInView.length} ${selectedInView.length === 1 ? 'transação selecionada' : 'transações selecionadas'}?`,
-                      confirmLabel: 'Excluir',
-                      onConfirm: () => { commitTransactions(transactions.filter((item) => !selectedTxIds.has(item.id))); setSelectedTxIds(new Set()); },
-                    })}><Trash2 size={15} /> Excluir selecionadas</button>
+              <div className="tx-mobile-view">
+                <section className="mobile-tx-top-area">
+                  <div className="mobile-tx-month-bar">
+                    <div className="mobile-tx-month-center">
+                      <MonthNavigator date={referenceDate} onChange={(next) => { setReferenceDate(next); setDateFilter(''); }} />
+                    </div>
                   </div>
-                </div>
-              ) : null}
 
-              <section className="resource-panel">
-                <div className="documents-report launches-report">
-                  <div className="documents-report-head launches-report-head">
-                    <span className="row-check-col"><input type="checkbox" className="row-check" checked={allSelected} onChange={toggleSelectAllTx} aria-label="Selecionar todas" /></span>
-                    <span>Descrição</span>
-                    <span>Categoria</span>
-                    <span>Tipo</span>
-                    <span>Recorrência</span>
-                    <span>Vencimento</span>
-                    <span>Valor previsto</span>
-                    <span>Valor real</span>
-                    <span>Conta</span>
-                    <span>Status</span>
-                    <span>Ações</span>
-                  </div>
-                  <div className="documents-report-body">
-                    {monthItems.length === 0 ? (
-                      <div className="resource-empty-state">
-                        <ReceiptText size={30} />
-                        <strong>Nenhuma transação encontrada</strong>
-                        <p>Use o botão de nova transação para registrar receitas, despesas, parcelas ou valores fixos.</p>
+                  <div className="mobile-tx-summary-carousel">
+                    {/* Card 1: Receitas */}
+                    <div className="mobile-tx-summary-card mobile-tx-summary-card--income">
+                      <div className="mobile-tx-card-row">
+                        <div className="mobile-tx-card-left">
+                          <span className="mobile-tx-card-icon mobile-tx-card-icon--blue"><ArrowUpRight size={22} /></span>
+                          <span className="mobile-tx-card-title">Receitas</span>
+                        </div>
+                        <div className="mobile-tx-card-right">
+                          <div className="mobile-tx-card-value">{formatCurrency(summary.income - (summary.pendingIncome ?? 0))}</div>
+                        </div>
                       </div>
-                    ) : monthItems.map((item, index) => {
-                      const showDateGroup = index === 0 || monthItems[index - 1]?.dueDate !== item.dueDate;
+                      <div className="mobile-tx-card-footer">
+                        <span>Previsto: <strong>{formatCurrency(summary.income)}</strong></span>
+                        <span className="mobile-tx-card-subval">A receber: {formatCurrency(summary.pendingIncome ?? 0)}</span>
+                      </div>
+                    </div>
 
-                      return (
-                        <Fragment key={item.id}>
-                          {showDateGroup ? <div className="mobile-date-separator">{formatDateGroup(item.dueDate)}</div> : null}
-                          <SwipeableTransactionRow
-                            item={item}
-                            isSelected={selectedTxIds.has(item.id)}
-                            selectionMode={selectedTxIds.size > 0}
-                            onToggleSelect={() => toggleSelectTx(item.id)}
-                            onEdit={() => setEditingTransaction(item)}
-                            onSettle={() => setSettleTarget(item)}
-                            onDelete={() => setDeletingTransaction(item)}
-                            onMarkPending={() => markTransactionAsPending(item.id)}
-                            onLongPress={() => setLongPressTransaction(item)}
-                            categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
-                          />
-                        </Fragment>
-                      );
-                    })}
+                    {/* Card 2: Despesas */}
+                    <div className="mobile-tx-summary-card mobile-tx-summary-card--expense">
+                      <div className="mobile-tx-card-row">
+                        <div className="mobile-tx-card-left">
+                          <span className="mobile-tx-card-icon mobile-tx-card-icon--red"><ArrowDownLeft size={22} /></span>
+                          <span className="mobile-tx-card-title">Despesas</span>
+                        </div>
+                        <div className="mobile-tx-card-right">
+                          <div className="mobile-tx-card-value">{formatCurrency(summary.expense - (summary.pendingExpense ?? 0))}</div>
+                        </div>
+                      </div>
+                      <div className="mobile-tx-card-footer">
+                        <span>Previsto: <strong>{formatCurrency(summary.expense)}</strong></span>
+                        <span className="mobile-tx-card-subval">A pagar: {formatCurrency(summary.pendingExpense ?? 0)}</span>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Saldo */}
+                    <div className="mobile-tx-summary-card mobile-tx-summary-card--balance">
+                      <div className="mobile-tx-card-row">
+                        <div className="mobile-tx-card-left">
+                          <span className="mobile-tx-card-icon mobile-tx-card-icon--gray"><CircleDollarSign size={22} /></span>
+                          <span className="mobile-tx-card-title">Saldo</span>
+                        </div>
+                        <div className="mobile-tx-card-right">
+                          <div className="mobile-tx-card-value">{formatCurrency((summary.income - (summary.pendingIncome ?? 0)) - (summary.expense - (summary.pendingExpense ?? 0)))}</div>
+                        </div>
+                      </div>
+                      <div className="mobile-tx-card-footer">
+                        <span>Previsto: <strong>{formatCurrency(summary.balance)}</strong></span>
+                        <span className="mobile-tx-card-trend">
+                          {summary.balance >= 0 ? <TrendingUp size={14} className="trend-up" /> : <TrendingDown size={14} className="trend-down" />}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Categorias */}
+                    <div className="mobile-tx-summary-card mobile-tx-summary-card--chart">
+                      <div className="mobile-tx-card-head">
+                        <span className="mobile-tx-card-title">Categorias</span>
+                      </div>
+                      {mobileCategoryBreakdown.list.length === 0 ? (
+                        <div className="mobile-tx-chart-empty">Sem transações no período</div>
+                      ) : (
+                        <div className="mobile-tx-col-chart">
+                          {mobileCategoryBreakdown.list.map((cat) => {
+                            const heightPct = Math.max(16, Math.round((cat.total / mobileCategoryBreakdown.max) * 100));
+                            return (
+                              <div key={cat.name} className="mobile-tx-col-item">
+                                <span className="mobile-tx-col-val">{formatCurrency(cat.total)}</span>
+                                <div className="mobile-tx-col-track">
+                                  <div className="mobile-tx-col-fill" style={{ height: `${heightPct}%`, backgroundColor: cat.color }} />
+                                </div>
+                                <span className="mobile-tx-col-label" title={cat.name}>{cat.name}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </section>
 
-              </section>
+                {filterOpen ? (
+                  <div className="filter-popover filter-popover--mobile" role="dialog" aria-label="Filtros das transações">
+                    <div className="filter-popover-header">
+                      <strong>Filtrar transações</strong>
+                      <button type="button" className="filter-popover-close" onClick={() => setFilterOpen(false)} aria-label="Fechar filtros"><X size={18} /></button>
+                    </div>
+                    <div className="filter-grid filter-grid--stacked">
+                      <label className="filter-field">
+                        <span>Data fixa</span>
+                        <input type="date" value={draftFilters.date} onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))} />
+                      </label>
+                      <label className="filter-field">
+                        <span>Categoria</span>
+                        <select value={draftFilters.category} onChange={(event) => setDraftFilters((current) => ({ ...current, category: event.target.value }))}>
+                          <option value="all">Todas</option>
+                          {transactionCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+                        </select>
+                      </label>
+                      <label className="filter-field">
+                        <span>Tipo</span>
+                        <select value={draftFilters.type} onChange={(event) => setDraftFilters((current) => ({ ...current, type: event.target.value as TransactionTypeFilter }))}>
+                          <option value="all">Todos</option>
+                          <option value="income">Receita</option>
+                          <option value="expense">Despesa</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="filter-popover-actions">
+                      <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', category: 'all', type: 'all' })}>
+                        <RotateCcw size={14} /> Limpar
+                      </button>
+                      <button type="button" className="filter-apply" onClick={applyFilters}>Aplicar filtros</button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <section className="mobile-tx-bottom-sheet">
+                  <div className="mobile-tx-sheet-pull-indicator">
+                    <div className="pull-bar" />
+                  </div>
+
+                  <div className="mobile-tx-sheet-header">
+                    <h2 className="mobile-tx-sheet-title">Transações</h2>
+                  </div>
+
+                  {selectedInView.length > 0 ? (
+                    <div className="bulk-bar mobile-bulk-bar">
+                      <span className="bulk-bar-count"><strong>{selectedInView.length}</strong> {selectedInView.length === 1 ? 'selecionada' : 'selecionadas'}</span>
+                      <div className="bulk-bar-actions">
+                        <button type="button" className="bulk-bar-button bulk-bar-button--clear" onClick={() => setSelectedTxIds(new Set())}><X size={15} /></button>
+                        <button type="button" className="bulk-bar-button bulk-bar-button--success" disabled={selectedOpenInView.length === 0 || selectedOpenWithoutAccount.length > 0} title={selectedOpenWithoutAccount.length ? 'Defina o banco ou conta antes de efetivar.' : undefined} onClick={() => setConfirmDialog({
+                          title: 'Efetivado',
+                          message: `Deseja efetivar ${selectedOpenInView.length} ${selectedOpenInView.length === 1 ? 'transação em aberto' : 'transações em aberto'}?`,
+                          confirmLabel: 'Efetivado',
+                          onConfirm: bulkSettleSelectedTransactions,
+                        })}><CheckCircle2 size={15} /></button>
+                        <button type="button" className="bulk-bar-button" disabled={selectedSettledInView.length === 0} onClick={() => setConfirmDialog({
+                          title: 'Desefetivar',
+                          message: `Deseja desefetivar ${selectedSettledInView.length} ${selectedSettledInView.length === 1 ? 'transação efetivada' : 'transações efetivadas'}?`,
+                          confirmLabel: 'Desefetivar',
+                          onConfirm: bulkMarkSelectedTransactionsAsPending,
+                        })}><RotateCcw size={15} /></button>
+                        <button type="button" className="bulk-bar-button bulk-bar-button--danger" onClick={() => setConfirmDialog({
+                          title: 'Excluir transações',
+                          message: `Deseja excluir ${selectedInView.length} ${selectedInView.length === 1 ? 'transação selecionada' : 'transações selecionadas'}?`,
+                          confirmLabel: 'Excluir',
+                          onConfirm: () => { commitTransactions(transactions.filter((item) => !selectedTxIds.has(item.id))); setSelectedTxIds(new Set()); },
+                        })}><Trash2 size={15} /></button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mobile-tx-sheet-list">
+                    {monthItems.length === 0 ? (
+                      <div className="resource-empty-state mobile-tx-empty">
+                        <ReceiptText size={36} />
+                        <strong>Nenhuma transação no período</strong>
+                        <p>Toque nos botões de Receita, Despesa ou no + para registrar.</p>
+                      </div>
+                    ) : (
+                      monthItems.map((item, index) => {
+                        const showDateGroup = index === 0 || monthItems[index - 1]?.dueDate !== item.dueDate;
+
+                        return (
+                          <Fragment key={item.id}>
+                            {showDateGroup ? <div className="mobile-date-separator">{formatDateGroup(item.dueDate)}</div> : null}
+                            <SwipeableTransactionRow
+                              item={item}
+                              isSelected={selectedTxIds.has(item.id)}
+                              selectionMode={selectedTxIds.size > 0}
+                              onToggleSelect={() => toggleSelectTx(item.id)}
+                              onEdit={() => setEditingTransaction(item)}
+                              onSettle={() => setSettleTarget(item)}
+                              onDelete={() => setDeletingTransaction(item)}
+                              onMarkPending={() => markTransactionAsPending(item.id)}
+                              onLongPress={() => setLongPressTransaction(item)}
+                              categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
+                            />
+                          </Fragment>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              </div>
             </>
           ) : activePage === 'categories' ? (
             <CategoriesPage
@@ -1632,8 +2622,60 @@ export function App() {
             />
           ) : activePage === 'reports' ? (
             <ReportsPage transactions={transactions} categoryLookup={categoryLookup} referenceDate={referenceDate} onChangeDate={setReferenceDate} />
+          ) : activePage === 'shopping' ? (
+            <ShoppingListsPage currentUser={currentFriendUser} friends={acceptedFriends} openCreateSignal={shoppingCreateSignal} backSignal={shoppingBackSignal} onDetailChange={setActiveShoppingListName} onListItemAdded={({ listId, listName, itemName, participantIds }) => { participantIds.forEach((participantId) => notifyUser({ userId: participantId, title: 'Lista de compras atualizada', body: `${currentFriendUser.name} adicionou ${itemName} à lista ${listName}.`, url: `/listas-compras/${listId}`, type: 'shopping_list_updated', data: { listId } })); }} />
+          ) : activePage === 'friends' ? (
+            <FriendsPage
+              currentUser={currentFriendUser}
+              users={friendDirectory}
+              invitations={friendInvitations}
+              acceptedFriends={acceptedFriends}
+              sharedTransactions={sharedTransactions}
+              incomeCategories={incomeCategories}
+              expenseCategories={expenseCategories}
+              activeTab={friendsTab}
+              openSearchSignal={friendSearchSignal}
+              backSignal={friendBackSignal}
+              onThreadChange={setActiveFriendThreadName}
+              onTabChange={setFriendsTab}
+              onSendInvitation={sendFriendInvitation}
+              onAcceptInvitation={(invitationId) => { acceptFriendInvitation(invitationId); setFriendsTab('search'); }}
+              onDeclineInvitation={(invitationId) => declineFriendInvitation(invitationId)}
+              onRemoveFriend={(friend) => setConfirmDialog({
+                title: 'Remover amigo',
+                message: 'Tem certeza que deseja remover essa amizade?',
+                confirmLabel: 'Remover',
+                onConfirm: () => removeFriend(friend.id),
+              })}
+              onCreateShared={createSharedTransaction}
+              onApproveShared={approveSharedTransaction}
+              onDeclineShared={declineSharedTransaction}
+              onCancelShared={cancelSharedTransaction}
+            />
+          ) : activePage === 'profile' ? (
+            <ProfilePage
+              fullName={storedProfileName || profileName}
+              email={session.user.email ?? ''}
+              publicFriendId={currentFriendUser.publicFriendId}
+              phone={storedProfilePhone}
+              avatarUrl={storedAvatarUrl}
+              onSave={async (profile) => {
+                const saved = await updateProfile(profile);
+                setStoredProfileName(saved.fullName);
+                setStoredProfilePhone(saved.phone);
+                setStoredAvatarUrl(saved.avatarUrl ?? null);
+              }}
+              categories={categoryItems}
+              onNewCategory={() => { setEditingCategory(null); setCategoryOpen(true); }}
+              onEditCategory={(category) => { setEditingCategory(category); setCategoryOpen(true); }}
+            />
           ) : activePage === 'help' ? (
             <HelpPage />
+          ) : activePage === 'notifications' ? (
+            <NotificationsPage
+              notifications={notifications}
+              onClearNotifications={() => commitNotifications([])}
+            />
           ) : (
             <AccountsPage
               accounts={accounts}
@@ -1664,8 +2706,10 @@ export function App() {
 
       {launchOpen && (
         <LaunchModal
+          accounts={accounts}
           incomeCategories={incomeCategories}
           expenseCategories={expenseCategories}
+          initialType={launchType}
           onClose={() => setLaunchOpen(false)}
           onCreate={(items) => {
             commitTransactions([...transactions, ...items]);
@@ -1731,7 +2775,8 @@ export function App() {
           accounts={accounts}
           onClose={() => setSettleTarget(null)}
           onSave={(accountId, settledAt, settledAmount) => {
-            const account = accounts.find((candidate) => candidate.id === accountId) ?? DEFAULT_ACCOUNT;
+            const account = accounts.find((candidate) => candidate.id === accountId);
+            if (!account) return;
             commitTransactions(transactions.map((item) => (
               item.id === settleTarget.id ? { ...item, status: 'settled', accountId: account.id, account: account.name, settledAt, settledAmount } : item
             )));
@@ -1743,6 +2788,7 @@ export function App() {
       {editingTransaction && (
         <EditTransactionModal
           item={editingTransaction}
+          accounts={accounts}
           incomeCategories={incomeCategories}
           expenseCategories={expenseCategories}
           onClose={() => setEditingTransaction(null)}
@@ -1911,30 +2957,30 @@ function LongPressOptionsModal({ item, onClose, onEdit, onSettle, onDelete, onMa
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card longpress-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()} style={{ width: 'min(100%, 360px)', padding: '20px' }}>
-        <div className="modal-header" style={{ padding: '0 0 14px', borderBottom: '1px solid #e2e8f0', marginBottom: '14px' }}>
+        <div className="longpress-modal-header">
           <h2 className="modal-title modal-title-only" style={{ fontSize: '18px' }}>Opções da transação</h2>
           <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
         </div>
-        <div style={{ marginBottom: '16px', fontSize: '14px', fontWeight: 700, color: '#334155' }}>
+        <div className="longpress-modal-title">
           {displayTransactionDescription(item.description)}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <button type="button" className="button-secondary" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', color: '#1B99D8', borderColor: '#bae6fd', backgroundColor: '#eff8ff', fontWeight: 600 }} onClick={() => { onClose(); onSelect(); }}>
+          <button type="button" className="button-secondary longpress-btn--blue" onClick={() => { onClose(); onSelect(); }}>
             <CheckCircle2 size={18} /> Selecionar
           </button>
           {item.status === 'open' ? (
-            <button type="button" className="button-secondary" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', color: '#059669', borderColor: '#a7f3d0', backgroundColor: '#ecfdf5', fontWeight: 600 }} onClick={() => { onClose(); onSettle(); }}>
+            <button type="button" className="button-secondary longpress-btn--green" onClick={() => { onClose(); onSettle(); }}>
               <CheckCircle2 size={18} /> Efetivado
             </button>
           ) : (
-            <button type="button" className="button-secondary" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', color: '#1B99D8', borderColor: '#bae6fd', backgroundColor: '#eff8ff', fontWeight: 600 }} onClick={() => { onClose(); onMarkPending(); }}>
+            <button type="button" className="button-secondary longpress-btn--blue" onClick={() => { onClose(); onMarkPending(); }}>
               <RotateCcw size={18} /> Desefetivar
             </button>
           )}
-          <button type="button" className="button-secondary" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', fontWeight: 600 }} onClick={() => { onClose(); onEdit(); }}>
+          <button type="button" className="button-secondary longpress-btn--neutral" onClick={() => { onClose(); onEdit(); }}>
             <Pencil size={18} /> Editar
           </button>
-          <button type="button" className="button-danger" style={{ justifyContent: 'flex-start', gap: '10px', height: '44px', fontWeight: 600 }} onClick={() => { onClose(); onDelete(); }}>
+          <button type="button" className="button-danger longpress-btn--neutral" onClick={() => { onClose(); onDelete(); }}>
             <Trash2 size={18} /> Excluir
           </button>
         </div>
@@ -2074,9 +3120,17 @@ function SwipeableTransactionRow({
         <span className="row-check-col" onClick={(e) => e.stopPropagation()}>
           <input type="checkbox" className="row-check" checked={isSelected} onChange={onToggleSelect} aria-label={`Selecionar ${item.description}`} />
         </span>
-        <div className="launch-main">
-          <strong>{displayTransactionDescription(item.description)}</strong>
-          {item.notes ? <span className="launch-notes">{item.notes}</span> : null}
+        <div className="launch-main" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {categoryMeta ? (
+            <span className="launch-category-icon launch-leading-icon" style={{ backgroundColor: `${categoryMeta.color}18`, color: categoryMeta.color, display: 'inline-flex', padding: '6px', borderRadius: '50%', flexShrink: 0 }}>
+              <CategoryIconGraphic icon={categoryMeta.icon} size={14} />
+            </span>
+          ) : null}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <strong>{displayTransactionDescription(item.description)}</strong>
+            {sharedTransactionLabel(item) ? <span className="shared-transaction-badge"><Share size={13} /> {sharedTransactionLabel(item)}</span> : null}
+            {item.notes ? <span className="launch-notes">{item.notes}</span> : null}
+          </div>
         </div>
         <span className="launch-category">
           {categoryMeta ? (
@@ -2086,8 +3140,15 @@ function SwipeableTransactionRow({
           ) : null}
           <span className="launch-category-name">{item.category}</span>
         </span>
-        <span className={`status-icon transaction-kind transaction-kind--${item.type}`}>
-          {item.type === 'income' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
+        <span
+          className={`status-icon transaction-kind transaction-kind--${item.type}`}
+          style={categoryMeta ? { backgroundColor: `${categoryMeta.color}1C`, color: categoryMeta.color } : undefined}
+        >
+          {categoryMeta ? (
+            <CategoryIconGraphic icon={categoryMeta.icon} size={20} />
+          ) : (
+            item.type === 'income' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />
+          )}
           <span className="status-icon-text">{item.type === 'income' ? 'Receita' : 'Despesa'}</span>
         </span>
         <span className="recurrence-pill launch-recurrence">{recurrenceLabel(item)}</span>
@@ -2098,7 +3159,7 @@ function SwipeableTransactionRow({
         </span>
         <span className="launch-muted">{item.status === 'settled' && item.account ? item.account : '—'}</span>
         <span className="launch-status-cell">
-          <StatusIcon status={item.status} />
+          <StatusIcon status={item.status} dueDate={item.dueDate} />
         </span>
         <span className="launch-actions-cell" onClick={(e) => e.stopPropagation()}>
           <RowActions actions={[
@@ -2114,12 +3175,14 @@ function SwipeableTransactionRow({
   );
 }
 
-function StatusIcon({ status }: { status: TransactionStatus }) {
-  const settled = status === 'settled';
-  const label = settled ? 'Efetivado' : 'Pendente';
+function StatusIcon({ status, dueDate }: { status: TransactionStatus; dueDate?: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = status === 'open' && dueDate !== undefined && dueDate < today;
+  const effectiveStatus = isOverdue ? 'overdue' : status;
+  const label = status === 'settled' ? 'Efetivado' : isOverdue ? 'Atrasado' : 'Pendente';
   return (
-    <span className={`status-icon status-icon--${status}`} title={label}>
-      {settled ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+    <span className={`status-icon status-icon--${effectiveStatus}`} title={label}>
+      {status === 'settled' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
       <span className="status-icon-text">{label}</span>
     </span>
   );
@@ -2171,9 +3234,8 @@ function MonthNavigator({ date, onChange }: { date: Date; onChange: (date: Date)
   );
 }
 
-function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNavigate }: {
+function DashboardPage({ transactions, referenceDate, onChangeDate, onNavigate }: {
   transactions: Transaction[];
-  goals: Goal[];
   referenceDate: Date;
   onChangeDate: (date: Date) => void;
   onNavigate: (page: AppPage) => void;
@@ -2202,7 +3264,7 @@ function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNav
   const pendingExpense = monthTransactions.filter((item) => item.type === 'expense' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0);
   const projectedBalance = income - expense;
 
-  const dashboardWindow = Array.from({ length: 6 }, (_, index) => new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 1 + index, 1));
+  const dashboardWindow = Array.from({ length: 12 }, (_, index) => new Date(referenceDate.getFullYear(), index, 1));
   const monthlySeries = dashboardWindow.map((date) => {
     const key = monthKey(date);
     const monthIncome = transactions.filter((item) => item.type === 'income' && item.dueDate.slice(0, 7) === key).reduce((sum, item) => sum + item.amount, 0);
@@ -2216,14 +3278,11 @@ function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNav
     };
   });
 
-  const balanceValues = monthlySeries.map((item) => item.Saldo);
-  const balanceMin = Math.min(...balanceValues, 0);
-  const balanceMax = Math.max(...balanceValues, 0);
-  const balanceRange = balanceMax - balanceMin;
-  const balanceZeroOffset = balanceRange === 0 ? 0 : (balanceMax / balanceRange) * 100;
-  const hasNegativeBalance = balanceValues.some((value) => value < 0);
-  const balanceLowColor = hasNegativeBalance ? '#dc2626' : '#0284c7';
-  const balanceColor = (value: number) => (value < 0 ? '#dc2626' : '#0284c7');
+  const mobileChartEnd = referenceDate.getMonth() + 1;
+  const mobileChartStart = Math.max(0, mobileChartEnd - 6);
+  const mobileMonthlySeries = monthlySeries.slice(mobileChartStart, mobileChartEnd);
+
+  const balanceColor = (value: number) => (value > 0 ? '#0284c7' : value < 0 ? '#dc2626' : '#475569');
   const renderBalanceDot = ({ cx, cy, payload }: BalanceDotProps) => {
     const dotX = Number(cx);
     const dotY = Number(cy);
@@ -2234,44 +3293,32 @@ function DashboardPage({ transactions, goals, referenceDate, onChangeDate, onNav
     return <circle cx={dotX} cy={dotY} r={4} fill="#ffffff" stroke={balanceColor(balance)} strokeWidth={2} />;
   };
 
-  const goalSeries = goals
-    .map((goal) => {
-      const saved = goalSaved(goal);
-      const percent = goal.targetAmount > 0 ? Math.min(100, Math.round((saved / goal.targetAmount) * 100)) : 0;
+  const renderBalanceLabel = ({ x, y, value }: BalanceLabelProps) => {
+    const labelX = Number(x);
+    const labelY = Number(y);
+    const balance = Number(value ?? 0);
 
-      return {
-        id: goal.id,
-        name: goal.name,
-        saved,
-        target: goal.targetAmount,
-        percent,
-        color: goal.color,
-      };
-    })
-    .sort((a, b) => b.target - a.target)
-    .slice(0, 6);
+    if (Number.isNaN(labelX) || Number.isNaN(labelY)) return <g />;
 
-const hasData = transactions.length > 0;
+    return (
+      <text x={labelX} y={labelY + (balance < 0 ? 18 : -10)} textAnchor="middle" fill={balanceColor(balance)} fontSize={11} fontWeight={800}>
+        {formatCurrency(balance)}
+      </text>
+    );
+  };
+
+  const hasData = transactions.length > 0;
   const settledTotal = monthTransactions.filter((item) => item.status === 'settled').reduce((sum, item) => sum + item.amount, 0);
   const openTotal = pendingIncome + pendingExpense;
   const monthTotal = income + expense;
   const settledPercent = monthTotal > 0 ? Math.round((settledTotal / monthTotal) * 100) : 0;
-  const expenseCategories = Object.values(monthTransactions.filter((item) => item.type === 'expense').reduce<Record<string, { category: string; total: number; count: number }>>((acc, item) => {
-    const entry = acc[item.category] ?? { category: item.category, total: 0, count: 0 };
-    entry.total += item.amount;
-    entry.count += 1;
-    acc[item.category] = entry;
-    return acc;
-  }, {})).sort((a, b) => b.total - a.total).slice(0, 5);
-  const incomeCategories = Object.values(monthTransactions.filter((item) => item.type === 'income').reduce<Record<string, { category: string; total: number; count: number }>>((acc, item) => {
-    const entry = acc[item.category] ?? { category: item.category, total: 0, count: 0 };
-    entry.total += item.amount;
-    entry.count += 1;
-    acc[item.category] = entry;
-    return acc;
-  }, {})).sort((a, b) => b.total - a.total).slice(0, 4);
-  const highestExpense = expenseCategories[0]?.total ?? 0;
-  const highestIncome = incomeCategories[0]?.total ?? 0;
+
+  // Relatório de transações do mês (listar + exportar)
+  const reportItems = [...monthTransactions].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const exportMonthLabel = `${MONTH_OPTIONS[referenceDate.getMonth()]?.label ?? ''} de ${referenceDate.getFullYear()}`;
+  const reportTitle = `Relatório de ${exportMonthLabel}`;
+  const exportPdf = () => exportReportPdf(reportItems, reportTitle);
+  const exportExcel = () => { void exportReportExcel(reportItems, reportTitle); };
 
   return (
     <>
@@ -2282,7 +3329,15 @@ const hasData = transactions.length > 0;
         <div className="page-header-center">
           <MonthNavigator date={referenceDate} onChange={onChangeDate} />
         </div>
-        <div className="page-header-actions"></div>
+        <div className="page-header-actions">
+          {hasData ? (
+            <>
+              <button type="button" className="page-secondary-action report-export-desktop" onClick={exportPdf}><FileText size={16} /> Baixar PDF</button>
+              <button type="button" className="page-primary-action report-export-desktop" onClick={exportExcel}><FileSpreadsheet size={16} /> Baixar Excel</button>
+              <ReportExportMenu onPdf={exportPdf} onExcel={exportExcel} />
+            </>
+          ) : null}
+        </div>
       </section>
 
       <div className="dashboard-metric-grid">
@@ -2314,16 +3369,28 @@ const hasData = transactions.length > 0;
         <>
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
-              <div className="chart-head"><strong>Receitas x Despesas</strong><span>Últimos 6 meses</span></div>
-              <div ref={incomeExpenseChartRef} className="chart-box chart-box--wide">
+              <div className="chart-head"><strong>Receitas x Despesas</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Últimos 6 meses</span></div>
+              <div ref={incomeExpenseChartRef} className="chart-box chart-box--wide dashboard-income-chart--full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart key={incomeExpenseChartKey} data={monthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <RechartsTooltip trigger="click" shared={false} formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Bar dataKey="Receitas" fill="#1B99D8" radius={[6, 6, 0, 0]} maxBarSize={30} />
                     <Bar dataKey="Despesas" fill="#dc2626" radius={[6, 6, 0, 0]} maxBarSize={30} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="chart-box chart-box--wide dashboard-income-chart--mobile">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart key={`mob-${incomeExpenseChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="Receitas" fill="#1B99D8" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                    <Bar dataKey="Despesas" fill="#dc2626" radius={[6, 6, 0, 0]} maxBarSize={36} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -2332,92 +3399,39 @@ const hasData = transactions.length > 0;
 
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
-              <div className="chart-head"><strong>Saldo mensal</strong><span>Últimos 6 meses</span></div>
-              <div ref={balanceChartRef} className="chart-box chart-box--wide">
+              <div className="chart-head"><strong>Saldo mensal</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Últimos 6 meses</span></div>
+              <div ref={balanceChartRef} className="chart-box chart-box--wide dashboard-balance-chart dashboard-balance-chart--line">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart key={balanceChartKey} data={monthlySeries} margin={{ top: 18, right: 18, left: 8, bottom: 0 }}>
+                  <LineChart key={balanceChartKey} data={monthlySeries} margin={{ top: 34, right: 30, left: 30, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
+                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#94a3b8', strokeWidth: 1 }} />
+                    <Line type="monotone" dataKey="Saldo" stroke="#334155" strokeWidth={3} dot={renderBalanceDot} activeDot={{ r: 6 }}>
+                      <LabelList dataKey="Saldo" content={renderBalanceLabel} />
+                    </Line>
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="chart-box chart-box--wide dashboard-balance-chart dashboard-balance-chart--area">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart key={`mob-area-${balanceChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="balanceLineGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#0284c7" />
-                        <stop offset={`${balanceZeroOffset}%`} stopColor="#0284c7" />
-                        <stop offset={`${balanceZeroOffset}%`} stopColor={balanceLowColor} />
-                        <stop offset="100%" stopColor={balanceLowColor} />
+                      <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1B99D8" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#1B99D8" stopOpacity={0} />
                       </linearGradient>
                     </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                     <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
-                    <RechartsTooltip trigger="click" formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#bae6fd', strokeWidth: 1 }} />
-                    <Line type="monotone" dataKey="Saldo" stroke="url(#balanceLineGradient)" strokeWidth={3} dot={renderBalanceDot} activeDot={{ r: 6 }} />
-                  </LineChart>
+                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#94a3b8', strokeWidth: 1 }} />
+                    <Area type="monotone" dataKey="Saldo" stroke="#1B99D8" strokeWidth={2.5} fill="url(#balanceGradient)" dot={{ r: 4, fill: '#1B99D8', strokeWidth: 0 }} activeDot={{ r: 6 }} />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </section>
           </div>
-
-          <section className="dashboard-category-grid">
-            <article className="resource-panel dashboard-category-panel dashboard-category-panel--expense">
-              <div className="chart-head"><strong>Maiores despesas</strong><span>Categorias do mês</span></div>
-              {expenseCategories.length ? (
-                <div className="dashboard-category-list">
-                  {expenseCategories.map((item) => (
-                    <div className="dashboard-category-row" key={`expense-${item.category}`}>
-                      <div>
-                        <strong>{item.category}</strong>
-                        <span>{item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'}</span>
-                      </div>
-                      <div className="dashboard-category-meter"><span style={{ width: `${highestExpense > 0 ? Math.max(8, Math.round((item.total / highestExpense) * 100)) : 0}%` }} /></div>
-                      <em>{formatCurrency(item.total)}</em>
-                    </div>
-                  ))}
-                </div>
-              ) : <div className="chart-empty">Sem despesas no mês</div>}
-            </article>
-
-            <article className="resource-panel dashboard-category-panel dashboard-category-panel--income">
-              <div className="chart-head"><strong>Receitas por categoria</strong><span>Entradas do mês</span></div>
-              {incomeCategories.length ? (
-                <div className="dashboard-category-list">
-                  {incomeCategories.map((item) => (
-                    <div className="dashboard-category-row" key={`income-${item.category}`}>
-                      <div>
-                        <strong>{item.category}</strong>
-                        <span>{item.count} {item.count === 1 ? 'lançamento' : 'lançamentos'}</span>
-                      </div>
-                      <div className="dashboard-category-meter"><span style={{ width: `${highestIncome > 0 ? Math.max(8, Math.round((item.total / highestIncome) * 100)) : 0}%` }} /></div>
-                      <em>{formatCurrency(item.total)}</em>
-                    </div>
-                  ))}
-                </div>
-              ) : <div className="chart-empty">Sem receitas no mês</div>}
-            </article>
-          </section>
-
-          <section className="resource-panel chart-panel goals-overview-panel">
-            <div className="chart-head"><strong>Metas</strong><span>Progresso das metas</span></div>
-            {goalSeries.length ? (
-              <div className="goals-overview-grid">
-                {goalSeries.map((goal) => (
-                  <article key={goal.id} className="goal-overview-card">
-                    <div className="goal-overview-head">
-                      <strong>{goal.name}</strong>
-                      <span style={{ color: goal.color }}>{goal.percent}%</span>
-                    </div>
-                    <div className="goal-overview-values">
-                      <span>{formatCurrency(goal.saved)}</span>
-                      <small>de {formatCurrency(goal.target)}</small>
-                    </div>
-                    <div className="goal-overview-track">
-                      <span style={{ width: `${goal.percent}%`, background: `linear-gradient(90deg, ${goal.color}, ${goal.color}cc)` }} />
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="chart-empty goals-overview-empty">Nenhuma meta criada</div>
-            )}
-          </section>
-
 
         </>
       ) : (
@@ -2432,10 +3446,12 @@ const hasData = transactions.length > 0;
           </div>
         </section>
       )}
+      {hasData ? (
+        <DashboardExportMenu onPdf={exportPdf} onExcel={exportExcel} />
+      ) : null}
     </>
   );
 }
-
 function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onDeposit, onWithdraw }: {
   goals: Goal[];
   filters: GoalFilters;
@@ -2528,10 +3544,6 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
                       <strong>{goal.name}</strong>
                       {goal.deadline ? <span><CalendarDays size={11} /> Até {formatDate(goal.deadline)}</span> : <span>Sem prazo</span>}
                     </div>
-                    <div className="goal-card-actions">
-                      <button type="button" className="category-action-button" title="Editar meta" aria-label={`Editar ${goal.name}`} onClick={() => onEdit(goal)}><Pencil size={15} /></button>
-                      <button type="button" className="category-action-button category-action-button--danger" title="Excluir meta" aria-label={`Excluir ${goal.name}`} onClick={() => onDelete(goal)}><Trash2 size={15} /></button>
-                    </div>
                   </div>
 
                   <div className="goal-progress">
@@ -2543,16 +3555,20 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
                   </div>
 
                   <div className="goal-card-buttons">
-                    <button type="button" className="goal-button goal-button--deposit" onClick={() => onDeposit(goal)}><Plus size={15} /> Depositar</button>
-                    <button type="button" className="goal-button goal-button--withdraw" onClick={() => onWithdraw(goal)} disabled={saved <= 0}><Minus size={15} /> Resgatar</button>
+                    <button type="button" className="goal-button goal-button--deposit" onClick={() => onDeposit(goal)}><Plus size={15} /> <span className="goal-btn-text">Depositar</span></button>
+                    <button type="button" className="goal-button goal-button--withdraw" onClick={() => onWithdraw(goal)} disabled={saved <= 0}><Minus size={15} /> <span className="goal-btn-text">Resgatar</span></button>
+                    {goal.movements.length > 0 ? (
+                      <button type="button" className="goal-view-movements" onClick={() => setMovementsGoal(goal)} title="Ver lançamentos">
+                        <ReceiptText size={15} />
+                        <span className="goal-view-movements-text">Lançamentos ({goal.movements.length})</span>
+                      </button>
+                    ) : null}
                   </div>
 
-                  {goal.movements.length > 0 ? (
-                    <button type="button" className="goal-view-movements" onClick={() => setMovementsGoal(goal)}>
-                      <ReceiptText size={14} />
-                      Ver lançamentos ({goal.movements.length})
-                    </button>
-                  ) : null}
+                  <div className="goal-card-actions">
+                    <button type="button" className="category-action-button" title="Editar meta" aria-label={`Editar ${goal.name}`} onClick={() => onEdit(goal)}><Pencil size={15} /></button>
+                    <button type="button" className="category-action-button category-action-button--danger" title="Excluir meta" aria-label={`Excluir ${goal.name}`} onClick={() => onDelete(goal)}><Trash2 size={15} /></button>
+                  </div>
                 </div>
               </article>
             );
@@ -2579,7 +3595,7 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
                 <span className="goal-icon" style={{ backgroundColor: `${movementsGoal.color}18`, color: movementsGoal.color }}><CategoryIconGraphic icon={movementsGoal.icon} size={18} /></span>
                 <div>
                   <h2 className="modal-title" style={{ marginBottom: '2px' }}>Lançamentos — {movementsGoal.name}</h2>
-                  <p className="goal-modal-subtitle">{movementsGoal.movements.length} {movementsGoal.movements.length === 1 ? 'lançamento' : 'lançamentos'} · Guardado: {formatCurrency(goalSaved(movementsGoal))}</p>
+                  <p className="goal-modal-subtitle">{movementsGoal.movements.length} {movementsGoal.movements.length === 1 ? 'lan?amento' : 'lan?amentos'} ? Guardado: {formatCurrency(goalSaved(movementsGoal))}</p>
                 </div>
               </div>
               <button type="button" className="modal-close-button" onClick={() => setMovementsGoal(null)} aria-label="Fechar"><X size={18} /></button>
@@ -2615,6 +3631,41 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
         </div>
       ) : null}
     </>
+  );
+}
+
+function DashboardExportMenu({ onPdf, onExcel }: { onPdf: () => void; onExcel: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(event: PointerEvent) {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onEsc(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  return (
+    <div className={`dashboard-export-menu${open ? ' open' : ''}`} ref={ref}>
+      <button type="button" className="dashboard-export-fab" onClick={() => setOpen((value) => !value)} aria-label="Exportar relatório" aria-haspopup="menu" aria-expanded={open} title="Exportar relatório">
+        <Share size={22} />
+      </button>
+      {open ? (
+        <div className="dashboard-export-popover" role="menu">
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onPdf(); }}><FileText size={16} /> Exportar em PDF</button>
+          <button type="button" role="menuitem" onClick={() => { setOpen(false); onExcel(); }}><FileSpreadsheet size={16} /> Exportar em Excel</button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -2731,7 +3782,8 @@ function ReportsPage({ transactions, categoryLookup, referenceDate, onChangeDate
                 <article className="documents-report-row report-launches-row" key={item.id}>
                   <div className="launch-main">
                     <strong>{displayTransactionDescription(item.description)}</strong>
-                    {item.notes ? <span className="launch-notes">{item.notes}</span> : null}
+                    {sharedTransactionLabel(item) ? <span className="shared-transaction-badge"><Share size={13} /> {sharedTransactionLabel(item)}</span> : null}
+          {item.notes ? <span className="launch-notes">{item.notes}</span> : null}
                   </div>
                   <span className="launch-category">
                     {meta ? (
@@ -2822,7 +3874,18 @@ function GoalModal({ goal, onClose, onSave }: { goal: Goal | null; onClose: () =
   const [deadline, setDeadline] = useState(goal?.deadline ?? '');
   const [color, setColor] = useState(goal?.color ?? ACCOUNT_COLORS[0] ?? '#1B99D8');
   const [icon, setIcon] = useState<CategoryIconKey>(goal?.icon ?? 'money');
+  const [goalIconPickerOpen, setGoalIconPickerOpen] = useState(false);
+  const [goalColorPickerOpen, setGoalColorPickerOpen] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!goalIconPickerOpen) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setGoalIconPickerOpen(false);
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [goalIconPickerOpen]);
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -2863,16 +3926,20 @@ function GoalModal({ goal, onClose, onSave }: { goal: Goal | null; onClose: () =
               <span className="form-label form-label-optional">Prazo</span>
               <div className="form-input-wrap"><CalendarDays size={16} /><input className="form-input" type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} /></div>
             </label>
-            <div className="form-field form-field-full">
-              <span className="form-label form-label-optional">Cor</span>
-              <div className="account-color-options" role="group" aria-label="Cor da meta">
-                {ACCOUNT_COLORS.map((option) => <button type="button" key={option} className={`account-color-swatch${color === option ? ' active' : ''}`} style={{ backgroundColor: option }} onClick={() => setColor(option)} aria-label={`Selecionar cor ${option}`} aria-pressed={color === option} />)}
+            <div className="category-selector-grid">
+              <div className="form-field">
+                <span className="form-label form-label-optional">Ícone</span>
+                <button type="button" className="form-input category-selector-btn" aria-haspopup="dialog" aria-expanded={goalIconPickerOpen} onClick={() => setGoalIconPickerOpen(true)}>
+                  <span className="category-selector-icon" style={{ backgroundColor: `${color}18`, color }}><CategoryIconGraphic icon={icon} size={16} /></span>
+                  <span className="category-selector-label">Escolher ícone</span>
+                </button>
               </div>
-            </div>
-            <div className="form-field form-field-full">
-              <span className="form-label form-label-optional">Ícone</span>
-              <div className="account-icon-options" role="group" aria-label="Ícone da meta">
-                {CATEGORY_ICON_OPTIONS.map((option) => <button type="button" key={option.key} className={`account-icon-option${icon === option.key ? ' active' : ''}`} style={icon === option.key ? { borderColor: color, color, backgroundColor: `${color}12` } : undefined} onClick={() => setIcon(option.key)} title={option.label} aria-label={option.label} aria-pressed={icon === option.key}><CategoryIconGraphic icon={option.key} size={18} /></button>)}
+              <div className="form-field">
+                <span className="form-label form-label-optional">Cor</span>
+                <button type="button" className="form-input category-selector-btn" aria-haspopup="dialog" aria-expanded={goalColorPickerOpen} onClick={() => setGoalColorPickerOpen(true)}>
+                  <span className="category-selector-color" style={{ backgroundColor: color }} />
+                  <span className="category-selector-label">Escolher cor</span>
+                </button>
               </div>
             </div>
             {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
@@ -2883,6 +3950,27 @@ function GoalModal({ goal, onClose, onSave }: { goal: Goal | null; onClose: () =
           <button type="submit" className="button-primary">{goal ? 'Salvar meta' : 'Criar meta'}</button>
         </div>
       </form>
+      {goalColorPickerOpen ? <ColorSpectrumSheet value={color} onChange={setColor} onClose={() => setGoalColorPickerOpen(false)} /> : null}
+      {goalIconPickerOpen
+        ? createPortal(
+            <div className="category-icon-picker-layer" onClick={() => setGoalIconPickerOpen(false)}>
+              <div className="category-icon-picker-dialog" role="dialog" aria-modal="true" aria-label="Escolher ícone" onClick={(event) => event.stopPropagation()}>
+                <div className="category-icon-picker-head">
+                  <strong>Escolher ícone</strong>
+                  <button type="button" onClick={() => setGoalIconPickerOpen(false)} aria-label="Fechar seletor"><X size={18} /></button>
+                </div>
+                <div className="category-icon-picker-grid">
+                  {ALL_CATEGORY_ICONS.map((key) => (
+                    <button key={key} type="button" className={icon === key ? 'active' : ''} style={{ color }} aria-label={`Selecionar ícone ${key}`} aria-pressed={icon === key} onClick={() => { setIcon(key); setGoalIconPickerOpen(false); }}>
+                      <CategoryIconGraphic icon={key} size={20} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -2940,125 +4028,241 @@ function DeleteGoalModal({ goal, onClose, onConfirm }: { goal: Goal; onClose: ()
   );
 }
 
+function NotificationsPage({
+  notifications,
+  onClearNotifications,
+}: {
+  notifications: AppNotification[];
+  onClearNotifications: () => void;
+}) {
+  const unread = notifications.filter((n) => !n.read).length;
+  const sorted = useMemo(() => [...notifications].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [notifications]);
+
+  function relativeTime(iso: string) {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'Agora mesmo';
+    if (m < 60) return `${m} min atrás`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h atrás`;
+    const d = Math.floor(h / 24);
+    return `${d} ${d === 1 ? 'dia' : 'dias'} atrás`;
+  }
+
+  const notifMeta: Record<AppNotification['type'], { icon: ReactNode; color: string }> = {
+    friend_invite: { icon: <UserPlus size={18} />, color: 'blue' },
+    friend_accepted: { icon: <Users size={18} />, color: 'green' },
+    shared_created: { icon: <ArrowUpRight size={18} />, color: 'orange' },
+    shared_approved: { icon: <CheckCircle2 size={18} />, color: 'green' },
+    shared_declined: { icon: <X size={18} />, color: 'red' },
+    shared_cancelled: { icon: <X size={18} />, color: 'gray' },
+  };
+
+  return (
+    <section className="notifications-page">
+      <section className="page-header page-header-split">
+        <div className="page-header-left">
+          <h1 className="page-title">Notificações</h1>
+          {unread > 0 ? <span className="page-subtitle">{unread} não {unread === 1 ? 'lida' : 'lidas'}</span> : null}
+        </div>
+        <div className="page-header-actions">
+          {notifications.length > 0 ? (
+            <button type="button" className="page-secondary-action" onClick={onClearNotifications}>
+              Limpar histórico
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      <DeviceNotificationsCard />
+
+      {sorted.length > 0 ? (
+        <section className="notif-feed-section">
+          <h2 className="notif-feed-title">Histórico de avisos</h2>
+          <div className="notif-feed">
+            {sorted.map((notification) => {
+              const { icon, color } = notifMeta[notification.type];
+              return (
+                <div key={notification.id} className={`notif-item${notification.read ? '' : ' notif-item--unread'}`}>
+                  <span className={`notif-icon notif-icon--${color}`}>{icon}</span>
+                  <div className="notif-body">
+                    <span className="notif-message">{notification.message}</span>
+                    <span className="notif-time">{relativeTime(notification.createdAt)}</span>
+                  </div>
+                  {!notification.read ? <span className="notif-dot" aria-label="Não lida" /> : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <div className="notif-empty">
+          <span className="notif-empty-icon"><Bell size={28} /></span>
+          <strong>Sem notificações</strong>
+          <span>Convites de amizade e atualizações de compartilhamentos aparecerão aqui.</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function HelpPage() {
   const sections = [
     {
-      title: '1. Como o sistema funciona',
-      intro: 'O RubyLife organiza sua vida financeira por mês. A ideia é cadastrar a base correta, lançar receitas e despesas, acompanhar o que está em aberto e conferir tudo pelos relatórios.',
+      title: 'Primeiros passos',
+      intro: 'O RubyLife começa vazio para que você monte o controle conforme a sua realidade. Cadastre a estrutura básica e depois registre as movimentações.',
       steps: [
-        'Use a Visão Geral para acompanhar o resumo do mês: receita prevista, despesa prevista, saldo, valores a receber, valores a pagar e evolução dos lançamentos.',
-        'Use Transações para registrar tudo que entra e sai. É nessa aba que você controla vencimento, categoria, recorrência, status e conta vinculada.',
-        'Use Contas para separar onde o dinheiro está: carteira, conta corrente, poupança, investimento ou outra conta cadastrada.',
-        'Use Categorias para organizar o motivo de cada lançamento, como salário, moradia, mercado, transporte, investimentos e outros grupos.',
-        'Use Metas para acompanhar objetivos financeiros separados dos lançamentos comuns, como reserva, carro, viagem ou compra planejada.',
-        'Use Relatórios para conferir o fechamento do mês e exportar os dados quando precisar salvar ou enviar as informações.',
+        'No computador, use o menu lateral. No celular, use a barra inferior e o botão central de adicionar para acessar as ações mais frequentes.',
+        'Comece em Contas: cadastre onde seu dinheiro fica, informe o tipo e registre o saldo inicial correto.',
+        'Depois, revise Categorias e crie as classificações de receita, despesa ou transferência que você realmente utiliza.',
+        'Registre receitas e despesas em Transações. Os lançamentos ficam em aberto até o pagamento ou recebimento ser efetivado.',
+        'Use a Visão Geral e os Relatórios para acompanhar o mês. Metas, listas de compras e recursos com amigos funcionam de forma independente.',
       ],
     },
     {
-      title: '2. Como cadastrar as contas',
-      intro: 'Cadastre primeiro as contas que você usa no dia a dia. Isso ajuda o sistema a calcular o saldo real quando uma transação for efetivada.',
+      title: 'Visão Geral',
+      intro: 'A tela inicial reúne os números do mês selecionado e oferece atalhos para investigar cada resultado.',
       steps: [
-        'Entre na aba Contas e clique no botão de adicionar.',
-        'Informe o nome da conta, por exemplo Carteira, Nubank, Banco principal, Poupança ou Investimentos.',
-        'Escolha o tipo da conta para deixar a lista organizada e fácil de filtrar depois.',
-        'Informe o saldo inicial. Esse valor deve ser o saldo que existia antes de começar a controlar as movimentações no sistema.',
-        'Depois de salvar, use essa conta nos lançamentos. Quando uma receita ou despesa for marcada como efetivada, o saldo atual será atualizado.',
+        'Use as setas do período para avançar ou voltar um mês. Todos os indicadores da página acompanham o período escolhido.',
+        'Confira receitas, despesas, resultado mensal, valores a receber e valores a pagar para entender a situação do mês.',
+        'Observe os gráficos de evolução e distribuição por categoria para localizar os maiores impactos no orçamento.',
+        'Toque nos cards e atalhos disponíveis para abrir a área relacionada e analisar os lançamentos que formam aquele total.',
+        'Use o menu de exportação para gerar PDF ou Excel quando precisar guardar ou compartilhar o resumo.',
       ],
     },
     {
-      title: '3. Como cadastrar categorias',
-      intro: 'As categorias servem para identificar de onde vem o dinheiro e para onde ele vai. Quanto melhor elas forem cadastradas, mais claros ficam os relatórios.',
+      title: 'Transações',
+      intro: 'Transações registram toda entrada ou saída, desde lançamentos únicos até contas fixas e compras parceladas.',
       steps: [
-        'Entre na aba Categorias e clique no botão de adicionar.',
-        'Escolha se a categoria é de receita ou despesa.',
-        'Dê um nome simples e direto, como Salário, Extra, Moradia, Alimentação, Transporte, Cartão ou Investimentos.',
-        'Use cores e ícones apenas para facilitar a identificação visual, sem criar categorias repetidas com nomes parecidos.',
-        'Ao lançar uma transação, selecione sempre a categoria correta para que os totais e filtros funcionem bem.',
+        'Toque em Nova transação e escolha Receita para entradas ou Despesa para saídas.',
+        'Informe descrição, categoria, valor previsto e vencimento. Se já souber onde ocorrerá a movimentação, selecione também a conta.',
+        'Escolha a recorrência: única para um evento, fixa para repetição mensal ou parcelada para uma quantidade definida de parcelas.',
+        'Enquanto não houver pagamento ou recebimento, a transação permanece em aberto. Use Efetivado para confirmar data, conta e valor real.',
+        'Ao efetivar, o saldo atual da conta é atualizado. Use Desefetivar para desfazer a confirmação e devolver a transação ao estado em aberto.',
+        'Use Editar para corrigir dados e Excluir para remover apenas uma ocorrência ou, quando oferecido, todo o grupo recorrente.',
+        'Use filtros de data, categoria e tipo, ou selecione várias linhas para efetivar, desefetivar e excluir em lote.',
+        'Para trazer dados de uma planilha, use Importar, baixe o modelo, confira a prévia e confirme somente as linhas válidas.',
       ],
     },
     {
-      title: '4. Como lançar receitas e despesas',
-      intro: 'Todo valor que você quer controlar deve virar uma transação. Pode ser uma entrada, como salário, ou uma saída, como aluguel, mercado ou cartão.',
+      title: 'Contas',
+      intro: 'Contas representam carteira, banco, poupança ou investimento e mostram a diferença entre o saldo inicial e o saldo movimentado.',
       steps: [
-        'Entre na aba Transações e clique no botão de adicionar.',
-        'Escolha o tipo do lançamento: receita para dinheiro que entra, despesa para dinheiro que sai.',
-        'Preencha a descrição com um nome fácil de entender, como Salário mensal, Aluguel do apartamento ou Supermercado do mês.',
-        'Selecione a categoria correta, informe o valor e escolha a data de vencimento.',
-        'Escolha a recorrência: única para lançamentos pontuais, fixa para valores que se repetem todo mês e parcelada quando houver número definido de parcelas.',
-        'Se já souber em qual conta o valor será pago ou recebido, selecione a conta no lançamento.',
-        'Salve o lançamento. Ele ficará em aberto até você marcar como efetivado.',
+        'Toque em Nova conta e informe um nome que identifique claramente onde o dinheiro está.',
+        'Escolha o tipo: carteira, conta corrente, poupança ou investimento.',
+        'Informe o saldo inicial existente antes das movimentações controladas pelo RubyLife.',
+        'Escolha cor e ícone para reconhecer a conta com rapidez e salve o cadastro.',
+        'O saldo atual considera o saldo inicial mais as receitas efetivadas e menos as despesas efetivadas vinculadas à conta.',
+        'Use os filtros para buscar por nome ou tipo. As ações permitem editar, excluir ou selecionar várias contas.',
       ],
     },
     {
-      title: '5. Como efetivar pagamentos e recebimentos',
-      intro: 'Efetivar uma transação significa confirmar que aquele dinheiro realmente entrou ou saiu da conta.',
+      title: 'Categorias',
+      intro: 'Categorias classificam as movimentações e alimentam filtros, totais e gráficos do sistema.',
       steps: [
-        'Quando uma receita cair na conta, abra a transação e marque como efetivada.',
-        'Quando uma despesa for paga, marque também como efetivada.',
-        'Confira o valor real antes de confirmar. Se o valor pago ou recebido for diferente do previsto, ajuste o valor real.',
-        'Selecione a conta correta para que o saldo atual seja atualizado no lugar certo.',
-        'Depois de efetivar, o sistema passa a considerar essa movimentação no saldo real da conta e no status dos relatórios.',
+        'Toque em Nova categoria e dê um nome direto, como Salário, Moradia, Mercado ou Transporte.',
+        'Defina o tipo correto: Receita, Despesa ou Transferência. O tipo determina onde a categoria poderá ser usada.',
+        'Escolha um ícone na folha inferior e uma cor no seletor de espectro, arrastando até encontrar a tonalidade desejada.',
+        'Evite categorias duplicadas ou com nomes muito parecidos para manter os relatórios claros.',
+        'Use os filtros para localizar categorias por nome e tipo. Você também pode editar ou excluir cadastros personalizados.',
       ],
     },
     {
-      title: '6. Como acompanhar o mês e usar relatórios',
-      intro: 'Depois dos cadastros e lançamentos, o acompanhamento fica nas consultas, filtros e relatórios.',
+      title: 'Metas',
+      intro: 'Metas acompanham objetivos financeiros separados do fluxo comum de receitas e despesas.',
       steps: [
-        'Use os filtros para encontrar lançamentos por data, categoria, tipo, conta ou status.',
-        'Na Visão Geral, confira rapidamente se o mês está positivo ou negativo e veja o que ainda falta receber ou pagar.',
-        'Na aba Transações, acompanhe os vencimentos e resolva os itens pendentes conforme eles forem acontecendo.',
-        'Na aba Relatórios, compare receita, despesa e saldo final do mês.',
-        'Antes de exportar PDF ou Excel, confira se os lançamentos importantes estão cadastrados e se os pagamentos já foram efetivados.',
+        'Toque no botão de adicionar da barra superior ou em Nova meta.',
+        'Informe o nome, valor objetivo e, se desejar, um prazo para conclusão.',
+        'Escolha um ícone e abra o seletor de cor para arrastar pelo espectro até a tonalidade desejada.',
+        'Use Depositar para registrar um valor guardado. Cada depósito aumenta o progresso apresentado no card.',
+        'Use Resgatar para retirar parte do valor. O sistema não permite resgatar mais do que já foi guardado.',
+        'Abra o histórico da meta para consultar depósitos e resgates. Use Editar para alterar seus dados ou Excluir para remover a meta e o histórico.',
+        'Use os filtros para pesquisar pelo nome e separar metas ativas das já alcançadas.',
+      ],
+    },
+    {
+      title: 'Relatórios',
+      intro: 'Relatórios consolidam o mês em totais e em uma relação cronológica das movimentações.',
+      steps: [
+        'Escolha o mês pelas setas do período para atualizar todo o relatório.',
+        'Confira os totais de receitas, despesas e saldo final antes de analisar os lançamentos detalhados.',
+        'Percorra os grupos por data para conferir descrição, categoria, recorrência, vencimento e valores.',
+        'Se algum total estiver incorreto, volte a Transações e revise categoria, valor, vencimento e status dos registros.',
+        'Use Baixar PDF para leitura e compartilhamento ou Baixar Excel para continuar a análise em uma planilha.',
+      ],
+    },
+    {
+      title: 'Listas de compras',
+      intro: 'Listas de compras organizam produtos, quantidades, preços e participantes até o encerramento da compra.',
+      steps: [
+        'Toque em Nova lista, informe nome, data e observação, e escolha entre uma lista particular ou compartilhada.',
+        'Para compartilhar, selecione os amigos participantes. Eles poderão adicionar e editar itens enquanto a lista estiver aberta.',
+        'Abra a lista e adicione produto, quantidade e preço unitário. O sistema calcula o total de cada item e o valor final.',
+        'Use as ações do item para editar ou remover. O histórico de listas ajuda a sugerir nomes de produtos já utilizados.',
+        'Ao concluir a compra, toque em Finalizar compra. Para encerrar sem concluir, use Cancelar lista.',
+        'Listas finalizadas ou canceladas ficam somente para consulta e podem ser duplicadas para iniciar uma nova compra.',
+      ],
+    },
+    {
+      title: 'Amigos e compartilhamentos',
+      intro: 'A área Amigos conecta usuários pelo ID de amizade e permite enviar lançamentos financeiros para aprovação.',
+      steps: [
+        'Abra Meu perfil, copie seu ID de amizade e envie-o à pessoa que deseja adicionar.',
+        'Em Amigos, toque em Adicionar amigo, informe o ID recebido e envie a solicitação.',
+        'Na área de solicitações, aceite ou recuse convites. Depois de aceito, o contato aparece na sua lista de amigos.',
+        'Abra um amigo e toque em Lançar para criar uma transação compartilhada, informando tipo, descrição, valor, vencimento e categoria.',
+        'O destinatário pode aprovar ou recusar. Quando aprovado, o lançamento entra no controle financeiro correspondente.',
+        'Use os filtros da conversa para acompanhar solicitações pendentes e o histórico. Também é possível cancelar um envio ainda pendente ou remover uma amizade.',
+      ],
+    },
+    {
+      title: 'Notificações',
+      intro: 'Notificações avisam sobre convites, compartilhamentos e atualizações importantes mesmo fora da tela atual.',
+      steps: [
+        'Abra Notificações pelo sino da barra superior ou pelo menu de ajustes.',
+        'Ative todas as notificações de uma vez ou escolha individualmente quais tipos deseja receber.',
+        'Quando o navegador solicitar permissão, confirme para permitir os avisos do dispositivo.',
+        'No iPhone, instale o RubyLife na Tela de Início e abra o aplicativo instalado antes de ativar notificações push.',
+        'Use Limpar histórico para remover os avisos exibidos na central sem alterar seus dados financeiros.',
+      ],
+    },
+    {
+      title: 'Perfil e configurações',
+      intro: 'O perfil concentra sua identificação, foto, ID de amizade e preferências gerais do aplicativo.',
+      steps: [
+        'Em Meu perfil, atualize nome, telefone e foto. O e-mail identifica a conta e não é alterado nesse formulário.',
+        'Toque na foto para escolher uma imagem, confira a prévia e use Salvar alterações para confirmar.',
+        'Copie o ID de amizade quando quiser receber convites de outros usuários.',
+        'Abra o menu do perfil na barra superior para alternar entre modo claro e escuro, acessar notificações ou voltar à Central de Ajuda.',
+        'Use Sair somente quando desejar encerrar a sessão neste dispositivo.',
       ],
     },
   ];
-
-  const updatesSection = {
-    title: 'Atualizações do sistema',
-    intro: 'Acompanhe as melhorias recentes aplicadas ao RubyLife para tornar o controle financeiro mais simples e direto.',
-    steps: [
-      'A navegação mobile recebeu ícones maiores e identificação mais clara da página ativa.',
-      'Os cards da visão geral foram atualizados para destacar receitas, despesas e o resultado mensal.',
-      'As ações das transações agora usam os termos Efetivado e Desefetivar em todo o sistema.',
-      'O login ganhou controle para mostrar a senha e a opção de lembrar os dados de acesso.',
-    ],
-  };
-  const [helpArea, setHelpArea] = useState<'guides' | 'updates'>('guides');
   const [activeModule, setActiveModule] = useState('0');
-  const activeSection = helpArea === 'guides' ? sections[Number(activeModule)] ?? sections[0] : updatesSection;
+  const activeSection = sections[Number(activeModule)] ?? sections[0];
 
   return (
     <section className="help-page help-center-page">
       <header className="help-center-hero">
         <div className="help-center-kicker"><BookOpen size={16} /> Manual prático do sistema</div>
         <h1>Central de Ajuda</h1>
-        <p>Esta central segue o fluxo real do seu controle financeiro. Os módulos abaixo foram organizados para que você entenda cada etapa com clareza e encontre rapidamente onde agir no sistema.</p>
-        <div className="help-center-actions" role="group" aria-label="Área da Central de Ajuda">
-          <button type="button" className={helpArea === 'guides' ? 'active' : ''} onClick={() => setHelpArea('guides')} aria-pressed={helpArea === 'guides'}><BookOpen size={17} /> Guias do sistema</button>
-          <button type="button" className={helpArea === 'updates' ? 'active' : ''} onClick={() => setHelpArea('updates')} aria-pressed={helpArea === 'updates'}><Bell size={17} /> Atualizações</button>
-        </div>
+        <p>Aprenda a usar cada área do RubyLife, do primeiro cadastro aos recursos compartilhados.</p>
       </header>
 
-      <div className="help-center-filters">
-        <label className="help-center-field">
-          <span>Área da central</span>
-          <select value={helpArea} onChange={(event) => setHelpArea(event.target.value as 'guides' | 'updates')}>
-            <option value="guides">Guias do sistema</option>
-            <option value="updates">Atualizações</option>
-          </select>
-        </label>
+      <div className="help-center-filters help-center-filters--single">
         <label className="help-center-field">
           <span>Módulo</span>
-          <select value={helpArea === 'guides' ? activeModule : 'updates'} onChange={(event) => setActiveModule(event.target.value)} disabled={helpArea === 'updates'}>
-            {helpArea === 'guides' ? sections.map((section, index) => <option key={section.title} value={String(index)}>{section.title.replace(/^\d+\.\s*/, '')}</option>) : <option value="updates">Atualizações recentes</option>}
+          <select value={activeModule} onChange={(event) => setActiveModule(event.target.value)}>
+            {sections.map((section, index) => <option key={section.title} value={String(index)}>{section.title}</option>)}
           </select>
         </label>
       </div>
 
       <article className="help-center-guide" aria-live="polite">
-        <div className="help-center-guide-heading"><h2>{helpArea === 'guides' ? 'Passo a passo' : 'Novidades'}</h2></div>
+        <div className="help-center-guide-heading"><h2>Passo a passo</h2></div>
         <div className="help-center-guide-context">
-          <strong>{activeSection.title.replace(/^\d+\.\s*/, '')}</strong>
+          <strong>{activeSection.title}</strong>
+          <p>{activeSection.intro}</p>
         </div>
         <ol className="help-center-steps">
           {activeSection.steps.map((item, index) => (
@@ -3071,6 +4275,1080 @@ function HelpPage() {
       </article>
     </section>
   );
+}
+function DeviceNotificationsCard() {
+  const [status, setStatus] = useState<PushStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [preferences, setPreferences] = useState<PushPreferences>(() => {
+    try {
+      const raw = localStorage.getItem('rubylife-push-preferences');
+      return raw ? { ...DEFAULT_PUSH_PREFERENCES, ...JSON.parse(raw) } : DEFAULT_PUSH_PREFERENCES;
+    } catch {
+      return DEFAULT_PUSH_PREFERENCES;
+    }
+  });
+
+  async function refreshStatus() {
+    setStatus(await getPushStatus());
+  }
+
+  useEffect(() => {
+    void refreshStatus();
+  }, []);
+
+
+
+  const allActive = PUSH_PREFERENCE_LABELS.every((item) => preferences[item.key]);
+
+  async function toggleAllPreferences() {
+    setBusy(true);
+    setMessage(null);
+
+    const nextState = !allActive;
+
+    if (nextState && status && !status.subscribed && status.supported && status.publicKeyConfigured) {
+      try {
+        await enablePushNotifications();
+        await refreshStatus();
+      } catch (error) {
+        console.warn('Browser push subscription failed:', error);
+      }
+    }
+
+    const next = { ...preferences };
+    PUSH_PREFERENCE_LABELS.forEach((item) => {
+      next[item.key] = nextState;
+    });
+
+    setPreferences(next);
+    localStorage.setItem('rubylife-push-preferences', JSON.stringify(next));
+    try {
+      await savePushPreferences(next);
+      setMessage({ type: 'success', text: nextState ? 'Todas as notificações foram ativadas.' : 'Todas as notificações foram desativadas.' });
+    } catch {
+      setMessage({ type: 'error', text: 'Preferências atualizadas neste dispositivo, mas não foi possível sincronizar agora.' });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function togglePreference(key: keyof PushPreferences) {
+    const next = { ...preferences, [key]: !preferences[key] };
+    setPreferences(next);
+    localStorage.setItem('rubylife-push-preferences', JSON.stringify(next));
+    try {
+      await savePushPreferences(next);
+      setMessage({ type: 'success', text: 'Preferências de notificação salvas.' });
+    } catch {
+      setMessage({ type: 'error', text: 'Preferência salva neste dispositivo, mas não foi possível sincronizar agora.' });
+    }
+  }
+
+  const iosHint = status?.platform === 'ios' && !status.standalone
+    ? 'Para receber notificações no iPhone, adicione o RubyLife à Tela de Início e depois toque em “Ativar notificações”.'
+    : null;
+  const unsupported = status && !status.supported;
+  const missingKey = status?.supported && !status.publicKeyConfigured;
+
+  return (
+    <section className="push-settings-card">
+      <div className="push-settings-head">
+        <span className="push-settings-icon"><Bell size={20} /></span>
+        <div>
+          <strong>Notificações do dispositivo</strong>
+          <small>Receba avisos importantes do RubyLife mesmo quando o sistema estiver fechado.</small>
+        </div>
+      </div>
+
+      <div className="push-preferences-list" style={{ margin: '16px 0 20px' }}>
+        <button type="button" className="push-preference-row" onClick={toggleAllPreferences} disabled={busy} style={{ width: '100%' }}>
+          <span><strong>Ativar todas as notificações</strong></span>
+          <span className={`ios-switch ${allActive ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span>
+        </button>
+      </div>
+
+      {iosHint ? <p className="push-settings-note">{iosHint}</p> : null}
+      {unsupported ? <p className="push-settings-note push-settings-note--error">Este navegador ou dispositivo não suporta notificações push para PWA.</p> : null}
+      {missingKey ? <p className="push-settings-note push-settings-note--error">A chave pública VAPID ainda não está configurada no ambiente do app.</p> : null}
+      {message ? <p className={`push-settings-message push-settings-message--${message.type}`}>{message.text}</p> : null}
+
+      <div className="push-preferences-list">
+        {PUSH_PREFERENCE_LABELS.map((item) => (
+          <button type="button" key={item.key} className="push-preference-row" onClick={() => togglePreference(item.key)}>
+            <span><strong>{item.label}</strong><small>{item.description}</small></span>
+            <span className={`ios-switch ${preferences[item.key] ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+function ProfilePage({ fullName, email, publicFriendId, phone, avatarUrl, onSave, categories, onNewCategory, onEditCategory }: {
+  fullName: string;
+  email: string;
+  publicFriendId: string;
+  phone: string;
+  avatarUrl?: string | null;
+  onSave: (profile: { fullName: string; phone: string; avatarUrl: string | null }) => Promise<void>;
+  categories: CategoryItem[];
+  onNewCategory: () => void;
+  onEditCategory: (category: CategoryItem) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'profile' | 'categories'>('profile');
+  const [name, setName] = useState(fullName);
+  const [phoneNumber, setPhoneNumber] = useState(phone);
+  const [photo, setPhoto] = useState<string | null>(avatarUrl ?? null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedFriendId, setCopiedFriendId] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setName(fullName);
+    setPhoneNumber(phone);
+    setPhoto(avatarUrl ?? null);
+  }, [fullName, phone, avatarUrl]);
+
+  function handlePhotoSelect(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxSize = 220;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          setPhoto(dataUrl);
+          setMessage({ type: 'success', text: 'Nova foto selecionada! Clique em Salvar alterações para armazenar no Supabase.' });
+        }
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function copyFriendId() {
+    try {
+      await navigator.clipboard?.writeText(publicFriendId);
+      setCopiedFriendId(true);
+      window.setTimeout(() => setCopiedFriendId(false), 1800);
+    } catch {
+      setMessage({ type: 'error', text: 'Não foi possível copiar o ID automaticamente.' });
+    }
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedName = name.trim();
+    const normalizedPhone = phoneNumber.trim();
+    setMessage(null);
+
+    if (normalizedName.length < 2) {
+      setMessage({ type: 'error', text: 'Informe seu nome completo.' });
+      return;
+    }
+    if (normalizedPhone && !/^[0-9()+\-\s]+$/.test(normalizedPhone)) {
+      setMessage({ type: 'error', text: 'Informe um telefone válido.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSave({ fullName: normalizedName, phone: normalizedPhone, avatarUrl: photo });
+      setMessage({ type: 'success', text: 'Perfil e foto salvos com sucesso no Supabase!' });
+    } catch (error) {
+      console.error('Falha ao atualizar perfil:', error);
+      setMessage({ type: 'error', text: 'Não foi possível salvar seu perfil. Tente novamente.' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="profile-page">
+      <header className="profile-page-header">
+        <span className="profile-page-kicker"><UserRound size={15} /> Conta pessoal</span>
+        <h1 className="page-title">Meu perfil</h1>
+        <p className="page-subtitle">Personalize sua foto de perfil e mantenha seus dados cadastrais atualizados no Supabase.</p>
+      </header>
+
+      {/* Abas — visíveis apenas no mobile */}
+      <div className="profile-mobile-tabs">
+        <button type="button" className={activeTab === 'profile' ? 'active' : ''} onClick={() => setActiveTab('profile')}>
+          <UserRound size={16} /> Perfil
+        </button>
+        <button type="button" className={activeTab === 'categories' ? 'active' : ''} onClick={() => setActiveTab('categories')}>
+          <Tags size={16} /> Categorias
+        </button>
+      </div>
+
+      {activeTab === 'categories' ? (
+        <div className="profile-categories-view">
+          <div className="profile-categories-header">
+            <span>{categories.length} {categories.length === 1 ? 'categoria' : 'categorias'}</span>
+            <button type="button" className="page-primary-action" onClick={onNewCategory}><Plus size={16} /> Nova categoria</button>
+          </div>
+          {(['income', 'expense'] as const).map((kind) => {
+            const group = categories.filter((c) => c.kind === kind);
+            if (!group.length) return null;
+            return (
+              <div key={kind} className="profile-category-group">
+                <div className="profile-category-group-label">{kind === 'income' ? 'Receitas' : 'Despesas'}</div>
+                <div className="profile-category-list">
+                  {group.map((cat) => (
+                    <button key={cat.id} type="button" className="profile-category-row" onClick={() => onEditCategory(cat)}>
+                      <span className="profile-category-icon" style={{ background: cat.color + '22', color: cat.color }}>
+                        <CategoryIconGraphic icon={cat.icon} size={16} />
+                      </span>
+                      <span className="profile-category-name">{cat.name}</span>
+                      <ChevronRight size={16} className="profile-category-chevron" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {categories.length === 0 && (
+            <div className="profile-categories-empty">
+              <Tags size={32} />
+              <strong>Nenhuma categoria</strong>
+              <p>Crie categorias para organizar suas receitas e despesas.</p>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {activeTab === 'profile' ? <>
+      <section className="profile-friend-id-card">
+        <div>
+          <span>ID de amizade</span>
+          <strong>{publicFriendId}</strong>
+          <small>Compartilhe este ID para receber convites de amizade.</small>
+        </div>
+        <button type="button" className="page-secondary-action" onClick={copyFriendId}><Save size={15} /> {copiedFriendId ? 'Copiado' : 'Copiar ID'}</button>
+      </section>
+
+      <form className="profile-registration-card" onSubmit={submit}>
+
+        <div className="profile-registration-layout">
+          <div className="profile-photo-column">
+            <span className="profile-photo-title">FOTO PERFIL</span>
+
+            <div className="profile-photo-circle" onClick={() => fileInputRef.current?.click()} title="Clique para alterar foto">
+              {photo ? (
+                <img src={photo} alt="Foto de perfil" className="profile-photo-preview" />
+              ) : (
+                <UserRound size={68} className="profile-photo-icon" />
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoSelect}
+              style={{ display: 'none' }}
+            />
+
+            <div className="profile-photo-actions">
+              <button
+                type="button"
+                className="profile-photo-btn"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera size={14} /> {photo ? 'Alterar foto' : 'Adicionar foto'}
+              </button>
+
+              {photo ? (
+                <button
+                  type="button"
+                  className="profile-photo-btn profile-photo-btn--remove"
+                  onClick={() => {
+                    setPhoto(null);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                    setMessage({ type: 'success', text: 'Foto removida. Clique em Salvar alterações para confirmar no Supabase.' });
+                  }}
+                >
+                  <Trash2 size={14} /> Remover
+                </button>
+              ) : null}
+            </div>
+
+            <small className="profile-photo-help">
+              Tamanho máximo: 220px altura x 220px largura
+            </small>
+          </div>
+
+          <div className="profile-data-column">
+            <div className="profile-form-grid">
+              <label className="profile-field">
+                <span>NOME</span>
+                <div className="profile-input-wrap">
+                  <UserRound size={17} />
+                  <input
+                    value={name}
+                    onChange={(event) => { setName(event.target.value); setMessage(null); }}
+                    minLength={2}
+                    maxLength={160}
+                    autoComplete="name"
+                    placeholder="Seu nome completo"
+                    required
+                  />
+                </div>
+              </label>
+
+              <label className="profile-field">
+                <span>EMAIL</span>
+                <div className="profile-input-wrap profile-input-wrap--readonly">
+                  <Mail size={17} />
+                  <input value={email} readOnly aria-readonly="true" />
+                </div>
+              </label>
+
+              <label className="profile-field">
+                <span>TELEFONE</span>
+                <div className="profile-input-wrap">
+                  <Phone size={17} />
+                  <input
+                    value={phoneNumber}
+                    onChange={(event) => { setPhoneNumber(event.target.value); setMessage(null); }}
+                    maxLength={30}
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="profile-form-footer">
+          <div aria-live="polite">
+            {message ? (
+              <span className={`profile-save-message profile-save-message--${message.type}`}>
+                {message.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                {message.text}
+              </span>
+            ) : null}
+          </div>
+          <button type="submit" className="page-primary-action profile-save-button" disabled={saving}>
+            <Save size={16} /> {saving ? 'Salvando...' : 'Salvar alterações'}
+          </button>
+        </div>
+      </form>
+      </> : null}
+    </section>
+  );
+}
+type FriendsPageProps = {
+  currentUser: FriendUser;
+  users: FriendUser[];
+  invitations: FriendshipInvitation[];
+  acceptedFriends: FriendUser[];
+  sharedTransactions: SharedTransactionRequest[];
+  incomeCategories: string[];
+  expenseCategories: string[];
+  activeTab: 'search' | 'received';
+  openSearchSignal?: number;
+  backSignal?: number;
+  onThreadChange?: (name: string | null) => void;
+  onTabChange: (tab: 'search' | 'received') => void;
+  onSendInvitation: (user: FriendUser) => string | null;
+  onAcceptInvitation: (invitationId: string) => void;
+  onDeclineInvitation: (invitationId: string) => void;
+  onRemoveFriend: (user: FriendUser) => void;
+  onCreateShared: (form: SharedTransactionForm) => string | null;
+  onApproveShared: (id: string) => void;
+  onDeclineShared: (id: string, reason: string) => void;
+  onCancelShared: (id: string) => void;
+};
+
+type SharedView = { mine: boolean; headerText: string; statusLabel: string; statusClass: string; pendingForMe: boolean };
+
+function describeShared(item: SharedTransactionRequest, currentUserId: string, friendName: string): SharedView {
+  const mine = item.creatorId === currentUserId;
+  const typeLabel = item.type === 'income' ? 'receita' : 'despesa';
+  let headerText = mine ? `Você criou uma ${typeLabel} para ${friendName}` : `${friendName} criou uma ${typeLabel} para você`;
+  let statusLabel = 'Pendente';
+  let statusClass = 'pending';
+  let pendingForMe = false;
+  if (item.status === 'pending') {
+    if (mine) { statusLabel = 'Aguardando aprovação'; statusClass = 'pending'; }
+    else { statusLabel = 'Pendente'; statusClass = 'pending'; pendingForMe = true; }
+  } else if (item.status === 'approved') {
+    headerText = item.receiverId === currentUserId ? 'Você aprovou a transação' : `${friendName} aprovou a transação`;
+    statusLabel = 'Aprovada'; statusClass = 'approved';
+  } else if (item.status === 'declined') {
+    headerText = item.receiverId === currentUserId ? 'Você recusou a transação' : `${friendName} recusou a transação`;
+    statusLabel = 'Recusada'; statusClass = 'declined';
+  } else if (item.status === 'cancelled') {
+    headerText = item.creatorId === currentUserId ? 'Você cancelou a transação' : `${friendName} cancelou a transação`;
+    statusLabel = 'Cancelada'; statusClass = 'cancelled';
+  }
+  return { mine, headerText, statusLabel, statusClass, pendingForMe };
+}
+
+function FriendsPage({ currentUser, users, invitations, acceptedFriends, sharedTransactions, incomeCategories, expenseCategories, activeTab, openSearchSignal, backSignal, onThreadChange, onTabChange, onSendInvitation, onAcceptInvitation, onDeclineInvitation, onRemoveFriend, onCreateShared, onApproveShared, onDeclineShared, onCancelShared }: FriendsPageProps) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [requestsOpen, setRequestsOpen] = useState(false);
+  const [conversationQuery, setConversationQuery] = useState('');
+  const [openFriendId, setOpenFriendId] = useState<string | null>(null);
+  const [threadFilter, setThreadFilter] = useState<'pending' | 'history'>('pending');
+  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerFriendId, setComposerFriendId] = useState<string | null>(null);
+  const [declineTarget, setDeclineTarget] = useState<SharedTransactionRequest | null>(null);
+  const [mobileTab, setMobileTab] = useState<'amigos' | 'solicitacoes'>('amigos');
+
+  useEffect(() => {
+    if (openSearchSignal) setSearchOpen(true);
+  }, [openSearchSignal]);
+
+  const receivedInvitations = useMemo(() => (
+    invitations.filter((invitation) => invitation.receiverId === currentUser.id && invitation.status === 'pending')
+  ), [invitations, currentUser.id]);
+
+  const userById = useMemo(() => new Map(users.map((user) => [user.id, user] as const)), [users]);
+  function resolveUser(id: string): FriendUser {
+    return userById.get(id) ?? { id, publicFriendId: publicFriendIdForUser(id), name: 'Usuário do sistema', email: 'email não disponível' };
+  }
+
+  useEffect(() => {
+    if (activeTab === 'received') setRequestsOpen(true);
+  }, [activeTab]);
+
+  function sharedWith(friendId: string) {
+    return sharedTransactions
+      .filter((item) => (
+        (item.creatorId === currentUser.id && item.receiverId === friendId) ||
+        (item.creatorId === friendId && item.receiverId === currentUser.id)
+      ))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  function pendingForMeCount(friendId: string) {
+    return sharedTransactions.filter((item) => (
+      item.creatorId === friendId && item.receiverId === currentUser.id && item.status === 'pending'
+    )).length;
+  }
+
+  const conversations = useMemo(() => {
+    const normalized = conversationQuery.trim().toLowerCase();
+    return acceptedFriends
+      .filter((friend) => !normalized || friend.name.toLowerCase().includes(normalized) || friend.publicFriendId.toLowerCase().includes(normalized))
+      .map((friend) => {
+        const items = sharedWith(friend.id);
+        return {
+          friend,
+          pending: pendingForMeCount(friend.id),
+          lastAt: items[0]?.createdAt ?? '',
+        };
+      })
+      .sort((a, b) => {
+        if ((b.pending > 0 ? 1 : 0) !== (a.pending > 0 ? 1 : 0)) return (b.pending > 0 ? 1 : 0) - (a.pending > 0 ? 1 : 0);
+        if (a.lastAt !== b.lastAt) return b.lastAt.localeCompare(a.lastAt);
+        return a.friend.name.localeCompare(b.friend.name);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acceptedFriends, sharedTransactions, conversationQuery, currentUser.id]);
+
+  const openFriend = openFriendId ? acceptedFriends.find((friend) => friend.id === openFriendId) ?? null : null;
+
+  useEffect(() => {
+    onThreadChange?.(openFriend ? shortUserName(openFriend.name) : null);
+    return () => onThreadChange?.(null);
+  }, [openFriend, onThreadChange]);
+
+  useEffect(() => {
+    if (!backSignal) return;
+    setOpenFriendId(null);
+    setThreadFilter('pending');
+    onThreadChange?.(null);
+  }, [backSignal, onThreadChange]);
+
+  if (openFriend) {
+    const items = sharedWith(openFriend.id);
+    const filtered = threadFilter === 'pending'
+      ? items.filter((item) => item.status === 'pending')
+      : items.filter((item) => item.status !== 'pending');
+    return (
+      <>
+        <section className="dm-thread-header">
+          <button type="button" className="dm-back" onClick={() => { setOpenFriendId(null); setThreadFilter('pending'); onThreadChange?.(null); }} aria-label="Voltar">
+            <ChevronLeft size={20} />
+          </button>
+          <FriendAvatar user={openFriend} />
+          <div className="dm-thread-heading">
+            <strong>{shortUserName(openFriend.name)}</strong>
+            <span>Transações compartilhadas</span>
+          </div>
+          <button type="button" className="friend-action friend-action--danger dm-thread-remove-friend" title="Excluir amizade" aria-label="Excluir amizade" onClick={() => onRemoveFriend(openFriend)}>
+            <UserX size={15} /> <span className="dm-thread-remove-text">Excluir amizade</span>
+          </button>
+        </section>
+
+        <div className="dm-thread-filter" role="tablist" aria-label="Filtrar transações">
+          <button type="button" role="tab" aria-selected={threadFilter === 'pending'} className={threadFilter === 'pending' ? 'active' : ''} onClick={() => setThreadFilter('pending')}>Pendentes</button>
+          <button type="button" role="tab" aria-selected={threadFilter === 'history'} className={threadFilter === 'history' ? 'active' : ''} onClick={() => setThreadFilter('history')}>Histórico</button>
+        </div>
+
+        <section className="dm-thread-body">
+          {filtered.length ? filtered.map((item) => {
+            const view = describeShared(item, currentUser.id, shortUserName(openFriend.name));
+            return (
+              <article key={item.id} className={`shared-msg shared-msg--${view.mine ? 'mine' : 'theirs'}`}>
+                <div className="shared-card">
+                  <span className="shared-card-head">{view.headerText}</span>
+                  <div className="shared-card-body">
+                    <strong className="shared-card-desc">{item.description}</strong>
+                    <span className="shared-card-meta">Vencimento: {formatDate(item.dueDate)}</span>
+                    {item.category ? <span className="shared-card-meta">{item.category}</span> : null}
+                    {item.note ? <span className="shared-card-meta shared-card-note"><strong>Observação:</strong> {item.note}</span> : null}
+                    {item.status === 'declined' && item.declineReason ? <span className="shared-card-meta shared-card-decline-reason"><strong>Motivo da recusa:</strong> {item.declineReason}</span> : null}
+                  </div>
+                  <div className="shared-card-foot">
+                    <strong className={`shared-card-value shared-card-value--${item.type}`}>{item.type === 'income' ? '+ ' : '- '}{formatCurrency(item.amount)}</strong>
+                    <span className={`friend-status friend-status--${view.statusClass}`}>{view.statusLabel}</span>
+                  </div>
+                  {item.status === 'pending' && item.receiverId === currentUser.id ? (
+                    <div className="shared-card-actions">
+                      <button type="button" className="friend-action friend-action--danger" onClick={() => setDeclineTarget(item)}><X size={15} /> Recusar</button>
+                      <button type="button" className="friend-action" onClick={() => onApproveShared(item.id)}><CheckCircle2 size={15} /> Aprovar</button>
+                    </div>
+                  ) : item.status === 'pending' && item.creatorId === currentUser.id ? (
+                    <div className="shared-card-actions">
+                      <button type="button" className="friend-action friend-action--danger" onClick={() => onCancelShared(item.id)}><X size={15} /> Cancelar</button>
+                    </div>
+                  ) : null}
+                </div>
+              </article>
+            );
+          }) : (
+            <div className="friends-empty">
+              <ReceiptText size={26} />
+              <strong>{threadFilter === 'pending' ? 'Nenhuma transação pendente.' : 'Nenhum histórico ainda.'}</strong>
+              <span>{threadFilter === 'pending' ? 'As aprovações pendentes aparecerão aqui.' : 'Transações aprovadas, recusadas ou canceladas aparecerão aqui.'}</span>
+            </div>
+          )}
+        </section>
+
+        <button type="button" className="dm-fab" onClick={() => setComposerOpen(true)}>
+          <Plus size={18} /> Nova transação
+        </button>
+
+        {composerOpen ? (
+          <SharedTransactionModal
+            friends={acceptedFriends}
+            lockedFriend={openFriend}
+            incomeCategories={incomeCategories}
+            expenseCategories={expenseCategories}
+            onClose={() => setComposerOpen(false)}
+            onCreate={(form) => onCreateShared(form)}
+          />
+        ) : null}
+        {declineTarget ? (
+          <DeclineSharedTransactionModal
+            item={declineTarget}
+            onClose={() => setDeclineTarget(null)}
+            onConfirm={(reason) => { onDeclineShared(declineTarget.id, reason); setDeclineTarget(null); }}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <section className="page-header page-header-split friends-page-header friends-overview-header">
+        <div className="page-header-left">
+          <h1 className="page-title">Amigos</h1>
+          <span className="page-subtitle">Gerencie suas conexões e acompanhe as transações compartilhadas.</span>
+        </div>
+        <div className="dm-header-actions">
+          <button type="button" className="page-secondary-action dm-header-button friends-requests-trigger" onClick={() => { setRequestsOpen(true); onTabChange('received'); }}>
+            <Mail size={16} /> Solicitações
+            {receivedInvitations.length ? <span className="dm-badge">{receivedInvitations.length}</span> : null}
+          </button>
+          <button type="button" className="page-primary-action dm-header-button" onClick={() => setSearchOpen(true)}>
+            <UserPlus size={16} /> Adicionar amigo
+          </button>
+          <button type="button" className="friends-mobile-add-btn" onClick={() => setSearchOpen(true)} aria-label="Adicionar amigo">
+            <UserPlus size={20} />
+          </button>
+        </div>
+      </section>
+
+      <div className="friends-mobile-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={mobileTab === 'amigos'} className={mobileTab === 'amigos' ? 'active' : ''} onClick={() => setMobileTab('amigos')}>Amigos</button>
+        <button type="button" role="tab" aria-selected={mobileTab === 'solicitacoes'} className={mobileTab === 'solicitacoes' ? 'active' : ''} onClick={() => setMobileTab('solicitacoes')}>
+          Solicitações
+          {receivedInvitations.length ? <span className="friends-mobile-tab-badge">{receivedInvitations.length}</span> : null}
+        </button>
+      </div>
+
+      {mobileTab === 'solicitacoes' ? (
+        receivedInvitations.length ? (
+          <div className="friend-requests-inline">
+            {receivedInvitations.map((invitation) => {
+              const requester = resolveUser(invitation.requesterId);
+              return (
+                <article className="friend-request-inline-card" key={invitation.id}>
+                  <FriendAvatar user={requester} />
+                  <div className="friend-request-inline-main">
+                    <strong>{requester.name}</strong>
+                    <span>Pedido de amizade</span>
+                  </div>
+                  <div className="friend-request-inline-actions">
+                    <button type="button" className="friend-round-action friend-round-action--decline" onClick={() => onDeclineInvitation(invitation.id)} aria-label={`Recusar pedido de ${requester.name}`}><X size={18} /></button>
+                    <button type="button" className="friend-round-action friend-round-action--accept" onClick={() => onAcceptInvitation(invitation.id)} aria-label={`Aceitar pedido de ${requester.name}`}><Check size={18} /></button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="friends-empty"><span className="friends-empty-icon"><Mail size={24} /></span><strong>Nenhuma solicitação pendente.</strong></div>
+        )
+      ) : null}
+
+      {mobileTab === 'amigos' ? (
+        <section className="friends-overview-panel">
+          <div className="dm-search friends-overview-search">
+            <Search size={18} />
+            <input value={conversationQuery} onChange={(event) => setConversationQuery(event.target.value)} placeholder="Pesquisar por nome ou ID" />
+          </div>
+          <section className="dm-list">
+            {conversations.length ? conversations.map(({ friend, pending }) => (
+              <div className="dm-conversation" key={friend.id}>
+                <button type="button" className="dm-conversation-identity" onClick={() => { setOpenFriendId(friend.id); setThreadFilter('pending'); }}>
+                  <FriendAvatar user={friend} />
+                  <div className="dm-conversation-main">
+                    <strong>{shortUserName(friend.name)}</strong>
+                  </div>
+                  {pending ? <span className="dm-badge">{pending}</span> : <ChevronRight size={18} className="dm-conversation-chevron" />}
+                </button>
+                <button type="button" className="dm-conversation-launch" onClick={() => setComposerFriendId(friend.id)}>
+                  <Plus size={15} /> <span>Lançar</span>
+                </button>
+              </div>
+            )) : (
+              <div className="friends-empty">
+                <span className="friends-empty-icon"><Users size={24} /></span>
+                <strong>{acceptedFriends.length ? 'Nenhum amigo encontrado.' : 'Você ainda não tem amigos.'}</strong>
+                <span>{acceptedFriends.length ? 'Tente buscar por outro nome ou pelo ID numérico.' : 'Adicione amigos pelo ID numérico exclusivo de cada usuário.'}</span>
+                {acceptedFriends.length ? null : <button type="button" className="button-primary" onClick={() => setSearchOpen(true)}><UserPlus size={15} /> Adicionar amigo</button>}
+              </div>
+            )}
+          </section>
+        </section>
+      ) : null}
+
+      {composerFriendId ? (() => {
+        const composerFriend = acceptedFriends.find((friend) => friend.id === composerFriendId);
+        if (!composerFriend) return null;
+        return (
+          <SharedTransactionModal
+            friends={acceptedFriends}
+            lockedFriend={composerFriend}
+            incomeCategories={incomeCategories}
+            expenseCategories={expenseCategories}
+            onClose={() => setComposerFriendId(null)}
+            onCreate={(form) => onCreateShared(form)}
+          />
+        );
+      })() : null}
+
+      {searchOpen ? (
+        <FriendSearchModal
+          currentUser={currentUser}
+          users={users}
+          invitations={invitations}
+          onSendInvitation={onSendInvitation}
+          onAcceptInvitation={onAcceptInvitation}
+          onDeclineInvitation={onDeclineInvitation}
+          onRemoveFriend={onRemoveFriend}
+          onClose={() => setSearchOpen(false)}
+        />
+      ) : null}
+
+      {requestsOpen ? (
+        <FriendRequestsModal
+          currentUser={currentUser}
+          users={users}
+          invitations={invitations}
+          onAcceptInvitation={onAcceptInvitation}
+          onDeclineInvitation={onDeclineInvitation}
+          onClose={() => { setRequestsOpen(false); onTabChange('search'); }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+type FriendsManageViewProps = {
+  currentUser: FriendUser;
+  users: FriendUser[];
+  invitations: FriendshipInvitation[];
+  activeTab: 'search' | 'received';
+  onTabChange: (tab: 'search' | 'received') => void;
+  onSendInvitation: (user: FriendUser) => string | null;
+  onAcceptInvitation: (invitationId: string) => void;
+  onDeclineInvitation: (invitationId: string) => void;
+  onRemoveFriend: (user: FriendUser) => void;
+  onBack: () => void;
+  showHeader?: boolean;
+  showTabs?: boolean;
+  showOwnId?: boolean;
+};
+
+function FriendsManageView({ currentUser, users, invitations, activeTab, onTabChange, onSendInvitation, onAcceptInvitation, onDeclineInvitation, onRemoveFriend, onBack, showHeader = true, showTabs = true, showOwnId = true }: FriendsManageViewProps) {
+  const [query, setQuery] = useState('');
+  const [searchedId, setSearchedId] = useState('');
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [idCopied, setIdCopied] = useState(false);
+  const userById = useMemo(() => new Map(users.map((user) => [user.id, user] as const)), [users]);
+
+  function resolveUser(id: string): FriendUser {
+    return userById.get(id) ?? { id, publicFriendId: publicFriendIdForUser(id), name: 'Usuário do sistema', email: 'email não disponível' };
+  }
+
+  const receivedInvitations = invitations.filter((invitation) => invitation.receiverId === currentUser.id && invitation.status === 'pending');
+  const foundUser = searchedId ? users.find((user) => normalizePublicFriendId(user.publicFriendId) === searchedId) ?? null : null;
+  const searchedSelf = Boolean(foundUser && foundUser.id === currentUser.id);
+  const pendingSentToFound = foundUser ? invitations.find((invitation) => invitation.requesterId === currentUser.id && invitation.receiverId === foundUser.id && invitation.status === 'pending') : null;
+  const pendingReceivedFromFound = foundUser ? invitations.find((invitation) => invitation.requesterId === foundUser.id && invitation.receiverId === currentUser.id && invitation.status === 'pending') : null;
+  const foundIsFriend = foundUser ? areUsersFriends(currentUser.id, foundUser.id, invitations) : false;
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    const normalized = normalizePublicFriendId(query);
+    setSearchedId(normalized);
+    if (!normalized) {
+      setMessage({ type: 'error', text: 'Digite o ID do amigo.' });
+      return;
+    }
+    if (normalized.length !== 6) {
+      setMessage({ type: 'error', text: 'O ID deve ter exatamente 6 números.' });
+      return;
+    }
+    const match = users.find((user) => normalizePublicFriendId(user.publicFriendId) === normalized);
+    if (!match) {
+      setMessage({ type: 'error', text: 'Nenhum usuário encontrado com esse ID. Verifique se o ID foi digitado corretamente.' });
+      return;
+    }
+    if (match.id === currentUser.id) setMessage({ type: 'error', text: 'Você não pode pesquisar ou convidar a si mesmo.' });
+  }
+
+  function inviteFoundUser(user: FriendUser) {
+    const error = onSendInvitation(user);
+    setMessage(error ? { type: 'error', text: error } : { type: 'success', text: 'Convite de amizade enviado com sucesso.' });
+  }
+
+  function acceptInvitation(invitationId: string) {
+    onAcceptInvitation(invitationId);
+    setMessage({ type: 'success', text: 'Agora vocês são amigos.' });
+  }
+
+  function declineInvitation(invitationId: string) {
+    onDeclineInvitation(invitationId);
+    setMessage({ type: 'success', text: 'Solicitação recusada.' });
+  }
+
+  return (
+    <>
+      {showHeader ? <section className="page-header page-header-split friends-page-header">
+        <div className="page-header-left page-header-left--with-back">
+          <button type="button" className="dm-back" onClick={onBack} aria-label="Voltar">
+            <ChevronLeft size={20} />
+          </button>
+          <div>
+            <h1 className="page-title">Amigos</h1>
+            <span className="page-subtitle">Busque pessoas pelo ID de amizade e aprove somente solicitações recebidas.</span>
+          </div>
+        </div>
+      </section> : null}
+
+      {showOwnId ? <section className="friend-own-id-card">
+        <div className="friend-own-id-icon"><UserRound size={20} /></div>
+        <div><span>Seu ID de amizade</span><strong>{currentUser.publicFriendId}</strong><small>Envie este número para quem deseja adicionar você.</small></div>
+        <button type="button" className="page-secondary-action" onClick={async () => { await navigator.clipboard?.writeText(currentUser.publicFriendId); setIdCopied(true); window.setTimeout(() => setIdCopied(false), 1800); }}><Copy size={15} /> {idCopied ? 'Copiado' : 'Copiar ID'}</button>
+      </section> : null}
+
+      {showTabs ? <div className="friends-tabs" role="tablist" aria-label="Amigos">
+        <button type="button" className={activeTab === 'search' ? 'active' : ''} role="tab" aria-selected={activeTab === 'search'} onClick={() => { onTabChange('search'); setMessage(null); }}><Search size={16} /> Buscar amigo</button>
+        <button type="button" className={activeTab === 'received' ? 'active' : ''} role="tab" aria-selected={activeTab === 'received'} onClick={() => { onTabChange('received'); setMessage(null); }}><Mail size={16} /> Solicitações recebidas{receivedInvitations.length ? <span>{receivedInvitations.length}</span> : null}</button>
+      </div> : null}
+
+      {message ? (
+        <div className={`friends-feedback friends-feedback--${message.type}`} role="status">
+          {message.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+          <span>{message.text}</span>
+        </div>
+      ) : null}
+
+      {activeTab === 'search' ? (
+        <section className="friend-id-search-panel">
+          <form className="friend-id-search-form" onSubmit={submitSearch}>
+            <label className="friend-id-search-field">
+              <span>Buscar por ID</span>
+              <div><Search size={18} /><input value={query} onChange={(event) => { setQuery(event.target.value.replace(/\D/g, '').slice(0, 6)); setMessage(null); }} placeholder="Digite 6 números" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="off" /></div>
+            </label>
+            <button type="submit" className="page-primary-action"><Search size={16} /> Buscar</button>
+          </form>
+
+          {searchedId && !foundUser ? (
+            <div className="friend-search-empty"><AlertCircle size={24} /><strong>Nenhum usuário encontrado com esse ID.</strong><span>Verifique se o ID foi digitado corretamente.</span></div>
+          ) : null}
+
+          {foundUser && !searchedSelf ? (
+            <article className="friend-result-card">
+              <FriendAvatar user={foundUser} />
+              <div className="friend-result-main">
+                <strong>{foundUser.name}</strong>
+                <span>ID: {foundUser.publicFriendId}</span>
+                {foundUser.email ? <small>{foundUser.email}</small> : null}
+              </div>
+              <div className="friend-result-actions">
+                {foundIsFriend ? (
+                  <button type="button" className="friend-action friend-action--danger" onClick={() => onRemoveFriend(foundUser)}><UserX size={15} /> Remover amizade</button>
+                ) : pendingSentToFound ? (
+                  <span className="friend-status friend-status--pending">Convite enviado</span>
+                ) : pendingReceivedFromFound ? (
+                  <><button type="button" className="friend-action friend-action--danger" onClick={() => declineInvitation(pendingReceivedFromFound.id)}><X size={15} /> Recusar</button><button type="button" className="friend-action" onClick={() => acceptInvitation(pendingReceivedFromFound.id)}><CheckCircle2 size={15} /> Aceitar convite</button></>
+                ) : (
+                  <button type="button" className="friend-action" onClick={() => inviteFoundUser(foundUser)}><UserPlus size={15} /> Convidar para amizade</button>
+                )}
+              </div>
+            </article>
+          ) : null}
+        </section>
+      ) : (
+        <section className="friend-requests-panel">
+          {receivedInvitations.length ? receivedInvitations.map((invitation) => {
+            const requester = resolveUser(invitation.requesterId);
+            return (
+              <article className="friend-request-card" key={invitation.id}>
+                <FriendAvatar user={requester} />
+                <div className="friend-result-main"><strong>{requester.name}</strong><span>ID: {requester.publicFriendId}</span><small>Enviado em: {formatDate(invitation.createdAt.slice(0, 10))}</small></div>
+                <div className="friend-result-actions"><button type="button" className="friend-action friend-action--danger" onClick={() => declineInvitation(invitation.id)}><X size={15} /> Recusar</button><button type="button" className="friend-action" onClick={() => acceptInvitation(invitation.id)}><CheckCircle2 size={15} /> Aceitar</button></div>
+              </article>
+            );
+          }) : <div className="friend-search-empty"><Mail size={24} /><strong>Nenhuma solicitação recebida.</strong><span>Pedidos pendentes aparecerão aqui.</span></div>}
+        </section>
+      )}
+    </>
+  );
+}
+
+function FriendSearchModal({ currentUser, users, invitations, onSendInvitation, onAcceptInvitation, onDeclineInvitation, onRemoveFriend, onClose }: {
+  currentUser: FriendUser;
+  users: FriendUser[];
+  invitations: FriendshipInvitation[];
+  onSendInvitation: (user: FriendUser) => string | null;
+  onAcceptInvitation: (invitationId: string) => void;
+  onDeclineInvitation: (invitationId: string) => void;
+  onRemoveFriend: (user: FriendUser) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-card friend-search-modal" role="dialog" aria-modal="true" aria-label="Adicionar amigo">
+        <div className="modal-header">
+          <img src={rubyDiamond} alt="" className="modal-logo" />
+          <div className="modal-title-container">
+            <h2 className="modal-title">Adicionar amigo</h2>
+          </div>
+          <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+        </div>
+        <div className="friend-search-modal-body">
+          <FriendsManageView
+            currentUser={currentUser}
+            users={users}
+            invitations={invitations}
+            activeTab="search"
+            onTabChange={() => undefined}
+            onSendInvitation={onSendInvitation}
+            onAcceptInvitation={onAcceptInvitation}
+            onDeclineInvitation={onDeclineInvitation}
+            onRemoveFriend={onRemoveFriend}
+            onBack={onClose}
+            showHeader={false}
+            showTabs={false}
+            showOwnId
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FriendRequestsModal({ currentUser, users, invitations, onAcceptInvitation, onDeclineInvitation, onClose }: {
+  currentUser: FriendUser;
+  users: FriendUser[];
+  invitations: FriendshipInvitation[];
+  onAcceptInvitation: (invitationId: string) => void;
+  onDeclineInvitation: (invitationId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="modal-card friend-search-modal" role="dialog" aria-modal="true" aria-label="Solicitações recebidas">
+        <div className="friend-search-modal-body">
+          <div className="friend-modal-head">
+            <div><span>Solicitações recebidas</span><strong>Revise quem pediu amizade</strong></div>
+            <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+          </div>
+          <FriendsManageView
+            currentUser={currentUser}
+            users={users}
+            invitations={invitations}
+            activeTab="received"
+            onTabChange={() => undefined}
+            onSendInvitation={() => null}
+            onAcceptInvitation={onAcceptInvitation}
+            onDeclineInvitation={onDeclineInvitation}
+            onRemoveFriend={() => undefined}
+            onBack={onClose}
+            showHeader={false}
+            showTabs={false}
+            showOwnId={false}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+function SharedTransactionModal({ friends, lockedFriend, incomeCategories: _incomeCategories, expenseCategories: _expenseCategories, onClose, onCreate }: { friends: FriendUser[]; lockedFriend?: FriendUser; incomeCategories: string[]; expenseCategories: string[]; onClose: () => void; onCreate: (form: SharedTransactionForm) => string | null }) {
+  const [form, setForm] = useState<SharedTransactionForm>(() => ({ type: 'expense', friendId: lockedFriend?.id ?? friends[0]?.id ?? '', description: '', amount: '', dueDate: new Date().toISOString().slice(0, 10), category: 'Solicitação veio pelo amigo', note: '' }));
+  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  function update<K extends keyof SharedTransactionForm>(key: K, value: SharedTransactionForm[K]) { setForm((current) => ({ ...current, [key]: value })); setError(''); }
+  function selectType(type: TransactionType) { setForm((current) => ({ ...current, type, category: 'Solicitação veio pelo amigo' })); setError(''); }
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    const result = onCreate(form);
+    if (result) { setError(result); return; }
+    setSubmitted(true);
+  }
+  const confirmedFriend = lockedFriend ?? friends.find((friend) => friend.id === form.friendId);
+  if (submitted) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-card shared-transaction-modal" role="dialog" aria-modal="true" aria-label="Lançamento enviado" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-header">
+            <img src={rubyDiamond} alt="" className="modal-logo" />
+            <div><h2 className="modal-title modal-title-only">Lançamento enviado</h2></div>
+            <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+          </div>
+          <div className="modal-body shared-transaction-confirm">
+            <span className="confirmation-icon confirmation-icon--success"><CheckCircle2 size={30} /></span>
+            <strong>Tudo certo!</strong>
+            <p>{confirmedFriend ? `${shortUserName(confirmedFriend.name)} vai receber a transação e precisa aprovar.` : 'O amigo selecionado vai receber a transação e precisa aprovar.'}</p>
+          </div>
+          <div className="modal-actions"><button type="button" className="button-primary" onClick={onClose}>Concluir</button></div>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form className="modal-card shared-transaction-modal" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <img src={rubyDiamond} alt="" className="modal-logo" />
+          <div className="modal-title-container">
+            <h2 className="modal-title">
+              {lockedFriend ? 'Nova transação' : 'Nova transação compartilhada'}
+            </h2>
+            {lockedFriend ? (
+              <span className="modal-subtitle">
+                {shortUserName(lockedFriend.name)}
+              </span>
+            ) : null}
+          </div>
+          <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+        </div>
+        <div className="modal-body"><div className="modal-form-grid">
+          <div className="form-field form-field-full"><span className="form-label">Tipo</span><div className="launch-type-segmented" role="group" aria-label="Tipo da transação"><button type="button" className={`launch-type-segment launch-type-segment--expense${form.type === 'expense' ? ' active' : ''}`} onClick={() => selectType('expense')}><ArrowDownLeft size={17} /> Despesa</button><button type="button" className={`launch-type-segment launch-type-segment--income${form.type === 'income' ? ' active' : ''}`} onClick={() => selectType('income')}><ArrowUpRight size={17} /> Receita</button></div></div>
+          {lockedFriend ? null : <label className="form-field form-field-full"><span className="form-label">Amigo relacionado</span><select className="form-input" value={form.friendId} onChange={(event) => update('friendId', event.target.value)} required><option value="">Selecione um amigo</option>{friends.map((friend) => <option key={friend.id} value={friend.id}>{friend.name}</option>)}</select></label>}
+          <label className="form-field form-field-full"><span className="form-label">Descrição</span><input className="form-input" value={form.description} maxLength={TRANSACTION_DESCRIPTION_MAX_LENGTH} onChange={(event) => update('description', event.target.value)} placeholder="Ex.: Mercado, reembolso, aluguel..." required /></label>
+          <label className="form-field"><span className="form-label">Valor</span><div className="form-input-wrap"><span className="form-input-prefix">R$</span><input className="form-input" value={form.amount} onChange={(event) => update('amount', formatCurrencyInput(event.target.value))} placeholder="0,00" inputMode="decimal" required /></div></label>
+          <label className="form-field"><span className="form-label">Vencimento</span><div className="form-input-wrap"><CalendarDays size={16} /><input className="form-input" type="date" value={form.dueDate} onChange={(event) => update('dueDate', event.target.value)} required /></div></label>
+          <label className="form-field form-field-full"><span className="form-label form-label-optional">Observação</span><input className="form-input" value={form.note} onChange={(event) => update('note', event.target.value)} placeholder="Opcional" /></label>
+          {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
+          {!friends.length ? <div className="form-error form-field-full"><AlertCircle size={15} /> Aceite um convite de amizade antes de criar transações compartilhadas.</div> : null}
+        </div></div>
+        <div className="modal-actions"><button type="button" className="button-secondary" onClick={onClose}>Cancelar</button><button type="submit" className="button-primary" disabled={!friends.length}>Enviar para aprovação</button></div>
+      </form>
+    </div>
+  );
+}
+
+function DeclineSharedTransactionModal({ item, onClose, onConfirm }: { item: SharedTransactionRequest; onClose: () => void; onConfirm: (reason: string) => void }) {
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+  const trimmedReason = reason.trim();
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!trimmedReason) {
+      setError('Informe o motivo da recusa.');
+      return;
+    }
+    onConfirm(trimmedReason);
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form className="modal-card decline-shared-modal" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <img src={rubyDiamond} alt="" className="modal-logo" />
+          <div><h2 className="modal-title modal-title-only">Motivo da recusa</h2></div>
+          <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+        </div>
+        <div className="modal-body decline-shared-body">
+          <div className="decline-shared-summary">
+            <span>{item.type === 'income' ? 'Receita' : 'Despesa'}</span>
+            <strong>{item.description}</strong>
+            <em>{item.type === 'income' ? '+ ' : '- '}{formatCurrency(item.amount)}</em>
+          </div>
+          <label className="form-field form-field-full">
+            <span className="form-label">Explique o motivo</span>
+            <textarea className="form-input decline-shared-textarea" autoFocus maxLength={240} value={reason} onChange={(event) => { setReason(event.target.value); setError(''); }} placeholder="Ex.: Valor incorreto, item não combinado..." />
+          </label>
+          {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="button-secondary" onClick={onClose}>Voltar</button>
+          <button type="submit" className="button-danger" disabled={!trimmedReason}>Recusar transação</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function FriendAvatar({ user }: { user: FriendUser }) {
+  return user.avatarUrl ? <img src={user.avatarUrl} alt={user.name} className="friend-avatar" /> : <span className="friend-avatar friend-avatar--initials">{userInitials(user.name)}</span>;
 }
 function userInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -3085,9 +5363,22 @@ function shortUserName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionFilters, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters, goalFilterOpen, goalActiveFilterCount }: {
+function Topbar({ activePage, userName, userAvatarUrl, theme, notificationCount = 0, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
   activePage: AppPage;
   userName: string;
+  userAvatarUrl?: string | null;
+  theme: 'light' | 'dark';
+  notificationCount?: number;
+  friendDetailName?: string | null;
+  onFriendDetailBack?: () => void;
+  shoppingDetailName?: string | null;
+  onShoppingDetailBack?: () => void;
+  onOpenFriendRequests?: () => void;
+  onOpenFriendSearch?: () => void;
+  onOpenShoppingCreate?: () => void;
+  onOpenGoalCreate?: () => void;
+  onGoBack?: () => void;
+  onToggleTheme: () => void;
   onNavigate: (page: AppPage) => void;
   onLogout: () => void;
   onOpenTransactionFilters: () => void;
@@ -3118,7 +5409,11 @@ function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionF
 
   useEffect(() => {
     if (!profileOpen) return;
-    function closeOnOutside(event: PointerEvent) { if (!profileRef.current?.contains(event.target as Node)) setProfileOpen(false); }
+    function closeOnOutside(event: PointerEvent) {
+      const target = event.target as Element;
+      if (!profileRef.current?.contains(target) && !target.closest?.('.settings-overlay'))
+        setProfileOpen(false);
+    }
     function closeOnEscape(event: KeyboardEvent) { if (event.key === 'Escape') setProfileOpen(false); }
     document.addEventListener('pointerdown', closeOnOutside);
     document.addEventListener('keydown', closeOnEscape);
@@ -3129,21 +5424,35 @@ function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionF
     <div className="profile-menu" ref={profileRef}>
       <button type="button" className={`user-profile${profileOpen ? ' active' : ''}`} onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="menu" aria-label="Abrir perfil">
         <span className="user-name">{shortUserName(userName)}</span>
-        <span className="avatar avatar--initials">{userInitials(userName)}</span>
+        {userAvatarUrl ? (
+          <img src={userAvatarUrl} alt={userName} className="avatar avatar--image" />
+        ) : (
+          <span className="avatar avatar--initials">{userInitials(userName)}</span>
+        )}
         <ChevronDown className="profile-chevron" size={15} />
       </button>
       {profileOpen ? (
         <div className="profile-dropdown" role="menu">
           <div className="profile-dropdown-user"><strong>{userName}</strong><span>Perfil do usuário</span></div>
-          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('help'); }}><HelpCircle size={16} /> Ajuda</button>
+          <button type="button" className="profile-menu-item profile-menu-item--toggle" role="menuitem" onClick={onToggleTheme}><span>{theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />} Modo escuro</span><span className={`ios-switch ${theme === 'dark' ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span></button>
+          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('profile'); }}><UserRound size={16} /> Meu perfil</button>
+          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('notifications'); }}><Bell size={16} /> Notificações{notificationCount > 0 ? <span className="menu-notif-badge">{notificationCount}</span> : null}</button>
+          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('help'); }}><HelpCircle size={16} /> Central de Ajuda</button>
           <button type="button" className="profile-logout" role="menuitem" onClick={() => { setProfileOpen(false); onLogout(); }}><LogOut size={16} /> Sair</button>
         </div>
       ) : null}
     </div>
   );
 
+  const topbarTitle =
+    activePage === 'friends' && friendDetailName ? friendDetailName :
+    activePage === 'shopping' && shoppingDetailName ? shoppingDetailName :
+    PAGE_LABELS[activePage];
+
+  const isDetail = (activePage === 'friends' && friendDetailName) || (activePage === 'shopping' && shoppingDetailName);
+
   return (
-    <header className={`topbar topbar--${activePage}`}>
+    <header className={`topbar topbar--${activePage}${isDetail ? ' topbar--friend-detail' : ''}`}>
       <div className="topbar-desktop-shell">
         <div className="topbar-left">
           <button type="button" className="brand brand-btn" aria-label="Ir para transações" onClick={() => onNavigate('transactions')}>
@@ -3151,12 +5460,12 @@ function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionF
             <img className="topbar-logo topbar-logo--mobile" src={rubyDiamond} alt="RubyLife" />
           </button>
           <div className="topbar-separator" />
-          <nav className="breadcrumbs" aria-label="Breadcrumb"><Home className="home-icon" /><ChevronRight size={13} className="breadcrumb-chevron" /><span className="breadcrumb-active">{PAGE_LABELS[activePage]}</span></nav>
+          <nav className="breadcrumbs" aria-label="Breadcrumb"><Home className="home-icon" /><ChevronRight size={13} className="breadcrumb-chevron" /><span className="breadcrumb-active">{topbarTitle}</span></nav>
         </div>
         <div className="topbar-right">
           {activePage === 'transactions' ? (
             <div className="topbar-actions-menu" ref={actionsRef}>
-              <button type="button" className="topbar-more-button" aria-label="Mais opções" aria-expanded={actionsOpen} aria-haspopup="menu" onClick={() => setActionsOpen((open) => !open)}><MoreVertical size={20} /></button>
+              <button type="button" className="topbar-more-button" aria-label="Mais opções" aria-expanded={actionsOpen} aria-haspopup="menu" onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={20} /></button>
               {actionsOpen ? <div className="topbar-actions-popover" role="menu"><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenTransactionFilters(); }}><ListFilter size={16} />Filtros</button><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onImportTransactions(); }}><Upload size={16} />Importar</button></div> : null}
             </div>
           ) : activePage === 'accounts' ? (
@@ -3164,12 +5473,104 @@ function Topbar({ activePage, userName, onNavigate, onLogout, onOpenTransactionF
           ) : activePage === 'categories' ? (
             <button type="button" className={`topbar-category-filter-button${categoryFilterOpen ? ' active' : ''}`} data-category-filter-trigger aria-label="Filtrar categorias" aria-expanded={categoryFilterOpen} aria-haspopup="dialog" onClick={onOpenCategoryFilters}><ListFilter size={19} />{categoryActiveFilterCount > 0 ? <span className="filter-badge">{categoryActiveFilterCount}</span> : null}</button>
           ) : activePage === 'goals' ? (
-            <button type="button" className={`topbar-goal-filter-button${goalFilterOpen ? ' active' : ''}`} data-goal-filter-trigger aria-label="Filtrar metas" aria-expanded={goalFilterOpen} aria-haspopup="dialog" onClick={onOpenGoalFilters}><ListFilter size={19} />{goalActiveFilterCount > 0 ? <span className="filter-badge">{goalActiveFilterCount}</span> : null}</button>
+            <button type="button" className="topbar-goal-add-button" aria-label="Nova meta" onClick={onOpenGoalCreate}><Plus size={20} /></button>
+          ) : activePage === 'shopping' && shoppingDetailName ? (
+            <button type="button" className="topbar-friend-back-button" aria-label="Voltar para listas" onClick={onShoppingDetailBack}><ChevronLeft size={22} /></button>
+          ) : activePage === 'shopping' ? (
+            <button type="button" className="topbar-shopping-add-button" aria-label="Nova lista" onClick={onOpenShoppingCreate}><Plus size={20} /></button>
+          ) : activePage === 'friends' && friendDetailName ? (
+            <button type="button" className="topbar-friend-back-button" aria-label="Voltar para amigos" onClick={onFriendDetailBack}><ChevronLeft size={22} /></button>
+          ) : activePage === 'friends' ? (
+            <button type="button" className="topbar-friend-add-button" aria-label="Adicionar amigo" onClick={onOpenFriendSearch}><UserPlus size={19} /></button>
+          ) : activePage === 'notifications' || activePage === 'help' || activePage === 'profile' ? (
+            <button type="button" className="topbar-friend-back-button" aria-label="Voltar" onClick={onGoBack}><ChevronLeft size={22} /></button>
           ) : null}
           {profileMenu}
         </div>
       </div>
+      {profileOpen ? (
+        <MobileSettingsSheet
+          userName={userName}
+          userAvatarUrl={userAvatarUrl}
+          theme={theme}
+          notificationCount={notificationCount}
+          onToggleTheme={onToggleTheme}
+          onNavigate={onNavigate}
+          onLogout={onLogout}
+          onClose={() => setProfileOpen(false)}
+        />
+      ) : null}
     </header>
+  );
+}
+
+function MobileSettingsSheet({
+  userName,
+  userAvatarUrl,
+  theme,
+  notificationCount = 0,
+  onToggleTheme,
+  onNavigate,
+  onLogout,
+  onClose,
+}: {
+  userName: string;
+  userAvatarUrl?: string | null;
+  theme: 'light' | 'dark';
+  notificationCount?: number;
+  onToggleTheme: () => void;
+  onNavigate: (page: AppPage) => void;
+  onLogout: () => void;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <div className="settings-overlay" role="dialog" aria-modal="true" aria-label="Ajustes" onClick={onClose}>
+      <div className="settings-screen" onClick={(event) => event.stopPropagation()}>
+        <div className="settings-screen-head">
+          <button type="button" className="settings-close" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+        </div>
+        <button type="button" className="settings-profile-card" onClick={() => { onClose(); onNavigate('profile'); }}>
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt={userName} className="settings-avatar" />
+          ) : (
+            <span className="settings-avatar settings-avatar--initials">{userInitials(userName)}</span>
+          )}
+          <span className="settings-profile-copy"><strong>{userName}</strong><span>Ver perfil</span></span>
+          <ChevronRight className="settings-chevron" size={18} />
+        </button>
+        <div className="settings-group">
+          <button type="button" className="settings-row settings-row--toggle" onClick={onToggleTheme}>
+            <span className="settings-row-icon settings-row-icon--purple">{theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}</span>
+            <span className="settings-row-label">Modo escuro</span>
+            <span className={`ios-switch ${theme === 'dark' ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span>
+          </button>
+        </div>
+        <div className="settings-group">
+          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('friends'); }}>
+            <span className="settings-row-icon settings-row-icon--blue"><Users size={16} /></span>
+            <span className="settings-row-label">Amigos</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('notifications'); }}>
+            <span className="settings-row-icon settings-row-icon--red"><Bell size={16} /></span>
+            <span className="settings-row-label">Notificações{notificationCount > 0 ? <span className="settings-notif-badge">{notificationCount}</span> : null}</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('help'); }}>
+            <span className="settings-row-icon settings-row-icon--gray"><HelpCircle size={16} /></span>
+            <span className="settings-row-label">Central de Ajuda</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+        </div>
+        <div className="settings-group">
+          <button type="button" className="settings-row settings-row--logout" onClick={() => { onClose(); onLogout(); }}>
+            <span className="settings-row-icon settings-row-icon--red"><LogOut size={16} /></span>
+            <span className="settings-row-label">Sair</span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 function Sidebar({ activePage, onNavigate }: { activePage: AppPage; onNavigate: (page: AppPage) => void }) {
@@ -3178,8 +5579,9 @@ function Sidebar({ activePage, onNavigate }: { activePage: AppPage; onNavigate: 
     { label: 'Transações', icon: ReceiptText, page: 'transactions' as const },
     { label: 'Categorias', icon: Tags, page: 'categories' as const },
     { label: 'Metas', icon: Target, page: 'goals' as const },
-    { label: 'Relatórios', icon: FileText, page: 'reports' as const },
     { label: 'Contas', icon: CreditCard, page: 'accounts' as const },
+    { label: 'Listas', icon: ShoppingCart, page: 'shopping' as const },
+    { label: 'Amigos', icon: Users, page: 'friends' as const },
   ];
 
   return (
@@ -3199,6 +5601,104 @@ function Sidebar({ activePage, onNavigate }: { activePage: AppPage; onNavigate: 
     </aside>
   );
 }
+
+function MobileTabBar({
+  activePage,
+  onNavigate,
+  onNewIncome,
+  onNewExpense,
+  onNewGoal,
+  onNewCategory,
+  onNewSharedTransaction: _onNewSharedTransaction,
+  onNewShoppingList: _onNewShoppingList,
+}: {
+  activePage: AppPage;
+  onNavigate: (page: AppPage) => void;
+  onNewIncome: () => void;
+  onNewExpense: () => void;
+  onNewGoal: () => void;
+  onNewCategory: () => void;
+  onNewSharedTransaction?: () => void;
+  onNewShoppingList?: () => void;
+}) {
+  const [actionOpen, setActionOpen] = useState(false);
+
+  const tabs = [
+    { label: 'Início', icon: Home, page: 'dashboard' as const },
+    { label: 'Transações', icon: ReceiptText, page: 'transactions' as const },
+    { label: 'Metas', icon: Target, page: 'goals' as const },
+    { label: 'Compras', icon: ShoppingCart, page: 'shopping' as const },
+  ];
+
+  const renderTab = (item: (typeof tabs)[number]) => {
+    const Icon = item.icon;
+    const active = item.page === activePage;
+    return (
+      <button
+        key={item.label}
+        type="button"
+        className={`mobile-tab-item ${active ? 'mobile-tab-item--active active' : ''}`}
+        onClick={() => { setActionOpen(false); onNavigate(item.page); }}
+        aria-label={item.label}
+      >
+        <Icon className="mobile-tab-icon" size={20} />
+        <span className="mobile-tab-label">{item.label}</span>
+      </button>
+    );
+  };
+
+  return (
+    <>
+      <nav className="mobile-tab-bar" aria-label="Navegação inferior móvel">
+        {tabs.slice(0, 2).map(renderTab)}
+
+        <button
+          type="button"
+          className={`mobile-tab-fab ${actionOpen ? 'mobile-tab-fab--open' : ''}`}
+          onClick={() => setActionOpen((open) => !open)}
+          aria-expanded={actionOpen}
+          aria-label={actionOpen ? 'Fechar menu de novo registro' : 'Novo registro'}
+        >
+          {actionOpen ? <X size={26} /> : <Plus size={26} />}
+        </button>
+
+        {tabs.slice(2).map(renderTab)}
+      </nav>
+
+      {actionOpen && (
+        <div className="quick-add-overlay" onClick={() => setActionOpen(false)}>
+          <div className="radial-menu-container" role="dialog" aria-modal="true" aria-label="Novo registro" onClick={(e) => e.stopPropagation()}>
+
+            <button type="button" className="radial-menu-item radial-menu-item--meta" onClick={() => { setActionOpen(false); onNewGoal(); }}>
+              <span className="radial-menu-icon radial-menu-icon--meta"><Target size={24} /></span>
+              <span className="radial-menu-label">Meta</span>
+            </button>
+
+            <button type="button" className="radial-menu-item radial-menu-item--expense" onClick={() => { setActionOpen(false); onNewExpense(); }}>
+              <span className="radial-menu-icon radial-menu-icon--expense"><ArrowUpRight size={24} /></span>
+              <span className="radial-menu-label">Despesa</span>
+            </button>
+
+            <button type="button" className="radial-menu-item radial-menu-item--income" onClick={() => { setActionOpen(false); onNewIncome(); }}>
+              <span className="radial-menu-icon radial-menu-icon--income"><ArrowDownLeft size={24} /></span>
+              <span className="radial-menu-label">Receita</span>
+            </button>
+
+            <button type="button" className="radial-menu-item radial-menu-item--category" onClick={() => { setActionOpen(false); onNewCategory(); }}>
+              <span className="radial-menu-icon radial-menu-icon--category"><Tags size={24} /></span>
+              <span className="radial-menu-label">Categoria</span>
+            </button>
+
+            <button type="button" className="radial-menu-close" onClick={() => setActionOpen(false)} aria-label="Fechar menu">
+              <X size={26} />
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function CategoriesPage({ items, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onBulkDelete }: {
   items: CategoryItem[];
   filters: CategoryFilters;
@@ -3279,7 +5779,12 @@ function CategoriesPage({ items, filters, draftFilters, filterOpen, filterContro
           {groupItems.length > 0 ? groupItems.map((category) => (
             <article key={category.id} className={`category-table-grid category-table-row${selected.has(category.id) ? ' is-selected' : ''}`}>
               <span className="row-check-col"><input type="checkbox" className="row-check" checked={selected.has(category.id)} onChange={() => toggle(category.id)} aria-label={`Selecionar ${category.name}`} /></span>
-              <span className="category-report-name">{category.name}</span>
+              <span className="category-report-name category-desktop-name">
+                <span className="category-desktop-icon" style={{ backgroundColor: `${category.color}18`, color: category.color }} aria-hidden="true">
+                  <CategoryIconGraphic icon={category.icon} size={16} />
+                </span>
+                <strong className="category-desktop-label">{category.name}</strong>
+              </span>
               <span className="category-color-cell" title={`Cor: ${category.color}`}><i className="category-color-only-dot" style={{ backgroundColor: category.color }} /></span>
               <span className="launch-actions-cell category-icons-actions">
                 <button type="button" className="action-icon-btn" onClick={() => onEdit(category)} title="Editar"><Pencil size={15} /></button>
@@ -3396,11 +5901,37 @@ function CategoriesPage({ items, filters, draftFilters, filterOpen, filterContro
   );
 }
 
+const ALL_CATEGORY_ICONS: CategoryIconKey[] = [
+  'salary', 'money', 'work', 'shopping', 'refund', 'investment',
+  'home', 'card', 'gift', 'food', 'car', 'health', 'education',
+  'leisure', 'repeat', 'family', 'pets', 'donation', 'wallet', 'transfer', 'tag',
+  'travel', 'fitness', 'music', 'maintenance'
+];
+
 function CategoryModal({ items, category, onClose, onSave }: { items: CategoryItem[]; category: CategoryItem | null; onClose: () => void; onSave: (category: CustomCategory) => void }) {
   const [name, setName] = useState(category?.name ?? '');
   const [kind, setKind] = useState<CategoryKind>(category?.kind ?? 'expense');
   const [color, setColor] = useState(category?.color ?? ACCOUNT_COLORS[0] ?? '#1B99D8');
+  const [selectedIcon, setSelectedIcon] = useState<CategoryIconKey>(category?.icon ?? 'tag');
+  const [hasManuallySelectedIcon, setHasManuallySelectedIcon] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!category && !hasManuallySelectedIcon) {
+      setSelectedIcon(defaultCategoryIcon(name, kind));
+    }
+  }, [name, kind, category, hasManuallySelectedIcon]);
+
+  useEffect(() => {
+    if (!iconPickerOpen) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIconPickerOpen(false);
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [iconPickerOpen]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -3410,15 +5941,15 @@ function CategoryModal({ items, category, onClose, onSave }: { items: CategoryIt
       setError('Essa categoria já existe nesse grupo.');
       return;
     }
-    const icon = category?.icon ?? defaultCategoryIcon(normalizedName, kind);
-    onSave({ id: category?.id ?? crypto.randomUUID(), name: normalizedName, kind, color, icon });
+    onSave({ id: category?.id ?? crypto.randomUUID(), name: normalizedName, kind, color, icon: selectedIcon });
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <form className="modal-card settle-modal" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title modal-title-only">{category ? 'Editar categoria' : 'Nova categoria'}</h2>
+          <img src={rubyDiamond} alt="" className="modal-logo" />
+          <div className="modal-title-container"><h2 className="modal-title">{category ? 'Editar categoria' : 'Nova categoria'}</h2></div>
           <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
         </div>
         <div className="modal-body">
@@ -3435,12 +5966,36 @@ function CategoryModal({ items, category, onClose, onSave }: { items: CategoryIt
                 <option value="transfer">Transferência</option>
               </select>
             </label>
-            <div className="form-field form-field-full">
-              <span className="form-label form-label-optional">Cor</span>
-              <div className="account-color-options" role="group" aria-label="Cor da categoria">
-                {ACCOUNT_COLORS.map((option) => (
-                  <button key={option} type="button" className={`account-color-swatch${color === option ? ' active' : ''}`} style={{ backgroundColor: option }} onClick={() => setColor(option)} aria-label={`Selecionar cor ${option}`} aria-pressed={color === option} />
-                ))}
+
+            <div className="category-selector-grid">
+              <div className="form-field">
+                <span className="form-label">Ícone</span>
+                <button
+                  type="button"
+                  className="form-input category-selector-btn"
+                  aria-haspopup="dialog"
+                  aria-expanded={iconPickerOpen}
+                  onClick={() => setIconPickerOpen(true)}
+                >
+                  <span className="category-selector-icon" style={{ backgroundColor: `${color}18`, color }}>
+                    <CategoryIconGraphic icon={selectedIcon} size={16} />
+                  </span>
+                  <span className="category-selector-label">{selectedIcon}</span>
+                </button>
+              </div>
+
+              <div className="form-field">
+                <span className="form-label">Cor</span>
+                <button
+                  type="button"
+                  className="form-input category-selector-btn"
+                  aria-haspopup="dialog"
+                  aria-expanded={colorPickerOpen}
+                  onClick={() => setColorPickerOpen(true)}
+                >
+                  <span className="category-selector-color" style={{ backgroundColor: color }} />
+                  <span className="category-selector-label">Escolher cor</span>
+                </button>
               </div>
             </div>
             {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
@@ -3451,6 +6006,35 @@ function CategoryModal({ items, category, onClose, onSave }: { items: CategoryIt
           <button type="submit" className="button-primary">{category ? 'Salvar alterações' : 'Criar categoria'}</button>
         </div>
       </form>
+      {colorPickerOpen ? <ColorSpectrumSheet value={color} onChange={setColor} onClose={() => setColorPickerOpen(false)} /> : null}
+      {iconPickerOpen
+        ? createPortal(
+            <div className="category-icon-picker-layer" onClick={() => setIconPickerOpen(false)}>
+              <div className="category-icon-picker-dialog" role="dialog" aria-modal="true" aria-label="Escolher ícone" onClick={(event) => event.stopPropagation()}>
+                <div className="category-icon-picker-head">
+                  <strong>Escolher ícone</strong>
+                  <button type="button" onClick={() => setIconPickerOpen(false)} aria-label="Fechar seletor de ícones"><X size={18} /></button>
+                </div>
+                <div className="category-icon-picker-grid">
+                  {ALL_CATEGORY_ICONS.map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={selectedIcon === key ? 'active' : ''}
+                      style={{ color }}
+                      aria-label={`Selecionar ícone ${key}`}
+                      aria-pressed={selectedIcon === key}
+                      onClick={() => { setSelectedIcon(key); setHasManuallySelectedIcon(true); setIconPickerOpen(false); }}
+                    >
+                      <CategoryIconGraphic icon={key} size={20} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -3507,13 +6091,14 @@ function DeleteTransactionModal({ item, relatedCount, onClose, onConfirmOne, onC
     </div>
   );
 }
-function EditTransactionModal({ item, incomeCategories, expenseCategories, onClose, onSave }: { item: Transaction; incomeCategories: string[]; expenseCategories: string[]; onClose: () => void; onSave: (updated: Transaction) => void }) {
+function EditTransactionModal({ item, accounts, incomeCategories, expenseCategories, onClose, onSave }: { item: Transaction; accounts: Account[]; incomeCategories: string[]; expenseCategories: string[]; onClose: () => void; onSave: (updated: Transaction) => void }) {
   const [type, setType] = useState<TransactionType>(item.type);
   const [description, setDescription] = useState(item.description);
   const [category, setCategory] = useState(item.category);
   const [amount, setAmount] = useState(() => formatCurrencyInput(item.amount));
   const [dueDate, setDueDate] = useState(item.dueDate);
   const [recurrence, setRecurrence] = useState<RecurrenceType>(item.recurrence);
+  const [accountId, setAccountId] = useState(item.accountId ?? '');
   const [error, setError] = useState('');
 
   const categories = type === 'income' ? incomeCategories : expenseCategories;
@@ -3530,7 +6115,8 @@ function EditTransactionModal({ item, incomeCategories, expenseCategories, onClo
     const value = parseAmount(amount);
     if (!normalizedDescription) { setError('Informe uma descrição.'); return; }
     if (value <= 0) { setError('Informe um valor válido.'); return; }
-    onSave({ ...item, type, description: normalizedDescription, category, amount: value, dueDate, recurrence });
+    const account = accounts.find((candidate) => candidate.id === accountId);
+    onSave({ ...item, type, description: normalizedDescription, category, amount: value, dueDate, recurrence, accountId: account?.id, account: account?.name });
   }
 
   return (
@@ -3585,6 +6171,13 @@ function EditTransactionModal({ item, incomeCategories, expenseCategories, onClo
                 <option value="single">Única</option>
                 <option value="fixed">Fixa</option>
                 <option value="installment">Parcelada</option>
+              </select>
+            </label>
+            <label className="form-field form-field-full">
+              <span className="form-label form-label-optional">Banco / conta</span>
+              <select className="form-input" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+                <option value="">Nenhum banco ou conta selecionado</option>
+                {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
             </label>
             {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
@@ -3942,9 +6535,9 @@ function MetricCard({ label, value, icon, tone }: { label: string; value: string
   );
 }
 
-function LaunchModal({ incomeCategories, expenseCategories, onClose, onCreate }: { incomeCategories: string[]; expenseCategories: string[]; onClose: () => void; onCreate: (items: Transaction[]) => void }) {
-  const [type, setType] = useState<TransactionType>('expense');
-  const [form, setForm] = useState<LaunchForm>(() => ({ ...initialForm, category: expenseCategories[0] ?? '' }));
+function LaunchModal({ accounts, incomeCategories, expenseCategories, initialType = 'expense', onClose, onCreate }: { accounts: Account[]; incomeCategories: string[]; expenseCategories: string[]; initialType?: TransactionType; onClose: () => void; onCreate: (items: Transaction[]) => void }) {
+  const [type, setType] = useState<TransactionType>(initialType);
+  const [form, setForm] = useState<LaunchForm>(() => ({ ...initialForm, category: (initialType === 'income' ? incomeCategories[0] : expenseCategories[0]) ?? '' }));
 
   function update<K extends keyof LaunchForm>(key: K, value: LaunchForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -3959,7 +6552,8 @@ function LaunchModal({ incomeCategories, expenseCategories, onClose, onCreate }:
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!form.description.trim() || parseAmount(form.amount) <= 0) return;
-    onCreate(generateTransactions(form, type));
+    const account = accounts.find((candidate) => candidate.id === form.accountId);
+    onCreate(generateTransactions(form, type).map((item) => ({ ...item, accountId: account?.id, account: account?.name })));
   }
 
   return (
@@ -4021,6 +6615,13 @@ function LaunchModal({ incomeCategories, expenseCategories, onClose, onCreate }:
                 <option value="installment">Parcelada</option>
               </select>
             </label>
+            <label className="form-field form-field-full">
+              <span className="form-label form-label-optional">Banco / conta</span>
+              <select className="form-input" value={form.accountId} onChange={(event) => update('accountId', event.target.value)}>
+                <option value="">Selecione um banco ou conta</option>
+                {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              </select>
+            </label>
             {form.recurrence === 'fixed' ? (
               <label className="form-field">
                 <span className="form-label">Repetir até</span>
@@ -4057,12 +6658,20 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    setFileName(file.name);
+    setFileName(file.name.slice(0, 180));
     setRows([]);
     setError('');
 
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
       setError('Selecione um arquivo Excel no formato .xlsx.');
+      return;
+    }
+    if (file.size > MAX_IMPORT_FILE_SIZE) {
+      setError('O arquivo deve ter no máximo 5 MB.');
+      return;
+    }
+    if (!(await isSafeXlsxContainer(file))) {
+      setError('O conteúdo do arquivo não corresponde a uma planilha XLSX válida.');
       return;
     }
 
@@ -4148,14 +6757,16 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
 }
 
 function SettleModal({ item, accounts, onClose, onSave }: { item: Transaction; accounts: Account[]; onClose: () => void; onSave: (accountId: string, settledAt: string, settledAmount: number) => void }) {
-  const [accountId, setAccountId] = useState(() => accounts.find((account) => account.id === DEFAULT_ACCOUNT.id)?.id ?? accounts[0]?.id ?? '');
+  const [accountId, setAccountId] = useState(() => accounts.find((account) => account.id === item.accountId)?.id ?? '');
   const [settledAmount, setSettledAmount] = useState(() => formatCurrencyInput(item.settledAmount ?? item.amount));
   const [settledAt, setSettledAt] = useState(new Date().toISOString().slice(0, 10));
+  const [error, setError] = useState('');
 
   function submit(event: FormEvent) {
     event.preventDefault();
     const amount = parseAmount(settledAmount);
-    if (!accountId || amount <= 0) return;
+    if (!accountId) { setError('Selecione o banco ou conta utilizado.'); return; }
+    if (amount <= 0) { setError('Informe um valor válido.'); return; }
     onSave(accountId, settledAt, amount);
   }
 
@@ -4169,8 +6780,9 @@ function SettleModal({ item, accounts, onClose, onSave }: { item: Transaction; a
         <div className="modal-body">
           <div className="modal-form-grid">
             <label className="form-field form-field-full">
-              <span className="form-label">Conta utilizada</span>
-              <select className="form-input" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
+              <span className="form-label">Banco / conta</span>
+              <select className="form-input" value={accountId} required onChange={(event) => { setAccountId(event.target.value); setError(''); }}>
+                <option value="">Selecione o banco ou conta</option>
                 {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
             </label>
@@ -4178,20 +6790,32 @@ function SettleModal({ item, accounts, onClose, onSave }: { item: Transaction; a
               <span className="form-label">Valor {item.type === 'income' ? 'recebido' : 'pago'}</span>
               <div className="form-input-wrap">
                 <span className="form-input-prefix">R$</span>
-                <input className="form-input" value={settledAmount} onChange={(event) => setSettledAmount(formatCurrencyInput(event.target.value))} inputMode="decimal" placeholder="0,00" />
+                <input className="form-input" value={settledAmount} onChange={(event) => { setSettledAmount(formatCurrencyInput(event.target.value)); setError(''); }} inputMode="decimal" placeholder="0,00" />
               </div>
             </label>
             <label className="form-field form-field-full">
               <span className="form-label">Data da baixa</span>
               <input className="form-input" type="date" value={settledAt} onChange={(event) => setSettledAt(event.target.value)} />
             </label>
+            {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
+            {!accounts.length ? <div className="form-error form-field-full"><AlertCircle size={15} /> Cadastre um banco ou conta antes de efetivar a transação.</div> : null}
           </div>
         </div>
         <div className="modal-actions">
           <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
-          <button type="submit" className="button-primary">Confirmar baixa</button>
+          <button type="submit" className="button-primary" disabled={!accounts.length}>Confirmar baixa</button>
         </div>
       </form>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

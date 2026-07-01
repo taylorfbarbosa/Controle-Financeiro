@@ -1,7 +1,6 @@
-// Camada de acesso a dados (Supabase) para o Caesar Finance.
+// Camada de acesso a dados via API server-side para o Caesar Finance.
 // Converte entre os tipos camelCase do app e as colunas snake_case do banco,
 // carrega tudo de uma vez e sincroniza cada coleção por diferença (upsert/delete).
-import { supabase } from './supabase';
 import type { Account, CustomCategory, Transaction, Goal, GoalMovement } from '../App';
 
 // Aceita apenas UUID válido; qualquer id legado (ex.: 'wallet') vira null para
@@ -14,10 +13,9 @@ const str = (v: unknown) => (v == null ? undefined : String(v));
 const num = (v: unknown) => (v == null ? undefined : Number(v));
 
 // ----------------------------- Mappers ------------------------------------
-function accountToRow(a: Account, userId: string): Row {
+function accountToRow(a: Account): Row {
   return {
     id: a.id,
-    user_id: userId,
     name: a.name,
     type: a.type,
     initial_balance: a.initialBalance,
@@ -36,10 +34,9 @@ function rowToAccount(r: Row): Account {
   };
 }
 
-function categoryToRow(c: CustomCategory, userId: string): Row {
+function categoryToRow(c: CustomCategory): Row {
   return {
     id: c.id,
-    user_id: userId,
     name: c.name,
     kind: c.kind,
     color: c.color ?? null,
@@ -56,10 +53,9 @@ function rowToCategory(r: Row): CustomCategory {
   };
 }
 
-function transactionToRow(t: Transaction, userId: string): Row {
+function transactionToRow(t: Transaction): Row {
   return {
     id: t.id,
-    user_id: userId,
     group_id: t.groupId,
     description: t.description,
     category: t.category,
@@ -99,10 +95,9 @@ function rowToTransaction(r: Row): Transaction {
   };
 }
 
-function goalToRow(g: Goal, userId: string): Row {
+function goalToRow(g: Goal): Row {
   return {
     id: g.id,
-    user_id: userId,
     name: g.name,
     target_amount: g.targetAmount,
     deadline: g.deadline ?? null,
@@ -111,11 +106,10 @@ function goalToRow(g: Goal, userId: string): Row {
     created_at: g.createdAt,
   };
 }
-function movementToRow(m: GoalMovement, goalId: string, userId: string): Row {
+function movementToRow(m: GoalMovement, goalId: string): Row {
   return {
     id: m.id,
     goal_id: goalId,
-    user_id: userId,
     type: m.type,
     amount: m.amount,
     date: m.date,
@@ -147,37 +141,67 @@ function rowToGoal(r: Row, movements: GoalMovement[]): Goal {
 
 // ------------------------------ Load --------------------------------------
 export type LoadedData = {
+  profileName?: string;
+  profilePhone?: string;
+  profileAvatarUrl?: string | null;
   accounts: Account[];
   categories: CustomCategory[];
   transactions: Transaction[];
   goals: Goal[];
 };
 
-export async function loadAll(): Promise<LoadedData> {
-  const [accountsRes, categoriesRes, txRes, goalsRes, movementsRes] = await Promise.all([
-    supabase.from('accounts').select('*').order('created_at', { ascending: true }),
-    supabase.from('categories').select('*').order('created_at', { ascending: true }),
-    supabase.from('transactions').select('*').order('due_date', { ascending: true }),
-    supabase.from('goals').select('*').order('created_at', { ascending: true }),
-    supabase.from('goal_movements').select('*').order('date', { ascending: true }),
-  ]);
+type ApiData = {
+  profile: { full_name?: unknown; email?: unknown; phone?: unknown; avatar_url?: unknown } | null;
+  accounts: Row[];
+  categories: Row[];
+  transactions: Row[];
+  goals: Row[];
+  goal_movements: Row[];
+};
 
-  const error = accountsRes.error || categoriesRes.error || txRes.error || goalsRes.error || movementsRes.error;
-  if (error) throw error;
+async function apiRequest<T>(method: 'GET' | 'POST', body?: Record<string, unknown>): Promise<T> {
+  const response = await fetch('/api/data', {
+    method,
+    credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({})) as { error?: string } & T;
+  if (!response.ok) throw new Error(payload.error || 'Não foi possível acessar os dados.');
+  return payload;
+}
+
+export async function loadAll(): Promise<LoadedData> {
+  const data = await apiRequest<ApiData>('GET');
 
   const movementsByGoal = new Map<string, GoalMovement[]>();
-  (movementsRes.data ?? []).forEach((row) => {
-    const goalId = String((row as Row).goal_id);
+  data.goal_movements.forEach((row) => {
+    const goalId = String(row.goal_id);
     const list = movementsByGoal.get(goalId) ?? [];
-    list.push(rowToMovement(row as Row));
+    list.push(rowToMovement(row));
     movementsByGoal.set(goalId, list);
   });
 
   return {
-    accounts: (accountsRes.data ?? []).map((r) => rowToAccount(r as Row)),
-    categories: (categoriesRes.data ?? []).map((r) => rowToCategory(r as Row)),
-    transactions: (txRes.data ?? []).map((r) => rowToTransaction(r as Row)),
-    goals: (goalsRes.data ?? []).map((r) => rowToGoal(r as Row, movementsByGoal.get(String((r as Row).id)) ?? [])),
+    profileName: str(data.profile?.full_name),
+    profilePhone: str(data.profile?.phone),
+    profileAvatarUrl: str(data.profile?.avatar_url) ?? null,
+    accounts: data.accounts.map(rowToAccount),
+    categories: data.categories.map(rowToCategory),
+    transactions: data.transactions.map(rowToTransaction),
+    goals: data.goals.map((row) => rowToGoal(row, movementsByGoal.get(String(row.id)) ?? [])),
+  };
+}
+
+export async function updateProfile(profile: { fullName: string; phone: string; avatarUrl?: string | null }) {
+  const data = await apiRequest<{ profile: { full_name?: unknown; phone?: unknown; avatar_url?: unknown } }>('POST', {
+    resource: 'profile',
+    profile,
+  });
+  return {
+    fullName: str(data.profile.full_name) ?? profile.fullName,
+    phone: str(data.profile.phone) ?? '',
+    avatarUrl: str(data.profile.avatar_url) ?? null,
   };
 }
 
@@ -192,59 +216,34 @@ function diff<T extends { id: string }>(prev: T[], next: T[]) {
   return { toUpsert, toDelete };
 }
 
-export async function syncAccounts(userId: string, prev: Account[], next: Account[]) {
+export async function syncAccounts(_userId: string, prev: Account[], next: Account[]) {
   const { toUpsert, toDelete } = diff(prev, next);
-  if (toDelete.length) {
-    const { error } = await supabase.from('accounts').delete().in('id', toDelete);
-    if (error) throw error;
-  }
-  if (toUpsert.length) {
-    const { error } = await supabase.from('accounts').upsert(toUpsert.map((a) => accountToRow(a, userId)));
-    if (error) throw error;
-  }
+  if (!toDelete.length && !toUpsert.length) return;
+  await apiRequest('POST', { resource: 'accounts', deleteIds: toDelete, upsert: toUpsert.map(accountToRow) });
 }
 
-export async function syncCategories(userId: string, prev: CustomCategory[], next: CustomCategory[]) {
+export async function syncCategories(_userId: string, prev: CustomCategory[], next: CustomCategory[]) {
   const { toUpsert, toDelete } = diff(prev, next);
-  if (toDelete.length) {
-    const { error } = await supabase.from('categories').delete().in('id', toDelete);
-    if (error) throw error;
-  }
-  if (toUpsert.length) {
-    const { error } = await supabase.from('categories').upsert(toUpsert.map((c) => categoryToRow(c, userId)));
-    if (error) throw error;
-  }
+  if (!toDelete.length && !toUpsert.length) return;
+  await apiRequest('POST', { resource: 'categories', deleteIds: toDelete, upsert: toUpsert.map(categoryToRow) });
 }
 
-export async function syncTransactions(userId: string, prev: Transaction[], next: Transaction[]) {
+export async function syncTransactions(_userId: string, prev: Transaction[], next: Transaction[]) {
   const { toUpsert, toDelete } = diff(prev, next);
-  if (toDelete.length) {
-    const { error } = await supabase.from('transactions').delete().in('id', toDelete);
-    if (error) throw error;
-  }
-  if (toUpsert.length) {
-    const { error } = await supabase.from('transactions').upsert(toUpsert.map((t) => transactionToRow(t, userId)));
-    if (error) throw error;
-  }
+  if (!toDelete.length && !toUpsert.length) return;
+  await apiRequest('POST', { resource: 'transactions', deleteIds: toDelete, upsert: toUpsert.map(transactionToRow) });
 }
 
-export async function syncGoals(userId: string, prev: Goal[], next: Goal[]) {
+export async function syncGoals(_userId: string, prev: Goal[], next: Goal[]) {
   const { toUpsert, toDelete } = diff(prev, next);
-  if (toDelete.length) {
-    const { error } = await supabase.from('goals').delete().in('id', toDelete);
-    if (error) throw error;
-  }
-  for (const goal of toUpsert) {
-    const { error: goalError } = await supabase.from('goals').upsert(goalToRow(goal, userId));
-    if (goalError) throw goalError;
-    // Movimentos são poucos por meta: substituímos o conjunto inteiro.
-    const { error: delError } = await supabase.from('goal_movements').delete().eq('goal_id', goal.id);
-    if (delError) throw delError;
-    if (goal.movements.length) {
-      const { error: insError } = await supabase
-        .from('goal_movements')
-        .insert(goal.movements.map((m) => movementToRow(m, goal.id, userId)));
-      if (insError) throw insError;
-    }
-  }
+  if (!toDelete.length && !toUpsert.length) return;
+  await apiRequest('POST', {
+    resource: 'goals',
+    deleteIds: toDelete,
+    upsert: toUpsert.map(goalToRow),
+    replaceMovements: toUpsert.map((goal) => ({
+      goalId: goal.id,
+      rows: goal.movements.map((movement) => movementToRow(movement, goal.id)),
+    })),
+  });
 }
