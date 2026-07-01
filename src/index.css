@@ -5449,7 +5449,7 @@ button {
 
 .topbar-actions-menu {
   position: relative;
-  display: inline-flex;
+  display: none;
   align-items: center;
 }
 
@@ -5498,6 +5498,10 @@ button {
 }
 
 @media (max-width: 760px) {
+  .topbar-actions-menu {
+    display: inline-flex;
+  }
+
   .topbar-more-button {
     width: 46px;
     height: 46px;

@@ -729,7 +729,7 @@ function hsvToRgb({ h, s, v }: HsvColor) {
   else if (section < 3) [green, blue] = [chroma, x];
   else if (section < 4) [green, blue] = [x, chroma];
   else if (section < 5) [red, blue] = [x, chroma];
-  else [red, blue] = [chroma, x];
+  else[red, blue] = [chroma, x];
   return {
     r: Math.round((red + offset) * 255),
     g: Math.round((green + offset) * 255),
@@ -2892,16 +2892,16 @@ function RowActions({ actions }: { actions: RowAction[] }) {
       </button>
       {open
         ? createPortal(
-            <div className="row-actions-menu" role="menu" ref={menuRef} style={{ top: pos.top, left: pos.left }}>
-              {actions.map((action) => (
-                <button key={action.key} type="button" role="menuitem" className={`row-actions-item${action.danger ? ' row-actions-item--danger' : ''}`} onClick={() => { setOpen(false); action.onClick(); }}>
-                  {action.icon}
-                  {action.label}
-                </button>
-              ))}
-            </div>,
-            document.body,
-          )
+          <div className="row-actions-menu" role="menu" ref={menuRef} style={{ top: pos.top, left: pos.left }}>
+            {actions.map((action) => (
+              <button key={action.key} type="button" role="menuitem" className={`row-actions-item${action.danger ? ' row-actions-item--danger' : ''}`} onClick={() => { setOpen(false); action.onClick(); }}>
+                {action.icon}
+                {action.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )
         : null}
     </div>
   );
@@ -3737,7 +3737,7 @@ function ReportsPage({ transactions, categoryLookup, referenceDate, onChangeDate
                   <div className="launch-main">
                     <strong>{displayTransactionDescription(item.description)}</strong>
                     {sharedTransactionLabel(item) ? <span className="shared-transaction-badge"><Share size={13} /> {sharedTransactionLabel(item)}</span> : null}
-          {item.notes ? <span className="launch-notes">{item.notes}</span> : null}
+                    {item.notes ? <span className="launch-notes">{item.notes}</span> : null}
                   </div>
                   <span className="launch-category">
                     {meta ? (
@@ -3907,23 +3907,23 @@ function GoalModal({ goal, onClose, onSave }: { goal: Goal | null; onClose: () =
       {goalColorPickerOpen ? <ColorSpectrumSheet value={color} onChange={setColor} onClose={() => setGoalColorPickerOpen(false)} /> : null}
       {goalIconPickerOpen
         ? createPortal(
-            <div className="category-icon-picker-layer" onClick={() => setGoalIconPickerOpen(false)}>
-              <div className="category-icon-picker-dialog" role="dialog" aria-modal="true" aria-label="Escolher ícone" onClick={(event) => event.stopPropagation()}>
-                <div className="category-icon-picker-head">
-                  <strong>Escolher ícone</strong>
-                  <button type="button" onClick={() => setGoalIconPickerOpen(false)} aria-label="Fechar seletor"><X size={18} /></button>
-                </div>
-                <div className="category-icon-picker-grid">
-                  {ALL_CATEGORY_ICONS.map((key) => (
-                    <button key={key} type="button" className={icon === key ? 'active' : ''} style={{ color }} aria-label={`Selecionar ícone ${key}`} aria-pressed={icon === key} onClick={() => { setIcon(key); setGoalIconPickerOpen(false); }}>
-                      <CategoryIconGraphic icon={key} size={20} />
-                    </button>
-                  ))}
-                </div>
+          <div className="category-icon-picker-layer" onClick={() => setGoalIconPickerOpen(false)}>
+            <div className="category-icon-picker-dialog" role="dialog" aria-modal="true" aria-label="Escolher ícone" onClick={(event) => event.stopPropagation()}>
+              <div className="category-icon-picker-head">
+                <strong>Escolher ícone</strong>
+                <button type="button" onClick={() => setGoalIconPickerOpen(false)} aria-label="Fechar seletor"><X size={18} /></button>
               </div>
-            </div>,
-            document.body,
-          )
+              <div className="category-icon-picker-grid">
+                {ALL_CATEGORY_ICONS.map((key) => (
+                  <button key={key} type="button" className={icon === key ? 'active' : ''} style={{ color }} aria-label={`Selecionar ícone ${key}`} aria-pressed={icon === key} onClick={() => { setIcon(key); setGoalIconPickerOpen(false); }}>
+                    <CategoryIconGraphic icon={key} size={20} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
         : null}
     </div>
   );
@@ -4493,124 +4493,124 @@ function ProfilePage({ fullName, email, publicFriendId, phone, avatarUrl, onSave
       ) : null}
 
       {activeTab === 'profile' ? <>
-      <section className="profile-friend-id-card">
-        <div>
-          <span>ID de amizade</span>
-          <strong>{publicFriendId}</strong>
-          <small>Compartilhe este ID para receber convites de amizade.</small>
-        </div>
-        <button type="button" className="page-secondary-action" onClick={copyFriendId}><Save size={15} /> {copiedFriendId ? 'Copiado' : 'Copiar ID'}</button>
-      </section>
+        <section className="profile-friend-id-card">
+          <div>
+            <span>ID de amizade</span>
+            <strong>{publicFriendId}</strong>
+            <small>Compartilhe este ID para receber convites de amizade.</small>
+          </div>
+          <button type="button" className="page-secondary-action" onClick={copyFriendId}><Save size={15} /> {copiedFriendId ? 'Copiado' : 'Copiar ID'}</button>
+        </section>
 
-      <form className="profile-registration-card" onSubmit={submit}>
+        <form className="profile-registration-card" onSubmit={submit}>
 
-        <div className="profile-registration-layout">
-          <div className="profile-photo-column">
-            <span className="profile-photo-title">FOTO PERFIL</span>
+          <div className="profile-registration-layout">
+            <div className="profile-photo-column">
+              <span className="profile-photo-title">FOTO PERFIL</span>
 
-            <div className="profile-photo-circle" onClick={() => fileInputRef.current?.click()} title="Clique para alterar foto">
-              {photo ? (
-                <img src={photo} alt="Foto de perfil" className="profile-photo-preview" />
-              ) : (
-                <UserRound size={68} className="profile-photo-icon" />
-              )}
-            </div>
+              <div className="profile-photo-circle" onClick={() => fileInputRef.current?.click()} title="Clique para alterar foto">
+                {photo ? (
+                  <img src={photo} alt="Foto de perfil" className="profile-photo-preview" />
+                ) : (
+                  <UserRound size={68} className="profile-photo-icon" />
+                )}
+              </div>
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handlePhotoSelect}
-              style={{ display: 'none' }}
-            />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoSelect}
+                style={{ display: 'none' }}
+              />
 
-            <div className="profile-photo-actions">
-              <button
-                type="button"
-                className="profile-photo-btn"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Camera size={14} /> {photo ? 'Alterar foto' : 'Adicionar foto'}
-              </button>
-
-              {photo ? (
+              <div className="profile-photo-actions">
                 <button
                   type="button"
-                  className="profile-photo-btn profile-photo-btn--remove"
-                  onClick={() => {
-                    setPhoto(null);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                    setMessage({ type: 'success', text: 'Foto removida. Clique em Salvar alterações para confirmar no Supabase.' });
-                  }}
+                  className="profile-photo-btn"
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  <Trash2 size={14} /> Remover
+                  <Camera size={14} /> {photo ? 'Alterar foto' : 'Adicionar foto'}
                 </button>
+
+                {photo ? (
+                  <button
+                    type="button"
+                    className="profile-photo-btn profile-photo-btn--remove"
+                    onClick={() => {
+                      setPhoto(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                      setMessage({ type: 'success', text: 'Foto removida. Clique em Salvar alterações para confirmar no Supabase.' });
+                    }}
+                  >
+                    <Trash2 size={14} /> Remover
+                  </button>
+                ) : null}
+              </div>
+
+              <small className="profile-photo-help">
+                Tamanho máximo: 220px altura x 220px largura
+              </small>
+            </div>
+
+            <div className="profile-data-column">
+              <div className="profile-form-grid">
+                <label className="profile-field">
+                  <span>NOME</span>
+                  <div className="profile-input-wrap">
+                    <UserRound size={17} />
+                    <input
+                      value={name}
+                      onChange={(event) => { setName(event.target.value); setMessage(null); }}
+                      minLength={2}
+                      maxLength={160}
+                      autoComplete="name"
+                      placeholder="Seu nome completo"
+                      required
+                    />
+                  </div>
+                </label>
+
+                <label className="profile-field">
+                  <span>EMAIL</span>
+                  <div className="profile-input-wrap profile-input-wrap--readonly">
+                    <Mail size={17} />
+                    <input value={email} readOnly aria-readonly="true" />
+                  </div>
+                </label>
+
+                <label className="profile-field">
+                  <span>TELEFONE</span>
+                  <div className="profile-input-wrap">
+                    <Phone size={17} />
+                    <input
+                      value={phoneNumber}
+                      onChange={(event) => { setPhoneNumber(event.target.value); setMessage(null); }}
+                      maxLength={30}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-form-footer">
+            <div aria-live="polite">
+              {message ? (
+                <span className={`profile-save-message profile-save-message--${message.type}`}>
+                  {message.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {message.text}
+                </span>
               ) : null}
             </div>
-
-            <small className="profile-photo-help">
-              Tamanho máximo: 220px altura x 220px largura
-            </small>
+            <button type="submit" className="page-primary-action profile-save-button" disabled={saving}>
+              <Save size={16} /> {saving ? 'Salvando...' : 'Salvar alterações'}
+            </button>
           </div>
-
-          <div className="profile-data-column">
-            <div className="profile-form-grid">
-              <label className="profile-field">
-                <span>NOME</span>
-                <div className="profile-input-wrap">
-                  <UserRound size={17} />
-                  <input
-                    value={name}
-                    onChange={(event) => { setName(event.target.value); setMessage(null); }}
-                    minLength={2}
-                    maxLength={160}
-                    autoComplete="name"
-                    placeholder="Seu nome completo"
-                    required
-                  />
-                </div>
-              </label>
-
-              <label className="profile-field">
-                <span>EMAIL</span>
-                <div className="profile-input-wrap profile-input-wrap--readonly">
-                  <Mail size={17} />
-                  <input value={email} readOnly aria-readonly="true" />
-                </div>
-              </label>
-
-              <label className="profile-field">
-                <span>TELEFONE</span>
-                <div className="profile-input-wrap">
-                  <Phone size={17} />
-                  <input
-                    value={phoneNumber}
-                    onChange={(event) => { setPhoneNumber(event.target.value); setMessage(null); }}
-                    maxLength={30}
-                    inputMode="tel"
-                    autoComplete="tel"
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="profile-form-footer">
-          <div aria-live="polite">
-            {message ? (
-              <span className={`profile-save-message profile-save-message--${message.type}`}>
-                {message.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-                {message.text}
-              </span>
-            ) : null}
-          </div>
-          <button type="submit" className="page-primary-action profile-save-button" disabled={saving}>
-            <Save size={16} /> {saving ? 'Salvando...' : 'Salvar alterações'}
-          </button>
-        </div>
-      </form>
+        </form>
       </> : null}
     </section>
   );
@@ -5411,8 +5411,8 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, notificationCount 
 
   const topbarTitle =
     activePage === 'friends' && friendDetailName ? friendDetailName :
-    activePage === 'shopping' && shoppingDetailName ? shoppingDetailName :
-    PAGE_LABELS[activePage];
+      activePage === 'shopping' && shoppingDetailName ? shoppingDetailName :
+        PAGE_LABELS[activePage];
 
   const isDetail = (activePage === 'friends' && friendDetailName) || (activePage === 'shopping' && shoppingDetailName);
 
@@ -5979,31 +5979,31 @@ function CategoryModal({ items, category, onClose, onSave }: { items: CategoryIt
       {colorPickerOpen ? <ColorSpectrumSheet value={color} onChange={setColor} onClose={() => setColorPickerOpen(false)} /> : null}
       {iconPickerOpen
         ? createPortal(
-            <div className="category-icon-picker-layer" onClick={() => setIconPickerOpen(false)}>
-              <div className="category-icon-picker-dialog" role="dialog" aria-modal="true" aria-label="Escolher ícone" onClick={(event) => event.stopPropagation()}>
-                <div className="category-icon-picker-head">
-                  <strong>Escolher ícone</strong>
-                  <button type="button" onClick={() => setIconPickerOpen(false)} aria-label="Fechar seletor de ícones"><X size={18} /></button>
-                </div>
-                <div className="category-icon-picker-grid">
-                  {ALL_CATEGORY_ICONS.map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={selectedIcon === key ? 'active' : ''}
-                      style={{ color }}
-                      aria-label={`Selecionar ícone ${key}`}
-                      aria-pressed={selectedIcon === key}
-                      onClick={() => { setSelectedIcon(key); setHasManuallySelectedIcon(true); setIconPickerOpen(false); }}
-                    >
-                      <CategoryIconGraphic icon={key} size={20} />
-                    </button>
-                  ))}
-                </div>
+          <div className="category-icon-picker-layer" onClick={() => setIconPickerOpen(false)}>
+            <div className="category-icon-picker-dialog" role="dialog" aria-modal="true" aria-label="Escolher ícone" onClick={(event) => event.stopPropagation()}>
+              <div className="category-icon-picker-head">
+                <strong>Escolher ícone</strong>
+                <button type="button" onClick={() => setIconPickerOpen(false)} aria-label="Fechar seletor de ícones"><X size={18} /></button>
               </div>
-            </div>,
-            document.body,
-          )
+              <div className="category-icon-picker-grid">
+                {ALL_CATEGORY_ICONS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={selectedIcon === key ? 'active' : ''}
+                    style={{ color }}
+                    aria-label={`Selecionar ícone ${key}`}
+                    aria-pressed={selectedIcon === key}
+                    onClick={() => { setSelectedIcon(key); setHasManuallySelectedIcon(true); setIconPickerOpen(false); }}
+                  >
+                    <CategoryIconGraphic icon={key} size={20} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
         : null}
     </div>
   );
@@ -6720,120 +6720,120 @@ function ImportTransactionsModal({ onClose, onImport, existingCategories }: { on
 
   return (
     <>
-    {previewOpen ? <ImportPreviewModal rows={rows} onClose={() => setPreviewOpen(false)} /> : null}
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card import-modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title modal-title-only" id="import-modal-title">Importar transações</h2>
-          <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
-        </div>
+      {previewOpen ? <ImportPreviewModal rows={rows} onClose={() => setPreviewOpen(false)} /> : null}
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-card import-modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-header">
+            <h2 className="modal-title modal-title-only" id="import-modal-title">Importar transações</h2>
+            <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+          </div>
 
-        {step === 'confirm-categories' ? (
-          <>
-            <div className="modal-body import-modal-body">
-              <div className="import-alert import-alert--warning">
-                <AlertCircle size={17} />
-                <span>A planilha contém <strong>{newCategories.length}</strong> {newCategories.length === 1 ? 'categoria que não existe' : 'categorias que não existem'} no sistema. Deseja criá-{newCategories.length === 1 ? 'la' : 'las'} automaticamente e continuar a importação?</span>
-              </div>
-              <div className="import-new-categories">
-                {newCategories.map((cat) => (
-                  <div key={cat.id} className="import-new-category-row">
-                    <span className="import-new-category-dot" style={{ background: cat.color }} />
-                    <span className="import-new-category-name">{cat.name}</span>
-                    <span className={`category-type category-type--${cat.kind}`}>{KIND_LABELS[cat.kind]}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="button-secondary" onClick={handleCancelCategories}>Não criar — cancelar importação</button>
-              <button type="button" className="button-primary" onClick={handleConfirmCategories}>Criar categorias e importar</button>
-            </div>
-          </>
-        ) : step === 'cancelled' ? (
-          <>
-            <div className="modal-body import-modal-body">
-              <div className="import-alert import-alert--error">
-                <AlertCircle size={17} />
-                <span>A importação foi cancelada porque há categorias não cadastradas. Ajuste as categorias na planilha ou cadastre-as manualmente antes de importar.</span>
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="button-secondary" onClick={() => setStep('review')}>Voltar</button>
-              <button type="button" className="button-primary" onClick={onClose}>Fechar</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="modal-body import-modal-body">
-              <label className={`import-upload${loading ? ' loading' : ''}`}>
-                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFile} disabled={loading} />
-                <span className="import-upload-icon"><Upload size={22} /></span>
-                <strong>{loading ? 'Lendo planilha...' : fileName || 'Selecionar planilha'}</strong>
-                <small>Arquivo Excel no formato .xlsx</small>
-              </label>
-
-              <div className="import-columns">
-                <div className="import-columns-info">
-                  <strong>Colunas obrigatórias</strong>
-                  <span>Tipo, Descrição, Valor, Vencimento e Categoria</span>
-                  <small>Opcionais: Recorrência e Parcelas</small>
-                  <small className="import-recurrence-hint">Recorrência: <em>Fixa</em> expande até dezembro do ano da data · <em>Parcelada</em> expande pelo nº de parcelas</small>
+          {step === 'confirm-categories' ? (
+            <>
+              <div className="modal-body import-modal-body">
+                <div className="import-alert import-alert--warning">
+                  <AlertCircle size={17} />
+                  <span>A planilha contém <strong>{newCategories.length}</strong> {newCategories.length === 1 ? 'categoria que não existe' : 'categorias que não existem'} no sistema. Deseja criá-{newCategories.length === 1 ? 'la' : 'las'} automaticamente e continuar a importação?</span>
                 </div>
-                <button type="button" className="import-template-button" onClick={downloadImportTemplate}>
-                  <FileSpreadsheet size={16} /> Baixar modelo
+                <div className="import-new-categories">
+                  {newCategories.map((cat) => (
+                    <div key={cat.id} className="import-new-category-row">
+                      <span className="import-new-category-dot" style={{ background: cat.color }} />
+                      <span className="import-new-category-name">{cat.name}</span>
+                      <span className={`category-type category-type--${cat.kind}`}>{KIND_LABELS[cat.kind]}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="button-secondary" onClick={handleCancelCategories}>Não criar, cancelar importação</button>
+                <button type="button" className="button-primary" onClick={handleConfirmCategories}>Criar categorias e importar</button>
+              </div>
+            </>
+          ) : step === 'cancelled' ? (
+            <>
+              <div className="modal-body import-modal-body">
+                <div className="import-alert import-alert--error">
+                  <AlertCircle size={17} />
+                  <span>A importação foi cancelada porque há categorias não cadastradas. Ajuste as categorias na planilha ou cadastre-as manualmente antes de importar.</span>
+                </div>
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="button-secondary" onClick={() => setStep('review')}>Voltar</button>
+                <button type="button" className="button-primary" onClick={onClose}>Fechar</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="modal-body import-modal-body">
+                <label className={`import-upload${loading ? ' loading' : ''}`}>
+                  <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFile} disabled={loading} />
+                  <span className="import-upload-icon"><Upload size={22} /></span>
+                  <strong>{loading ? 'Lendo planilha...' : fileName || 'Selecionar planilha'}</strong>
+                  <small>Arquivo Excel no formato .xlsx</small>
+                </label>
+
+                <div className="import-columns">
+                  <div className="import-columns-info">
+                    <strong>Colunas obrigatórias</strong>
+                    <span>Tipo, Descrição, Valor, Vencimento e Categoria</span>
+                    <small>Opcionais: Recorrência e Parcelas</small>
+                    <small className="import-recurrence-hint">Recorrência: <em>Fixa</em> expande até dezembro do ano da data · <em>Parcelada</em> expande pelo nº de parcelas</small>
+                  </div>
+                  <button type="button" className="import-template-button" onClick={downloadImportTemplate}>
+                    <FileSpreadsheet size={16} /> Baixar modelo
+                  </button>
+                </div>
+
+                {error ? <div className="import-alert import-alert--error"><AlertCircle size={17} /><span>{error}</span></div> : null}
+
+                {rows.length ? (
+                  <div className="import-info-card">
+                    <div className="import-info-row">
+                      <span className="import-info-label">Linhas válidas</span>
+                      <strong className="import-info-value">{validRows.length}</strong>
+                    </div>
+                    <div className="import-info-row">
+                      <span className="import-info-label">Transações a criar</span>
+                      <strong className="import-info-value">{importedTransactions.length}</strong>
+                    </div>
+                    {invalidCount > 0 ? (
+                      <div className="import-info-row import-info-row--error">
+                        <span className="import-info-label">Com erro</span>
+                        <strong className="import-info-value">{invalidCount}</strong>
+                      </div>
+                    ) : null}
+                    {coveredMonths.length > 0 ? (
+                      <div className="import-info-row">
+                        <span className="import-info-label">Meses cobertos</span>
+                        <span className="import-info-months">{formattedMonths}</span>
+                      </div>
+                    ) : null}
+                    {newCategories.length > 0 ? (
+                      <div className="import-info-row import-info-row--warning">
+                        <span className="import-info-label">Categorias novas</span>
+                        <strong className="import-info-value import-info-value--warning">{newCategories.length} serão criadas</strong>
+                      </div>
+                    ) : null}
+                    <div className="import-info-row import-info-row--action">
+                      <button type="button" className="import-preview-btn" onClick={() => setPreviewOpen(true)}>
+                        <Eye size={14} /> Ver pré-visualização
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
+                <button type="button" className="button-primary" disabled={!importedTransactions.length || loading} onClick={handleImportClick}>
+                  Importar {importedTransactions.length || ''}
                 </button>
               </div>
-
-              {error ? <div className="import-alert import-alert--error"><AlertCircle size={17} /><span>{error}</span></div> : null}
-
-              {rows.length ? (
-                <div className="import-info-card">
-                  <div className="import-info-row">
-                    <span className="import-info-label">Linhas válidas</span>
-                    <strong className="import-info-value">{validRows.length}</strong>
-                  </div>
-                  <div className="import-info-row">
-                    <span className="import-info-label">Transações a criar</span>
-                    <strong className="import-info-value">{importedTransactions.length}</strong>
-                  </div>
-                  {invalidCount > 0 ? (
-                    <div className="import-info-row import-info-row--error">
-                      <span className="import-info-label">Com erro</span>
-                      <strong className="import-info-value">{invalidCount}</strong>
-                    </div>
-                  ) : null}
-                  {coveredMonths.length > 0 ? (
-                    <div className="import-info-row">
-                      <span className="import-info-label">Meses cobertos</span>
-                      <span className="import-info-months">{formattedMonths}</span>
-                    </div>
-                  ) : null}
-                  {newCategories.length > 0 ? (
-                    <div className="import-info-row import-info-row--warning">
-                      <span className="import-info-label">Categorias novas</span>
-                      <strong className="import-info-value import-info-value--warning">{newCategories.length} serão criadas</strong>
-                    </div>
-                  ) : null}
-                  <div className="import-info-row import-info-row--action">
-                    <button type="button" className="import-preview-btn" onClick={() => setPreviewOpen(true)}>
-                      <Eye size={14} /> Ver pré-visualização
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="modal-actions">
-              <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
-              <button type="button" className="button-primary" disabled={!importedTransactions.length || loading} onClick={handleImportClick}>
-                Importar {importedTransactions.length || ''}
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
     </>
   );
 }
