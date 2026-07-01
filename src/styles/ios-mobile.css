@@ -1580,18 +1580,20 @@
   /* ---------- Login / Recuperação / Nova senha ---------- */
   .toodledo-login-shell {
     background: var(--ios-bg);
-    padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+    padding: 48px 24px calc(36px + env(safe-area-inset-bottom));
+    align-items: center;
+    justify-content: center;
   }
 
   .toodledo-login-container {
     width: 100%;
-    max-width: 420px;
+    max-width: 380px;
     flex-direction: column;
-    gap: 4px;
-    border-radius: var(--ios-radius-card);
-    background: var(--ios-card);
-    box-shadow: var(--ios-shadow-card);
-    padding: 28px 22px;
+    gap: 8px;
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
   }
 
   /* Some o divisor vertical do layout desktop no mobile */
@@ -1610,7 +1612,7 @@
     font-size: 26px;
     font-weight: 700;
     letter-spacing: -0.4px;
-    text-align: center;
+    text-align: left;
   }
 
   .toodledo-input {

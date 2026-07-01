@@ -1070,15 +1070,18 @@ function translateAuthError(message: string): string {
   return message;
 }
 
+const REMEMBER_EMAIL_KEY = 'rubylife-saved-email';
+
 function LoginScreen() {
   const [mode, setMode] = useState<'login' | 'recovery' | 'register'>('login');
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem(REMEMBER_EMAIL_KEY) ?? '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [rememberMe, setRememberMe] = useState(() => Boolean(localStorage.getItem(REMEMBER_EMAIL_KEY)));
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1130,6 +1133,8 @@ function LoginScreen() {
       setMessage({ text: translateAuthError(error.message), type: 'error' });
       return;
     }
+    if (rememberMe) localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+    else localStorage.removeItem(REMEMBER_EMAIL_KEY);
     // Sucesso: a sessão muda e a App troca de tela automaticamente.
   }
 
@@ -1245,6 +1250,17 @@ function LoginScreen() {
                 )}
               </button>
             </div>
+
+            {mode === 'login' ? (
+              <label className="toodledo-remember">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Salvar dados de acesso
+              </label>
+            ) : null}
 
             {message ? (
               <p className={`toodledo-recovery-msg ${message.type === 'error' ? 'toodledo-msg-error' : ''}`} role="status">
