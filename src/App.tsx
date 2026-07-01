@@ -431,107 +431,7 @@ function sharedTransactionLabel(item: Transaction) {
   return `${item.type === 'income' ? 'Receita' : 'Despesa'} compartilhada por ${item.sharedCreatedByName}`;
 }
 
-const DEMO_SOCIAL_SEED_PREFIX = 'rubylife-demo-social-seed-v1';
 const SHOPPING_LISTS_STORAGE_KEY = 'rubylife-shopping-lists';
-
-type DemoShoppingListItem = {
-  id: string;
-  name: string;
-  quantity: number;
-  unitPrice: number;
-  addedById: string;
-  createdAt: string;
-};
-
-type DemoShoppingList = {
-  id: string;
-  name: string;
-  date: string;
-  note?: string;
-  status: 'open' | 'finalized' | 'cancelled';
-  participantIds: string[];
-  items: DemoShoppingListItem[];
-  createdById: string;
-  createdAt: string;
-  finalizedAt?: string;
-  finalizedById?: string;
-};
-
-function seedDemoSocialData(currentUser: FriendUser) {
-  const seedKey = `${DEMO_SOCIAL_SEED_PREFIX}-${currentUser.id}`;
-  if (localStorage.getItem(seedKey)) return null;
-
-  const demoUsers: FriendUser[] = [
-    { id: 'demo-friend-marina', name: 'Marina Costa', email: 'marina.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-friend-marina') },
-    { id: 'demo-friend-lucas', name: 'Lucas Almeida', email: 'lucas.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-friend-lucas') },
-    { id: 'demo-friend-bianca', name: 'Bianca Rocha', email: 'bianca.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-friend-bianca') },
-    { id: 'demo-request-rafael', name: 'Rafael Mendes', email: 'rafael.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-request-rafael') },
-    { id: 'demo-request-julia', name: 'Júlia Fernandes', email: 'julia.demo@rubylife.app', publicFriendId: publicFriendIdForUser('demo-request-julia') },
-  ];
-
-  const existingUsers = loadPublicUsers();
-  const usersById = new Map<string, FriendUser>([currentUser, ...existingUsers, ...demoUsers].map((user) => [user.id, user]));
-  const nextUsers = [...usersById.values()];
-  storePublicUsers(nextUsers);
-
-  const now = new Date().toISOString();
-  const demoInvitations: FriendshipInvitation[] = [
-    { id: `demo-invite-${currentUser.id}-marina`, requesterId: currentUser.id, receiverId: 'demo-friend-marina', status: 'accepted', createdAt: '2026-06-20T12:00:00.000Z', respondedAt: '2026-06-20T12:10:00.000Z' },
-    { id: `demo-invite-${currentUser.id}-lucas`, requesterId: 'demo-friend-lucas', receiverId: currentUser.id, status: 'accepted', createdAt: '2026-06-21T12:00:00.000Z', respondedAt: '2026-06-21T12:08:00.000Z' },
-    { id: `demo-invite-${currentUser.id}-bianca`, requesterId: currentUser.id, receiverId: 'demo-friend-bianca', status: 'accepted', createdAt: '2026-06-22T12:00:00.000Z', respondedAt: '2026-06-22T12:12:00.000Z' },
-    { id: `demo-request-${currentUser.id}-rafael`, requesterId: 'demo-request-rafael', receiverId: currentUser.id, status: 'pending', createdAt: '2026-06-29T14:30:00.000Z' },
-    { id: `demo-request-${currentUser.id}-julia`, requesterId: 'demo-request-julia', receiverId: currentUser.id, status: 'pending', createdAt: '2026-06-30T09:15:00.000Z' },
-  ];
-  const invitationById = new Map<string, FriendshipInvitation>([...loadStoredFriendInvitations(currentUser.id), ...demoInvitations].map((invitation) => [invitation.id, invitation]));
-  const nextInvitations = [...invitationById.values()];
-  storeFriendInvitations(nextInvitations);
-
-  const demoShared: SharedTransactionRequest[] = [
-    { id: `demo-shared-${currentUser.id}-market`, creatorId: 'demo-friend-marina', receiverId: currentUser.id, type: 'expense', description: 'Mercado do churrasco', amount: 184.9, dueDate: '2026-06-30', category: 'Alimentação', note: 'Dividir carnes e bebidas.', status: 'pending', createdAt: '2026-06-30T10:00:00.000Z' },
-    { id: `demo-shared-${currentUser.id}-uber`, creatorId: currentUser.id, receiverId: 'demo-friend-lucas', type: 'expense', description: 'Uber ida ao shopping', amount: 42.5, dueDate: '2026-06-28', category: 'Transporte', note: 'Volta ficou por conta do Lucas.', status: 'approved', createdAt: '2026-06-28T20:10:00.000Z', respondedAt: '2026-06-28T20:25:00.000Z' },
-  ];
-  const sharedById = new Map<string, SharedTransactionRequest>([...loadStoredSharedTransactions(), ...demoShared].map((request) => [request.id, request]));
-  const nextSharedTransactions = [...sharedById.values()];
-  storeSharedTransactions(nextSharedTransactions);
-
-  const demoShoppingLists: DemoShoppingList[] = [
-    { id: `demo-shopping-${currentUser.id}-churrasco`, name: 'Churrasco de sábado', date: '2026-07-04', note: 'Cada um adiciona o que lembrar antes de sexta.', status: 'open', participantIds: [currentUser.id, 'demo-friend-marina', 'demo-friend-lucas'], createdById: currentUser.id, createdAt: now, items: [
-      { id: 'demo-item-carne', name: 'Picanha', quantity: 2, unitPrice: 89.9, addedById: currentUser.id, createdAt: now },
-      { id: 'demo-item-carvao', name: 'Carvão', quantity: 1, unitPrice: 24.9, addedById: 'demo-friend-lucas', createdAt: now },
-      { id: 'demo-item-refri', name: 'Refrigerante', quantity: 4, unitPrice: 8.49, addedById: 'demo-friend-marina', createdAt: now },
-    ] },
-    { id: `demo-shopping-${currentUser.id}-casa`, name: 'Compras da casa', date: '2026-07-02', note: 'Lista compartilhada com itens de limpeza e mercado.', status: 'open', participantIds: [currentUser.id, 'demo-friend-bianca'], createdById: 'demo-friend-bianca', createdAt: now, items: [
-      { id: 'demo-item-arroz', name: 'Arroz 5kg', quantity: 1, unitPrice: 28.9, addedById: 'demo-friend-bianca', createdAt: now },
-      { id: 'demo-item-detergente', name: 'Detergente', quantity: 3, unitPrice: 2.79, addedById: currentUser.id, createdAt: now },
-      { id: 'demo-item-cafe', name: 'Café', quantity: 2, unitPrice: 17.5, addedById: currentUser.id, createdAt: now },
-    ] },
-    { id: `demo-shopping-${currentUser.id}-finalizada`, name: 'Aniversário da Júlia', date: '2026-06-25', note: 'Lista finalizada para testar histórico.', status: 'finalized', participantIds: [currentUser.id, 'demo-friend-marina', 'demo-friend-bianca'], createdById: currentUser.id, createdAt: '2026-06-23T10:00:00.000Z', finalizedAt: '2026-06-25T18:00:00.000Z', finalizedById: currentUser.id, items: [
-      { id: 'demo-item-bolo', name: 'Bolo', quantity: 1, unitPrice: 95, addedById: currentUser.id, createdAt: '2026-06-23T10:00:00.000Z' },
-      { id: 'demo-item-salgados', name: 'Salgados cento', quantity: 2, unitPrice: 72, addedById: 'demo-friend-marina', createdAt: '2026-06-23T10:05:00.000Z' },
-    ] },
-  ];
-  try {
-    const raw = localStorage.getItem(SHOPPING_LISTS_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) as DemoShoppingList[] : [];
-    const existingLists = Array.isArray(parsed) ? parsed : [];
-    const listById = new Map<string, DemoShoppingList>([...existingLists, ...demoShoppingLists].map((list) => [list.id, list]));
-    localStorage.setItem(SHOPPING_LISTS_STORAGE_KEY, JSON.stringify([...listById.values()]));
-    window.dispatchEvent(new CustomEvent('rubylife-shopping-lists-change'));
-  } catch {
-    // armazenamento local indisponível
-  }
-
-  const demoNotifications: AppNotification[] = [
-    { id: `demo-notification-${currentUser.id}-rafael`, userId: currentUser.id, type: 'friend_invite', message: 'Rafael Mendes enviou um convite de amizade para você.', createdAt: '2026-06-29T14:30:00.000Z' },
-    { id: `demo-notification-${currentUser.id}-julia`, userId: currentUser.id, type: 'friend_invite', message: 'Júlia Fernandes enviou um convite de amizade para você.', createdAt: '2026-06-30T09:15:00.000Z' },
-  ];
-  const notificationById = new Map<string, AppNotification>([...loadNotifications(), ...demoNotifications].map((notification) => [notification.id, notification]));
-  const nextNotifications = [...notificationById.values()];
-  storeNotifications(nextNotifications);
-
-  localStorage.setItem(seedKey, '1');
-  return { nextUsers, nextInvitations, nextSharedTransactions, nextNotifications };
-}
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   wallet: 'Carteira',
   checking: 'Conta corrente',
@@ -1806,12 +1706,42 @@ export function App() {
   }, [currentFriendUser, userId]);
   useEffect(() => {
     if (!userId || dataLoading) return;
-    const seeded = seedDemoSocialData(currentFriendUser);
-    if (!seeded) return;
-    setPublicUsers(seeded.nextUsers);
-    setFriendInvitations(seeded.nextInvitations);
-    setSharedTransactions(seeded.nextSharedTransactions);
-    setNotifications(seeded.nextNotifications);
+    const cleanKey = `rubylife-demo-cleaned-v2-${userId}`;
+    if (localStorage.getItem(cleanKey)) return;
+
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('rubylife-demo-social-seed-v1')) localStorage.removeItem(key);
+    }
+
+    const cleanUsers = loadPublicUsers().filter((u) => !u.id.startsWith('demo-'));
+    storePublicUsers(cleanUsers);
+    setPublicUsers(cleanUsers);
+
+    const cleanInvitations = loadStoredFriendInvitations(userId).filter((inv) => !inv.id.startsWith('demo-'));
+    storeFriendInvitations(cleanInvitations);
+    setFriendInvitations(cleanInvitations);
+
+    const cleanShared = loadStoredSharedTransactions().filter((tx) => !tx.id.startsWith('demo-'));
+    storeSharedTransactions(cleanShared);
+    setSharedTransactions(cleanShared);
+
+    const cleanNotifications = loadNotifications().filter((n) => !n.id.startsWith('demo-'));
+    storeNotifications(cleanNotifications);
+    setNotifications(cleanNotifications);
+
+    try {
+      const raw = localStorage.getItem(SHOPPING_LISTS_STORAGE_KEY);
+      if (raw) {
+        const lists = JSON.parse(raw) as Array<{ id: string }>;
+        const cleaned = lists.filter((l) => !l.id.startsWith('demo-'));
+        localStorage.setItem(SHOPPING_LISTS_STORAGE_KEY, JSON.stringify(cleaned));
+        window.dispatchEvent(new CustomEvent('rubylife-shopping-lists-change'));
+      }
+    } catch {
+      // armazenamento local indisponível
+    }
+
+    localStorage.setItem(cleanKey, '1');
   }, [currentFriendUser, dataLoading, userId]);
 
   const friendDirectory = useMemo<FriendUser[]>(() => {
@@ -4807,6 +4737,12 @@ function FriendsPage({ currentUser, users, invitations, acceptedFriends, sharedT
           </button>
         </section>
 
+        <div className="dm-thread-mobile-actions">
+          <button type="button" className="friend-action friend-action--danger" onClick={() => onRemoveFriend(openFriend)}>
+            <UserX size={15} /> Excluir amizade
+          </button>
+        </div>
+
         <div className="dm-thread-filter" role="tablist" aria-label="Filtrar transações">
           <button type="button" role="tab" aria-selected={threadFilter === 'pending'} className={threadFilter === 'pending' ? 'active' : ''} onClick={() => setThreadFilter('pending')}>Pendentes</button>
           <button type="button" role="tab" aria-selected={threadFilter === 'history'} className={threadFilter === 'history' ? 'active' : ''} onClick={() => setThreadFilter('history')}>Histórico</button>
@@ -4946,6 +4882,9 @@ function FriendsPage({ currentUser, users, invitations, acceptedFriends, sharedT
                     <strong>{shortUserName(friend.name)}</strong>
                   </div>
                   {pending ? <span className="dm-badge">{pending}</span> : <ChevronRight size={18} className="dm-conversation-chevron" />}
+                </button>
+                <button type="button" className="friend-round-action friend-round-action--decline" onClick={(e) => { e.stopPropagation(); onRemoveFriend(friend); }} title="Excluir amizade" aria-label={`Excluir ${friend.name}`} style={{ width: 34, height: 34 }}>
+                  <UserX size={15} />
                 </button>
                 <button type="button" className="dm-conversation-launch" onClick={() => setComposerFriendId(friend.id)}>
                   <Plus size={15} /> <span>Lançar</span>
