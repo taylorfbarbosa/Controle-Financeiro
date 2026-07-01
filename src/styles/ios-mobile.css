@@ -1,16 +1,16 @@
-/* =====================================================================
-   RubyLife — Camada de estilo iOS (mobile)
+﻿/* =====================================================================
+   RubyLife â€” Camada de estilo iOS (mobile)
    ---------------------------------------------------------------------
-   Reskin "padrão Apple" aplicado APENAS no mobile (<= 760px).
-   Não altera o desktop. Importado depois do index.css em main.tsx.
-   Linguagem: Apple Human Interface Guidelines (iOS) — tipografia SF,
-   fundo agrupado claro, barras translúcidas, cards de 24px com sombra
-   muito suave, listas inset, botões grandes, bottom sheets com grabber.
-   Accent e superfície reaproveitam os tokens do index.css.
-   Tema escuro: toggle manual (Aparência), via [data-theme='dark'] na <html>.
+   Reskin "padrÃ£o Apple" aplicado APENAS no mobile (<= 760px).
+   NÃ£o altera o desktop. Importado depois do index.css em main.tsx.
+   Linguagem: Apple Human Interface Guidelines (iOS) â€” tipografia SF,
+   fundo agrupado claro, barras translÃºcidas, cards de 24px com sombra
+   muito suave, listas inset, botÃµes grandes, bottom sheets com grabber.
+   Accent e superfÃ­cie reaproveitam os tokens do index.css.
+   Tema escuro: toggle manual (AparÃªncia), via [data-theme='dark'] na <html>.
    ===================================================================== */
 
-/* A tela "Ajustes" só existe no mobile; no desktop o avatar usa o dropdown. */
+/* A tela "Ajustes" sÃ³ existe no mobile; no desktop o avatar usa o dropdown. */
 .settings-overlay {
   display: none;
 }
@@ -32,14 +32,14 @@
     /* Tipografia do sistema configurada para Inter */
     --ios-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 
-    /* Cor da marca (reaproveita os tokens do index.css — muda junto) */
+    /* Cor da marca (reaproveita os tokens do index.css â€” muda junto) */
     --ios-accent: var(--primary);
     --ios-accent-press: var(--primary-hover);
 
-    /* Paleta iOS — modo claro */
+    /* Paleta iOS â€” modo claro */
     --ios-bg: #f5f5f7;                          /* fundo principal de tela */
     --ios-bg-elevated: var(--surface-color);    /* barras / folhas */
-    --ios-card: var(--surface-color);           /* superfície dos cards (#fff) */
+    --ios-card: var(--surface-color);           /* superfÃ­cie dos cards (#fff) */
     --ios-card-press: #ededf2;
     --ios-fill: rgba(118, 118, 128, 0.12);      /* tertiarySystemFill (tinted) */
     --ios-fill-strong: rgba(118, 118, 128, 0.2);
@@ -51,13 +51,13 @@
     --ios-red: #ff3b30;
     --ios-green: #34c759;
 
-    /* Barras translúcidas */
+    /* Barras translÃºcidas */
     --ios-bar: rgba(249, 249, 249, 0.82);
     --ios-bar-border: rgba(0, 0, 0, 0.16);
 
     /* Raios */
-    --ios-radius-card: 24px;     /* cards / painéis / folhas */
-    --ios-radius-control: 14px;  /* botões / inputs */
+    --ios-radius-card: 24px;     /* cards / painÃ©is / folhas */
+    --ios-radius-control: 14px;  /* botÃµes / inputs */
     --ios-radius-pill: 999px;
 
     /* Sombras muito suaves */
@@ -74,7 +74,7 @@
   }
 
   /* !important para vencer o redesign mobile anterior do index.css,
-     que força fundo branco com !important nestes mesmos seletores. */
+     que forÃ§a fundo branco com !important nestes mesmos seletores. */
   html,
   body,
   #root,
@@ -89,22 +89,22 @@
     padding: 18px 16px calc(60px + env(safe-area-inset-bottom) + 18px) !important;
   }
 
-  /* Respiro maior entre os blocos das páginas */
+  /* Respiro maior entre os blocos das pÃ¡ginas */
   .page-header {
     margin-bottom: 18px;
   }
 
-  /* O index.css transforma a sidebar desktop numa barra de ícones fixa
-     neste mesmo breakpoint; no padrão iOS ela é substituída pela
-     .mobile-tab-bar (pílula flutuante) — sem isso as duas navs aparecem
+  /* O index.css transforma a sidebar desktop numa barra de Ã­cones fixa
+     neste mesmo breakpoint; no padrÃ£o iOS ela Ã© substituÃ­da pela
+     .mobile-tab-bar (pÃ­lula flutuante) â€” sem isso as duas navs aparecem
      juntas. */
   .sidebar-desktop {
     display: none !important;
   }
 
   /* ---------- Nav bar (topbar) ----------
-     Mantém a altura/layout do header existente; só troca o fundo escuro
-     (slate translúcido com !important no index.css) por vidro claro iOS. */
+     MantÃ©m a altura/layout do header existente; sÃ³ troca o fundo escuro
+     (slate translÃºcido com !important no index.css) por vidro claro iOS. */
   .topbar {
     background: var(--ios-bar) !important;
     -webkit-backdrop-filter: saturate(180%) blur(20px) !important;
@@ -118,7 +118,7 @@
     display: none;
   }
 
-  /* Título centralizado em cor escura, legível sobre o vidro claro */
+  /* TÃ­tulo centralizado em cor escura, legÃ­vel sobre o vidro claro */
   .topbar .breadcrumb-active {
     color: var(--ios-label) !important;
     font-size: 17px;
@@ -126,7 +126,7 @@
     letter-spacing: -0.2px;
   }
 
-  /* Ações da nav bar = estilo "plain" iOS (ícone accent, sem moldura) */
+  /* AÃ§Ãµes da nav bar = estilo "plain" iOS (Ã­cone accent, sem moldura) */
   .topbar-more-button,
   .topbar-account-filter-button,
   .topbar-category-filter-button,
@@ -177,11 +177,11 @@
     font-size: 15px;
   }
 
-  /* ---------- Cards / painéis (raio 24px + sombra suave) ----------
-     NÃO incluir .resource-panel aqui: ele é só um contêiner de layout
-     e, quando vazio (ex.: lista sem transações), viraria um card branco
-     fantasma. Os cards reais são os gráficos, os de categoria e os de
-     conteúdo abaixo. */
+  /* ---------- Cards / painÃ©is (raio 24px + sombra suave) ----------
+     NÃƒO incluir .resource-panel aqui: ele Ã© sÃ³ um contÃªiner de layout
+     e, quando vazio (ex.: lista sem transaÃ§Ãµes), viraria um card branco
+     fantasma. Os cards reais sÃ£o os grÃ¡ficos, os de categoria e os de
+     conteÃºdo abaixo. */
   .chart-panel,
   .dashboard-category-panel,
   .goals-overview-panel,
@@ -231,7 +231,7 @@
     padding: 20px 16px 8px;
   }
 
-  /* ---------- Transações (mobile): lista única, tipo grouped-list iOS ---------- */
+  /* ---------- TransaÃ§Ãµes (mobile): lista Ãºnica, tipo grouped-list iOS ---------- */
   .mobile-tx-bottom-sheet {
     padding-left: 10px !important;
     padding-right: 10px !important;
@@ -310,9 +310,9 @@
     border-top-color: var(--ios-separator) !important;
   }
 
-  /* ---------- Transações: painel que vira tela cheia ao rolar ----------
-     Os cards de resumo ficam acima; o painel da lista é sticky e gruda no
-     topo da área de conteúdo conforme rola, com corpo rolável interno. */
+  /* ---------- TransaÃ§Ãµes: painel que vira tela cheia ao rolar ----------
+     Os cards de resumo ficam acima; o painel da lista Ã© sticky e gruda no
+     topo da Ã¡rea de conteÃºdo conforme rola, com corpo rolÃ¡vel interno. */
   .main-content--transactions .resource-panel {
     position: sticky;
     top: 0;
@@ -356,7 +356,7 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* ---------- Botões grandes ---------- */
+  /* ---------- BotÃµes grandes ---------- */
   .page-primary-action,
   .button-primary {
     min-height: 50px;
@@ -382,7 +382,7 @@
     transform: scale(0.97);
   }
 
-  /* Secundário = fundo cinza neutro + texto escuro (ref. "Secondary" iOS) */
+  /* SecundÃ¡rio = fundo cinza neutro + texto escuro (ref. "Secondary" iOS) */
   .button-secondary,
   .page-secondary-action {
     min-height: 50px;
@@ -395,7 +395,7 @@
     transition: transform 0.2s ease, background-color 0.2s ease;
   }
 
-  /* Filtro = botão "tinted" (cinza + texto/ícone accent) */
+  /* Filtro = botÃ£o "tinted" (cinza + texto/Ã­cone accent) */
   .filter-trigger {
     min-height: 50px;
     border-radius: var(--ios-radius-control);
@@ -432,7 +432,7 @@
     transform: scale(0.97);
   }
 
-  /* FAB de adicionar: círculo accent flutuante acima da tab bar flutuante */
+  /* FAB de adicionar: cÃ­rculo accent flutuante acima da tab bar flutuante */
   .page-header-actions .page-primary-action.btn-icon-only {
     width: 56px !important;
     height: 56px;
@@ -442,7 +442,7 @@
     bottom: calc(env(safe-area-inset-bottom) + 92px) !important;
   }
 
-  /* ---------- Campos de formulário ---------- */
+  /* ---------- Campos de formulÃ¡rio ---------- */
   .form-label,
   .filter-field span,
   .profile-field span {
@@ -462,7 +462,7 @@
     border: 0 !important;
     background: var(--ios-fill) !important;
     color: var(--ios-label);
-    font-size: 17px; /* >=16px evita zoom automático no iOS */
+    font-size: 17px; /* >=16px evita zoom automÃ¡tico no iOS */
   }
 
   .form-input::placeholder {
@@ -490,7 +490,7 @@
     box-shadow: none !important;
   }
 
-  /* ---------- Tab bar flutuante (pílula translúcida, só ícones) ---------- */
+  /* ---------- Tab bar flutuante (pÃ­lula translÃºcida, sÃ³ Ã­cones) ---------- */
   .mobile-tab-bar {
     left: 50%;
     right: auto;
@@ -525,7 +525,7 @@
     transform: scale(0.9);
   }
 
-  /* Sem escrita: oculta os rótulos, mantém só o ícone */
+  /* Sem escrita: oculta os rÃ³tulos, mantÃ©m sÃ³ o Ã­cone */
   .mobile-tab-label {
     display: none !important;
   }
@@ -554,12 +554,12 @@
     background-color: var(--primary, #1B99D8);
   }
 
-  /* A barra flutua acima do conteúdo: garante respiro no fim das telas */
+  /* A barra flutua acima do conteÃºdo: garante respiro no fim das telas */
   .main-content {
     padding-bottom: calc(86px + env(safe-area-inset-bottom)) !important;
   }
 
-  /* ---------- Botão "+" central + menu de novo registro ---------- */
+  /* ---------- BotÃ£o "+" central + menu de novo registro ---------- */
   .mobile-tab-fab {
     display: flex;
     flex: 0 0 auto;
@@ -668,7 +668,7 @@
     white-space: nowrap;
   }
 
-  /* Posicionamentos específicos na curva do arco */
+  /* Posicionamentos especÃ­ficos na curva do arco */
   .radial-menu-item--meta {
     left: 2px;
     bottom: 27px;
@@ -689,7 +689,7 @@
     bottom: 27px;
   }
 
-  /* Cores específicas dos botões no arco */
+  /* Cores especÃ­ficas dos botÃµes no arco */
   .radial-menu-icon--meta {
     background: #1B99D8 !important;
   }
@@ -706,7 +706,7 @@
     background: #ff9500 !important;
   }
 
-  /* Botão fechar centralizado exatamente sobre o FAB */
+  /* BotÃ£o fechar centralizado exatamente sobre o FAB */
   .radial-menu-close {
     position: absolute;
     bottom: 0;
@@ -732,7 +732,7 @@
     transform: translateX(-50%) scale(0.92);
   }
 
-  /* ---------- Amigos / Transações com amigos (estilo Direct) ---------- */
+  /* ---------- Amigos / TransaÃ§Ãµes com amigos (estilo Direct) ---------- */
   .friends-overview-header {
     margin-bottom: 14px;
   }
@@ -753,7 +753,7 @@
   }
 
   /* Pedidos de amizade agora aparecem inline na lista (estilo "Friend
-     Requests"); o botão de cabeçalho fica redundante no mobile. */
+     Requests"); o botÃ£o de cabeÃ§alho fica redundante no mobile. */
   .friends-requests-trigger {
     display: none !important;
   }
@@ -976,10 +976,10 @@
     background: var(--ios-bg);
   }
 
-  /* ---------- Lançamento compartilhado em tela cheia (estilo iOS) ----------
-     O composer (acionado pelo botão "Lançar" da lista ou pelo FAB da
-     conversa) cobre a tela inteira no mobile, igual à folha de Ajustes,
-     em vez do bottom sheet genérico de .modal-card. */
+  /* ---------- LanÃ§amento compartilhado em tela cheia (estilo iOS) ----------
+     O composer (acionado pelo botÃ£o "LanÃ§ar" da lista ou pelo FAB da
+     conversa) cobre a tela inteira no mobile, igual Ã  folha de Ajustes,
+     em vez do bottom sheet genÃ©rico de .modal-card. */
   .shared-transaction-modal {
     position: fixed;
     inset: 0;
@@ -1032,12 +1032,12 @@
 
   /* ---------- Lista de compras ---------- */
 
-  /* Esconde botão "Nova lista" do header — fica na topbar */
+  /* Esconde botÃ£o "Nova lista" do header â€” fica na topbar */
   .shopping-page-header {
     display: none !important;
   }
 
-  /* Modal de criação/edição de lista estilo full-screen com rodapé fixado */
+  /* Modal de criaÃ§Ã£o/ediÃ§Ã£o de lista estilo full-screen com rodapÃ© fixado */
   .shopping-create-modal {
     display: flex !important;
     flex-direction: column !important;
@@ -1069,7 +1069,7 @@
     margin: 0 !important;
   }
 
-  /* Toolbar: só busca */
+  /* Toolbar: sÃ³ busca */
   .shopping-toolbar {
     padding: 0;
     border: 0;
@@ -1087,7 +1087,7 @@
     box-shadow: var(--ios-shadow-card);
   }
 
-  /* Botão + azul na topbar */
+  /* BotÃ£o + azul na topbar */
   .topbar-shopping-add-button,
   .topbar-goal-add-button {
     background: var(--ios-accent) !important;
@@ -1164,7 +1164,7 @@
     padding-bottom: calc(env(safe-area-inset-bottom) + 88px) !important;
   }
 
-  /* ---------- Estados vazios (padrão app-wide) ---------- */
+  /* ---------- Estados vazios (padrÃ£o app-wide) ---------- */
   .resource-empty-state {
     min-height: 0;
     gap: 14px;
@@ -1213,7 +1213,7 @@
   }
 
   /* ---------- Ajustes em tela cheia (estilo iOS Settings) ----------
-     No mobile o dropdown do avatar é trocado por uma tela cheia. */
+     No mobile o dropdown do avatar Ã© trocado por uma tela cheia. */
   .profile-dropdown {
     display: none !important;
   }
@@ -1414,7 +1414,7 @@
     box-sizing: border-box !important;
   }
 
-  /* Esconde ícone decorativo no mobile */
+  /* Esconde Ã­cone decorativo no mobile */
   .shopping-modal-icon {
     display: none !important;
   }
@@ -1428,7 +1428,7 @@
     margin: 0 !important;
   }
 
-  /* Ajusta o container de título nos modais (Centralizado no mobile) */
+  /* Ajusta o container de tÃ­tulo nos modais (Centralizado no mobile) */
   .modal-header > div,
   .shopping-modal-head > div,
   .friend-modal-head > div,
@@ -1466,7 +1466,7 @@
     line-height: 1.25 !important;
   }
 
-  /* Botão fechar/cancelar estilo circular com sombra */
+  /* BotÃ£o fechar/cancelar estilo circular com sombra */
   .modal-close-button,
   .shopping-modal-head button,
   .friend-modal-head button {
@@ -1484,7 +1484,7 @@
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    order: 3 !important; /* Sempre à direita */
+    order: 3 !important; /* Sempre Ã  direita */
     margin: 0 !important;
     transition: transform 0.1s ease !important;
   }
@@ -1503,11 +1503,11 @@
     color: #101820 !important;
   }
 
-  /* Suporte a modo escuro para o botão circular */
+  /* Suporte a modo escuro para o botÃ£o circular */
   :root[data-theme='dark'] .modal-close-button,
   :root[data-theme='dark'] .shopping-modal-head button,
   :root[data-theme='dark'] .friend-modal-head button {
-    background: #202b33 !important;
+    background: var(--surface-raised) !important;
     color: #ffffff !important;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3) !important;
   }
@@ -1584,7 +1584,7 @@
     box-shadow: var(--ios-shadow-card);
   }
 
-  /* ---------- Login / Recuperação / Nova senha ---------- */
+  /* ---------- Login / RecuperaÃ§Ã£o / Nova senha ---------- */
   .toodledo-login-shell {
     background: var(--ios-bg);
     padding: calc(env(safe-area-inset-top) + 16px) 24px calc(36px + env(safe-area-inset-bottom));
@@ -1665,11 +1665,11 @@
   }
 
   /* =========================================================
-     Dashboard — cards de métrica premium (brancos e calmos).
+     Dashboard â€” cards de mÃ©trica premium (brancos e calmos).
      O index.css empilha 5+ redesigns coloridos destes cards.
      O prefixo .app-layout eleva a especificidade acima de
-     todos eles e, como esta camada carrega por último, vence.
-     Acento só no ícone (parcimônia); hierarquia por tamanho.
+     todos eles e, como esta camada carrega por Ãºltimo, vence.
+     Acento sÃ³ no Ã­cone (parcimÃ´nia); hierarquia por tamanho.
      ========================================================= */
   .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card,
   .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card:hover,
@@ -1685,7 +1685,7 @@
     box-shadow: var(--ios-shadow-card) !important;
   }
 
-  /* remove gradientes/brilhos decorativos das versões antigas */
+  /* remove gradientes/brilhos decorativos das versÃµes antigas */
   .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card::before,
   .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card::after,
   .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card--success::before,
@@ -1719,7 +1719,7 @@
     color: var(--ios-label) !important;
   }
 
-  /* ícone num quadrado tonal — único ponto de cor */
+  /* Ã­cone num quadrado tonal â€” Ãºnico ponto de cor */
   .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card .signature-stat-icon {
     border-radius: 12px !important;
   }
@@ -1747,10 +1747,10 @@
   }
 
   /* =========================================================
-     MODO ESCURO (mobile) — ativado pelo toggle em Perfil.
+     MODO ESCURO (mobile) â€” ativado pelo toggle em Perfil.
      Reescreve os tokens da camada iOS; como muitas regras do
-     index.css fixam cores claras com !important, reforçamos as
-     superfícies/textos dominantes também com !important.
+     index.css fixam cores claras com !important, reforÃ§amos as
+     superfÃ­cies/textos dominantes tambÃ©m com !important.
      ========================================================= */
   :root[data-theme='dark'] {
     --ios-bg: #0a0a0b;
@@ -1768,7 +1768,7 @@
     --ios-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
 
-  /* Superfícies e textos dominantes no escuro */
+  /* SuperfÃ­cies e textos dominantes no escuro */
   :root[data-theme='dark'] .documents-report-row,
   :root[data-theme='dark'] .categories-report-grid.documents-report-row,
   :root[data-theme='dark'] .accounts-report-grid.documents-report-row,
@@ -1811,7 +1811,7 @@
     color: var(--ios-label-2) !important;
   }
 
-  /* Inputs e botões secundários no escuro */
+  /* Inputs e botÃµes secundÃ¡rios no escuro */
   :root[data-theme='dark'] .form-input,
   :root[data-theme='dark'] .form-input-wrap,
   :root[data-theme='dark'] .profile-input-wrap {
@@ -1821,8 +1821,8 @@
 }
 
 /* =========================================================
-   Card "Aparência" + switch iOS (toggle de modo escuro).
-   Fora do @media: o componente também existe no desktop.
+   Card "AparÃªncia" + switch iOS (toggle de modo escuro).
+   Fora do @media: o componente tambÃ©m existe no desktop.
    Usa valores concretos para funcionar sem os tokens --ios-*.
    ========================================================= */
 .appearance-card {
@@ -1897,7 +1897,7 @@
   transform: translateX(20px);
 }
 
-/* Aparência do card no escuro (qualquer viewport) */
+/* AparÃªncia do card no escuro (qualquer viewport) */
 :root[data-theme='dark'] .appearance-card {
   background: #1c1c1e;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -1913,7 +1913,7 @@
 }
 
 /* =========================================================
-   Relatório: cabeçalho e exportação.
+   RelatÃ³rio: cabeÃ§alho e exportaÃ§Ã£o.
    Estilos globais (claro/escuro), valem em mobile e desktop.
    ========================================================= */
 .chart-head--report {
@@ -1960,7 +1960,7 @@
 
 /* Ajustes de respiro no mobile */
 @media (max-width: 760px) {
-  /* Normalização de Tipografia Mobile: remoção do negrito excessivo e redução de textos gigantes */
+  /* NormalizaÃ§Ã£o de Tipografia Mobile: remoÃ§Ã£o do negrito excessivo e reduÃ§Ã£o de textos gigantes */
   strong, b,
   .friend-name,
   .friend-request-inline-main strong,
@@ -1998,7 +1998,7 @@
     font-weight: 600 !important;
   }
 
-  /* Barra superior de amigos no mobile: Campo de pesquisa moderno + Botão apenas ícone */
+  /* Barra superior de amigos no mobile: Campo de pesquisa moderno + BotÃ£o apenas Ã­cone */
   .friends-overview-header .dm-header-actions {
     display: none !important;
   }
@@ -2069,7 +2069,7 @@
     letter-spacing: 0.4px;
   }
 
-  /* Animação e posicionamento do botão flutuante de exportar */
+  /* AnimaÃ§Ã£o e posicionamento do botÃ£o flutuante de exportar */
   @keyframes float-fab {
     0% {
       transform: translateY(0px);
@@ -2102,7 +2102,7 @@
   }
 }
 
-/* ── Perfil mobile: abas Perfil / Categorias ── */
+/* â”€â”€ Perfil mobile: abas Perfil / Categorias â”€â”€ */
 .profile-mobile-tabs {
   display: none;
 }
@@ -2267,12 +2267,12 @@
   }
 
   :root[data-theme='dark'] .profile-mobile-tabs button.active {
-    background: #202b38;
+    background: var(--surface-raised);
     box-shadow: 0 1px 6px rgba(0,0,0,0.4);
   }
 
   :root[data-theme='dark'] .profile-category-group {
-    background: #1a2533;
+    background: var(--surface-color);
     box-shadow: none;
   }
 }
@@ -2340,7 +2340,7 @@
     color: var(--ios-label-2);
   }
 
-  /* Ocultar o botão flutuante de exportar se o overlay radial do menu Mais estiver aberto */
+  /* Ocultar o botÃ£o flutuante de exportar se o overlay radial do menu Mais estiver aberto */
   body:has(.quick-add-overlay) .dashboard-export-menu {
     display: none !important;
   }
@@ -2383,5 +2383,208 @@
   .color-value-row span {
     min-height: 48px;
     align-content: center;
+  }
+}
+/* Dark mobile alinhado com a paleta canonica do desktop. */
+@media (max-width: 760px) {
+  :root[data-theme='dark'] {
+    --ios-bg: var(--bg-color);
+    --ios-bg-elevated: var(--surface-color);
+    --ios-card: var(--surface-color);
+    --ios-card-press: var(--surface-hover);
+    --ios-fill: var(--surface-raised);
+    --ios-fill-strong: var(--surface-hover);
+    --ios-label: var(--text-primary);
+    --ios-label-2: var(--text-secondary);
+    --ios-label-3: var(--text-muted);
+    --ios-separator: var(--border-color);
+    --ios-bar: color-mix(in srgb, var(--surface-color) 92%, transparent);
+    --ios-bar-border: var(--border-color);
+    --ios-shadow-card: var(--elevation-1);
+  }
+
+  :root[data-theme='dark'] body,
+  :root[data-theme='dark'] #root,
+  :root[data-theme='dark'] .app-layout,
+  :root[data-theme='dark'] .content-layout,
+  :root[data-theme='dark'] .main-content {
+    background: var(--bg-color) !important;
+  }
+
+  :root[data-theme='dark'] .topbar,
+  :root[data-theme='dark'] .sidebar,
+  :root[data-theme='dark'] .settings-sheet,
+  :root[data-theme='dark'] .mobile-more-sheet {
+    border-color: var(--border-color) !important;
+    background: var(--ios-bar) !important;
+  }
+
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card,
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card--success,
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card--danger,
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card--warning,
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card--alert,
+  :root[data-theme='dark'] .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-card,
+  :root[data-theme='dark'] .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-card--negative,
+  :root[data-theme='dark'] .dashboard-result-card,
+  :root[data-theme='dark'] .dashboard-result-card--negative,
+  :root[data-theme='dark'] .report-summary-card,
+  :root[data-theme='dark'] .report-summary-card:nth-child(1),
+  :root[data-theme='dark'] .report-summary-card:nth-child(2),
+  :root[data-theme='dark'] .report-summary-card--balance,
+  :root[data-theme='dark'] .report-summary-card--positive,
+  :root[data-theme='dark'] .report-summary-card--negative,
+  :root[data-theme='dark'] .mobile-tx-summary-card,
+  :root[data-theme='dark'] .mobile-tx-bottom-sheet,
+  :root[data-theme='dark'] .mobile-tx-sheet-header,
+  :root[data-theme='dark'] .goal-card,
+  :root[data-theme='dark'] .report-transaction-card,
+  :root[data-theme='dark'] .launches-report-row,
+  :root[data-theme='dark'] .report-launches-row,
+  :root[data-theme='dark'] .accounts-report-grid.documents-report-row,
+  :root[data-theme='dark'] .categories-report-grid.documents-report-row {
+    border-color: var(--border-color) !important;
+    background: var(--surface-color) !important;
+    background-image: none !important;
+    color: var(--text-primary) !important;
+    box-shadow: var(--elevation-1) !important;
+  }
+
+  :root[data-theme='dark'] .main-content--dashboard .resource-panel,
+  :root[data-theme='dark'] .main-content--dashboard .documents-report {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme='dark'] .main-content--dashboard .resource-empty-state {
+    border: 1px solid var(--border-color) !important;
+    border-radius: 24px !important;
+    background: var(--surface-color) !important;
+    color: var(--text-secondary) !important;
+    box-shadow: var(--elevation-1) !important;
+  }
+
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card::before {
+    background: none !important;
+  }
+
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-card::after {
+    background: var(--sig-card-accent, var(--primary)) !important;
+  }
+
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-label,
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-value,
+  :root[data-theme='dark'] .dashboard-month-card-head span,
+  :root[data-theme='dark'] .dashboard-month-meta,
+  :root[data-theme='dark'] .dashboard-month-balance,
+  :root[data-theme='dark'] .report-summary-label,
+  :root[data-theme='dark'] .report-summary-value {
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .app-layout .main-content--dashboard .dashboard-metric-grid .signature-stat-label,
+  :root[data-theme='dark'] .dashboard-month-card-head span,
+  :root[data-theme='dark'] .dashboard-month-meta,
+  :root[data-theme='dark'] .report-summary-label {
+    color: var(--text-secondary) !important;
+  }
+
+  :root[data-theme='dark'] .main-content--dashboard .dashboard-month-card-head strong,
+  :root[data-theme='dark'] .dashboard-result-card .dashboard-month-card-head strong {
+    color: var(--primary) !important;
+  }
+
+  :root[data-theme='dark'] .main-content--dashboard .dashboard-month-card--negative .dashboard-month-card-head strong,
+  :root[data-theme='dark'] .dashboard-result-card--negative .dashboard-month-card-head strong {
+    color: #ff6b72 !important;
+  }
+
+  :root[data-theme='dark'] .main-content--dashboard .dashboard-month-track,
+  :root[data-theme='dark'] .dashboard-result-card .dashboard-month-track {
+    background: var(--surface-raised) !important;
+  }
+
+  :root[data-theme='dark'] .main-content--dashboard .dashboard-month-track span,
+  :root[data-theme='dark'] .dashboard-result-card .dashboard-month-track span {
+    background: var(--primary) !important;
+  }
+
+  :root[data-theme='dark'] .filter-popover,
+  :root[data-theme='dark'] .filter-popover-header,
+  :root[data-theme='dark'] .filter-popover-actions,
+  :root[data-theme='dark'] .modal-card,
+  :root[data-theme='dark'] .modal-header,
+  :root[data-theme='dark'] .modal-body,
+  :root[data-theme='dark'] .modal-actions,
+  :root[data-theme='dark'] .shopping-modal-body,
+  :root[data-theme='dark'] .shopping-modal-actions {
+    border-color: var(--border-color) !important;
+    background: var(--surface-color) !important;
+  }
+
+  :root[data-theme='dark'] .filter-field input,
+  :root[data-theme='dark'] .filter-field select,
+  :root[data-theme='dark'] .form-input,
+  :root[data-theme='dark'] .form-input-wrap,
+  :root[data-theme='dark'] .profile-input-wrap,
+  :root[data-theme='dark'] .profile-input-wrap input,
+  :root[data-theme='dark'] .shopping-search,
+  :root[data-theme='dark'] .shopping-field input,
+  :root[data-theme='dark'] .shopping-field textarea,
+  :root[data-theme='dark'] .shopping-add-item input {
+    border-color: var(--border-color) !important;
+    background: var(--surface-raised) !important;
+    color: var(--text-primary) !important;
+  }
+
+  :root[data-theme='dark'] .topbar-account-filter-button,
+  :root[data-theme='dark'] .topbar-category-filter-button,
+  :root[data-theme='dark'] .topbar-goal-filter-button,
+  :root[data-theme='dark'] .topbar-friend-add-button,
+  :root[data-theme='dark'] .topbar-friend-back-button,
+  :root[data-theme='dark'] .topbar-shopping-add-button,
+  :root[data-theme='dark'] .topbar-goal-add-button,
+  :root[data-theme='dark'] .topbar-more-button,
+  :root[data-theme='dark'] .topbar-right .user-profile .avatar,
+  :root[data-theme='dark'] .modal-close-button {
+    border-color: var(--border-color) !important;
+    background: var(--surface-raised) !important;
+    color: var(--text-primary) !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme='dark'] .profile-mobile-tabs button.active,
+  :root[data-theme='dark'] .friends-segmented-btn.active,
+  :root[data-theme='dark'] .friends-mobile-tabs button.active {
+    background: var(--surface-raised) !important;
+    color: var(--text-primary) !important;
+  }
+}
+/* Dark mobile monocromatico: barras pretas e textos brancos. */
+@media (max-width: 760px) {
+  :root[data-theme='dark'] .topbar,
+  :root[data-theme='dark'] .mobile-tab-bar,
+  :root[data-theme='dark'] .documents-report-head,
+  :root[data-theme='dark'] .category-table-header {
+    border-color: var(--border-color) !important;
+    background: var(--bg-color) !important;
+    background-image: none !important;
+    color: var(--text-primary) !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme='dark'] .main-content--categories > .resource-panel {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  :root[data-theme='dark'] .main-content :where(h1, h2, h3, h4, h5, h6, p, label, legend, strong, small, em, time),
+  :root[data-theme='dark'] .main-content :where(span:not([class*='icon']):not([class*='dot'])),
+  :root[data-theme='dark'] .breadcrumb-active,
+  :root[data-theme='dark'] .mobile-tab-item,
+  :root[data-theme='dark'] .mobile-tab-item--active,
+  :root[data-theme='dark'] .mobile-tab-item.active {
+    color: var(--text-primary) !important;
   }
 }
