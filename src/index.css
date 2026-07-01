@@ -2132,6 +2132,17 @@ button {
   line-height: 1.45;
 }
 
+.import-recurrence-hint {
+  color: #94a3b8 !important;
+  font-size: 11px !important;
+}
+
+.import-recurrence-hint em {
+  font-style: normal;
+  font-weight: 600;
+  color: #64748b;
+}
+
 .import-template-button {
   display: inline-flex;
   flex-shrink: 0;
@@ -13709,5 +13720,17 @@ h1, h2, h3, h4, h5, h6,
   
   .goal-btn-text {
     display: none;
+  }
+}
+
+.dm-thread-mobile-actions {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .dm-thread-mobile-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 16px 12px;
   }
 }

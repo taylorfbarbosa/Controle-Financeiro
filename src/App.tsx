@@ -6670,6 +6670,7 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
               <strong>Colunas obrigatórias</strong>
               <span>Tipo, Descrição, Valor, Vencimento e Categoria</span>
               <small>Opcionais: Recorrência e Parcelas</small>
+              <small className="import-recurrence-hint">Recorrência: <em>Fixa</em> expande até dezembro do ano da data · <em>Parcelada</em> expande pelo nº de parcelas</small>
             </div>
             <button type="button" className="import-template-button" onClick={downloadImportTemplate}>
               <FileSpreadsheet size={16} /> Baixar modelo
