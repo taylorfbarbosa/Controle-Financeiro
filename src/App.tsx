@@ -863,8 +863,14 @@ function isValidCalendarDate(value: string) {
 
 function parseImportedAmount(value: unknown) {
   if (typeof value === 'number') return Math.abs(value);
-  const text = String(value ?? '').replace(/[\u0300-\u036f]/g, '').trim();
+  // Strip currency symbols, spaces and diacritics \u2014 keep only digits, comma, dot and minus
+  const text = String(value ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\d.,-]/g, '')
+    .trim();
   if (!text) return 0;
+  // Brazilian format (1.234,56): comma is decimal, dot is thousands separator
+  // Plain format (1234.56): dot is decimal
   const normalized = text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text;
   return Math.abs(Number(normalized) || 0);
 }
@@ -985,7 +991,7 @@ async function parseExcelTransactions(file: File): Promise<ImportPreviewRow[]> {
 
     const transactions = errors.length || !type || !recurrence ? [] : generateTransactions({
       description,
-      amount: String(amount),
+      amount: String(amount).replace('.', ','),
       dueDate,
       category,
       accountId: '',
@@ -2667,7 +2673,9 @@ export function App() {
       {importOpen && (
         <ImportTransactionsModal
           onClose={() => setImportOpen(false)}
-          onImport={(items) => {
+          existingCategories={customCategories}
+          onImport={(items, newCats) => {
+            if (newCats.length) commitCustomCategories([...customCategories, ...newCats]);
             commitTransactions([...transactions, ...items]);
             const firstDate = items[0]?.dueDate;
             if (firstDate) setReferenceDate(new Date(Number(firstDate.slice(0, 4)), Number(firstDate.slice(5, 7)) - 1, 1));
@@ -6639,12 +6647,14 @@ function ImportPreviewModal({ rows, onClose }: { rows: ImportPreviewRow[]; onClo
   );
 }
 
-function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; onImport: (items: Transaction[]) => void }) {
+function ImportTransactionsModal({ onClose, onImport, existingCategories }: { onClose: () => void; onImport: (items: Transaction[], newCategories: CustomCategory[]) => void; existingCategories: CustomCategory[] }) {
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState<ImportPreviewRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [step, setStep] = useState<'review' | 'confirm-categories' | 'cancelled'>('review');
+
   const validRows = rows.filter((row) => !row.error);
   const importedTransactions = validRows.flatMap((row) => row.transactions);
   const invalidCount = rows.length - validRows.length;
@@ -6656,6 +6666,17 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
     return `${MONTH_NAMES[Number(mo) - 1]}/${y.slice(2)}`;
   }).join(', ');
 
+  const existingNames = new Set(existingCategories.map((c) => c.name.toLowerCase().trim()));
+  const newCategoryMap = new Map<string, CustomCategory>();
+  for (const row of validRows) {
+    const name = row.category.trim();
+    if (name && !existingNames.has(name.toLowerCase()) && !newCategoryMap.has(name.toLowerCase())) {
+      const kind: CustomCategory['kind'] = row.type === 'income' ? 'income' : row.type === 'expense' ? 'expense' : 'transfer';
+      newCategoryMap.set(name.toLowerCase(), { id: crypto.randomUUID(), name, kind, color: '#94a3b8', icon: 'tag' });
+    }
+  }
+  const newCategories = Array.from(newCategoryMap.values());
+
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -6664,19 +6685,11 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
     setRows([]);
     setError('');
     setPreviewOpen(false);
+    setStep('review');
 
-    if (!file.name.toLowerCase().endsWith('.xlsx')) {
-      setError('Selecione um arquivo Excel no formato .xlsx.');
-      return;
-    }
-    if (file.size > MAX_IMPORT_FILE_SIZE) {
-      setError('O arquivo deve ter no máximo 5 MB.');
-      return;
-    }
-    if (!(await isSafeXlsxContainer(file))) {
-      setError('O conteúdo do arquivo não corresponde a uma planilha XLSX válida.');
-      return;
-    }
+    if (!file.name.toLowerCase().endsWith('.xlsx')) { setError('Selecione um arquivo Excel no formato .xlsx.'); return; }
+    if (file.size > MAX_IMPORT_FILE_SIZE) { setError('O arquivo deve ter no máximo 5 MB.'); return; }
+    if (!(await isSafeXlsxContainer(file))) { setError('O conteúdo do arquivo não corresponde a uma planilha XLSX válida.'); return; }
 
     setLoading(true);
     try {
@@ -6690,6 +6703,21 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
     }
   }
 
+  function handleImportClick() {
+    if (newCategories.length > 0) { setStep('confirm-categories'); return; }
+    onImport(importedTransactions, []);
+  }
+
+  function handleConfirmCategories() {
+    onImport(importedTransactions, newCategories);
+  }
+
+  function handleCancelCategories() {
+    setStep('cancelled');
+  }
+
+  const KIND_LABELS: Record<CustomCategory['kind'], string> = { income: 'Receita', expense: 'Despesa', transfer: 'Transferência' };
+
   return (
     <>
     {previewOpen ? <ImportPreviewModal rows={rows} onClose={() => setPreviewOpen(false)} /> : null}
@@ -6700,65 +6728,110 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
           <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
         </div>
 
-        <div className="modal-body import-modal-body">
-          <label className={`import-upload${loading ? ' loading' : ''}`}>
-            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFile} disabled={loading} />
-            <span className="import-upload-icon"><Upload size={22} /></span>
-            <strong>{loading ? 'Lendo planilha...' : fileName || 'Selecionar planilha'}</strong>
-            <small>Arquivo Excel no formato .xlsx</small>
-          </label>
-
-          <div className="import-columns">
-            <div className="import-columns-info">
-              <strong>Colunas obrigatórias</strong>
-              <span>Tipo, Descrição, Valor, Vencimento e Categoria</span>
-              <small>Opcionais: Recorrência e Parcelas</small>
-              <small className="import-recurrence-hint">Recorrência: <em>Fixa</em> expande até dezembro do ano da data · <em>Parcelada</em> expande pelo nº de parcelas</small>
+        {step === 'confirm-categories' ? (
+          <>
+            <div className="modal-body import-modal-body">
+              <div className="import-alert import-alert--warning">
+                <AlertCircle size={17} />
+                <span>A planilha contém <strong>{newCategories.length}</strong> {newCategories.length === 1 ? 'categoria que não existe' : 'categorias que não existem'} no sistema. Deseja criá-{newCategories.length === 1 ? 'la' : 'las'} automaticamente e continuar a importação?</span>
+              </div>
+              <div className="import-new-categories">
+                {newCategories.map((cat) => (
+                  <div key={cat.id} className="import-new-category-row">
+                    <span className="import-new-category-dot" style={{ background: cat.color }} />
+                    <span className="import-new-category-name">{cat.name}</span>
+                    <span className={`category-type category-type--${cat.kind}`}>{KIND_LABELS[cat.kind]}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <button type="button" className="import-template-button" onClick={downloadImportTemplate}>
-              <FileSpreadsheet size={16} /> Baixar modelo
-            </button>
-          </div>
-
-          {error ? <div className="import-alert import-alert--error"><AlertCircle size={17} /><span>{error}</span></div> : null}
-
-          {rows.length ? (
-            <div className="import-info-card">
-              <div className="import-info-row">
-                <span className="import-info-label">Linhas válidas</span>
-                <strong className="import-info-value">{validRows.length}</strong>
+            <div className="modal-actions">
+              <button type="button" className="button-secondary" onClick={handleCancelCategories}>Não criar — cancelar importação</button>
+              <button type="button" className="button-primary" onClick={handleConfirmCategories}>Criar categorias e importar</button>
+            </div>
+          </>
+        ) : step === 'cancelled' ? (
+          <>
+            <div className="modal-body import-modal-body">
+              <div className="import-alert import-alert--error">
+                <AlertCircle size={17} />
+                <span>A importação foi cancelada porque há categorias não cadastradas. Ajuste as categorias na planilha ou cadastre-as manualmente antes de importar.</span>
               </div>
-              <div className="import-info-row">
-                <span className="import-info-label">Transações a criar</span>
-                <strong className="import-info-value">{importedTransactions.length}</strong>
-              </div>
-              {invalidCount > 0 ? (
-                <div className="import-info-row import-info-row--error">
-                  <span className="import-info-label">Com erro</span>
-                  <strong className="import-info-value">{invalidCount}</strong>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="button-secondary" onClick={() => setStep('review')}>Voltar</button>
+              <button type="button" className="button-primary" onClick={onClose}>Fechar</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="modal-body import-modal-body">
+              <label className={`import-upload${loading ? ' loading' : ''}`}>
+                <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFile} disabled={loading} />
+                <span className="import-upload-icon"><Upload size={22} /></span>
+                <strong>{loading ? 'Lendo planilha...' : fileName || 'Selecionar planilha'}</strong>
+                <small>Arquivo Excel no formato .xlsx</small>
+              </label>
+
+              <div className="import-columns">
+                <div className="import-columns-info">
+                  <strong>Colunas obrigatórias</strong>
+                  <span>Tipo, Descrição, Valor, Vencimento e Categoria</span>
+                  <small>Opcionais: Recorrência e Parcelas</small>
+                  <small className="import-recurrence-hint">Recorrência: <em>Fixa</em> expande até dezembro do ano da data · <em>Parcelada</em> expande pelo nº de parcelas</small>
                 </div>
-              ) : null}
-              {coveredMonths.length > 0 ? (
-                <div className="import-info-row">
-                  <span className="import-info-label">Meses cobertos</span>
-                  <span className="import-info-months">{formattedMonths}</span>
-                </div>
-              ) : null}
-              <div className="import-info-row import-info-row--action">
-                <button type="button" className="import-preview-btn" onClick={() => setPreviewOpen(true)}>
-                  <Eye size={14} /> Ver pré-visualização
+                <button type="button" className="import-template-button" onClick={downloadImportTemplate}>
+                  <FileSpreadsheet size={16} /> Baixar modelo
                 </button>
               </div>
-            </div>
-          ) : null}
-        </div>
 
-        <div className="modal-actions">
-          <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
-          <button type="button" className="button-primary" disabled={!importedTransactions.length || loading} onClick={() => onImport(importedTransactions)}>
-            Importar {importedTransactions.length || ''}
-          </button>
-        </div>
+              {error ? <div className="import-alert import-alert--error"><AlertCircle size={17} /><span>{error}</span></div> : null}
+
+              {rows.length ? (
+                <div className="import-info-card">
+                  <div className="import-info-row">
+                    <span className="import-info-label">Linhas válidas</span>
+                    <strong className="import-info-value">{validRows.length}</strong>
+                  </div>
+                  <div className="import-info-row">
+                    <span className="import-info-label">Transações a criar</span>
+                    <strong className="import-info-value">{importedTransactions.length}</strong>
+                  </div>
+                  {invalidCount > 0 ? (
+                    <div className="import-info-row import-info-row--error">
+                      <span className="import-info-label">Com erro</span>
+                      <strong className="import-info-value">{invalidCount}</strong>
+                    </div>
+                  ) : null}
+                  {coveredMonths.length > 0 ? (
+                    <div className="import-info-row">
+                      <span className="import-info-label">Meses cobertos</span>
+                      <span className="import-info-months">{formattedMonths}</span>
+                    </div>
+                  ) : null}
+                  {newCategories.length > 0 ? (
+                    <div className="import-info-row import-info-row--warning">
+                      <span className="import-info-label">Categorias novas</span>
+                      <strong className="import-info-value import-info-value--warning">{newCategories.length} serão criadas</strong>
+                    </div>
+                  ) : null}
+                  <div className="import-info-row import-info-row--action">
+                    <button type="button" className="import-preview-btn" onClick={() => setPreviewOpen(true)}>
+                      <Eye size={14} /> Ver pré-visualização
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="modal-actions">
+              <button type="button" className="button-secondary" onClick={onClose}>Cancelar</button>
+              <button type="button" className="button-primary" disabled={!importedTransactions.length || loading} onClick={handleImportClick}>
+                Importar {importedTransactions.length || ''}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
     </>

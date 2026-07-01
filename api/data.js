@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   assertSameOrigin,
+  createServiceRoleClient,
   enforceRateLimit,
   getAuthenticatedContext,
   requestFingerprint,
@@ -103,7 +104,10 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const data = await loadAll(context.client);
       const friendId = computeFriendId(context.user.id);
-      context.client.from('profiles').update({ friend_id: friendId }).eq('id', context.user.id).is('friend_id', null).then(() => {}).catch(() => {});
+      try {
+        const admin = createServiceRoleClient();
+        admin.from('profiles').update({ friend_id: friendId }).eq('id', context.user.id).then(() => {}).catch(() => {});
+      } catch (_) { /* service role unavailable, skip */ }
       return sendJson(res, 200, data);
     }
     if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });

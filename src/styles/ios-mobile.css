@@ -263,6 +263,12 @@
   .mobile-tx-top-area {
     padding-left: 0 !important;
     padding-right: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .mobile-tx-summary-carousel {
+    padding-bottom: 0 !important;
+    overflow-y: hidden !important;
   }
 
   .mobile-tx-summary-card,
@@ -274,7 +280,7 @@
     background: var(--ios-card) !important;
     border: 0 !important;
     border-radius: var(--ios-radius-card) !important;
-    box-shadow: var(--ios-shadow-card) !important;
+    box-shadow: none !important;
   }
 
   .mobile-tx-card-title {
