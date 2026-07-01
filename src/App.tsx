@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { readSheet, type Row } from 'read-excel-file/browser';
 import { jsPDF } from 'jspdf';
@@ -1384,6 +1384,7 @@ export function App() {
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches,
   );
   const [activePage, setActivePage] = useState<AppPage>('dashboard');
+  const [pendingPage, setPendingPage] = useState<AppPage>('dashboard');
   const [previousPage, setPreviousPage] = useState<AppPage>('dashboard');
   const [, startNavTransition] = useTransition();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -1543,6 +1544,8 @@ export function App() {
   }
 
   function handleNavigate(page: AppPage) {
+    // Update tab bar highlight immediately — no waiting for the heavy re-render
+    setPendingPage(page);
     startNavTransition(() => {
       setActivePage((current) => {
         if (current !== 'notifications' && current !== 'help' && current !== 'profile') {
@@ -1551,6 +1554,7 @@ export function App() {
         if (current === page) scrollContentToTop();
         return page;
       });
+      setPendingPage(page);
     });
   }
 
@@ -1578,8 +1582,8 @@ export function App() {
     return () => navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
   }, []);
 
-  useLayoutEffect(() => {
-    scrollContentToTop();
+  useEffect(() => {
+    requestAnimationFrame(() => scrollContentToTop());
   }, [activePage]);
 
   useEffect(() => {
@@ -2183,9 +2187,9 @@ export function App() {
       )}
       <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} notificationCount={notifications.filter((notification) => notification.userId === currentFriendUser.id && !notification.read).length} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendRequests={openFriendRequestsFromNotification} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
-        <Sidebar activePage={activePage} onNavigate={handleNavigate} />
+        <Sidebar activePage={pendingPage} onNavigate={handleNavigate} />
         <MobileTabBar
-          activePage={activePage}
+          activePage={pendingPage}
           onNavigate={handleNavigate}
           onNewIncome={() => { setLaunchType('income'); setLaunchOpen(true); }}
           onNewExpense={() => { setLaunchType('expense'); setLaunchOpen(true); }}

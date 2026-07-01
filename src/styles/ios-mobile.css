@@ -503,8 +503,6 @@
     gap: 2px;
     border-radius: var(--ios-radius-pill);
     background: var(--ios-bar);
-    -webkit-backdrop-filter: saturate(180%) blur(22px);
-    backdrop-filter: saturate(180%) blur(22px);
     border: 0.5px solid var(--ios-bar-border);
     border-top: 0.5px solid var(--ios-bar-border);
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
@@ -519,6 +517,7 @@
     border-radius: var(--ios-radius-pill);
     color: var(--ios-label-2);
     transition: color 0.2s ease, transform 0.15s ease, background-color 0.2s ease;
+    touch-action: manipulation;
   }
 
   .mobile-tab-item:active {

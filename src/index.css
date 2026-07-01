@@ -9642,9 +9642,7 @@ svg text {
     right: 0;
     height: calc(56px + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
-    background: rgba(15, 23, 42, 0.78);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    background: rgba(15, 23, 42, 0.96);
     border-top: 0.5px solid rgba(255, 255, 255, 0.08);
     z-index: 50;
   }
@@ -9663,6 +9661,7 @@ svg text {
     color: rgba(255, 255, 255, 0.55);
     transition: color 0.2s ease;
     cursor: pointer;
+    touch-action: manipulation;
   }
 
   .mobile-tab-item svg {
