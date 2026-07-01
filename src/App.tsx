@@ -1434,6 +1434,7 @@ export function App() {
   const [transactionSummaryMode, setTransactionSummaryMode] = useState<TransactionSummaryMode>('balance');
   const [dateFilter, setDateFilter] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ReportFilters>({ date: '', category: 'all', type: 'all' });
   const filterControlRef = useRef<HTMLDivElement>(null);
   const [accountFilters, setAccountFilters] = useState<AccountFilters>({ search: '', type: 'all' });
@@ -2412,32 +2413,63 @@ export function App() {
                     </div>
 
                     {/* Card 4: Categorias */}
-                    <div className="mobile-tx-summary-card mobile-tx-summary-card--chart">
+                    <button type="button" className="mobile-tx-summary-card mobile-tx-summary-card--chart mobile-tx-cat-btn" onClick={() => setCategoryBreakdownOpen(true)}>
                       <div className="mobile-tx-card-head">
                         <span className="mobile-tx-card-title">Categorias</span>
+                        <ChevronRight size={16} className="mobile-tx-cat-arrow" />
                       </div>
                       {mobileCategoryBreakdown.list.length === 0 ? (
                         <div className="mobile-tx-chart-empty">Sem transações no período</div>
                       ) : (
-                        <div className="mobile-tx-hbar-list">
-                          {mobileCategoryBreakdown.list.map((cat) => {
-                            const widthPct = Math.max(8, Math.round((cat.total / mobileCategoryBreakdown.max) * 100));
-                            return (
-                              <div key={cat.name} className="mobile-tx-hbar-row">
+                        <>
+                          <div className="mobile-tx-cat-preview">
+                            {mobileCategoryBreakdown.list.slice(0, 3).map((cat) => (
+                              <div key={cat.name} className="mobile-tx-cat-preview-row">
                                 <span className="mobile-tx-hbar-dot" style={{ background: cat.color }} />
-                                <span className="mobile-tx-hbar-name" title={cat.name}>{cat.name}</span>
-                                <div className="mobile-tx-hbar-track">
-                                  <div className="mobile-tx-hbar-fill" style={{ width: `${widthPct}%`, background: cat.color }} />
-                                </div>
-                                <span className="mobile-tx-hbar-val">{formatCurrency(cat.total)}</span>
+                                <span className="mobile-tx-cat-preview-name">{cat.name}</span>
+                                <span className="mobile-tx-cat-preview-val">{formatCurrency(cat.total)}</span>
                               </div>
-                            );
-                          })}
-                        </div>
+                            ))}
+                          </div>
+                          {mobileCategoryBreakdown.list.length > 3 && (
+                            <span className="mobile-tx-cat-more">+{mobileCategoryBreakdown.list.length - 3} mais · toque para ver tudo</span>
+                          )}
+                        </>
                       )}
-                    </div>
+                    </button>
                   </div>
                 </section>
+
+                {categoryBreakdownOpen && (
+                  <div className="mobile-cat-modal-overlay" onClick={() => setCategoryBreakdownOpen(false)}>
+                    <div className="mobile-cat-modal" onClick={(e) => e.stopPropagation()}>
+                      <div className="mobile-cat-modal-header">
+                        <strong>Categorias do mês</strong>
+                        <button type="button" className="filter-popover-close" onClick={() => setCategoryBreakdownOpen(false)} aria-label="Fechar"><X size={18} /></button>
+                      </div>
+                      <div className="mobile-cat-modal-body">
+                        {mobileCategoryBreakdown.list.map((cat) => {
+                          const pct = Math.round((cat.total / mobileCategoryBreakdown.max) * 100);
+                          const totalAll = mobileCategoryBreakdown.list.reduce((s, c) => s + c.total, 0);
+                          const share = totalAll > 0 ? Math.round((cat.total / totalAll) * 100) : 0;
+                          return (
+                            <div key={cat.name} className="mobile-cat-modal-row">
+                              <div className="mobile-cat-modal-top">
+                                <span className="mobile-tx-hbar-dot" style={{ background: cat.color }} />
+                                <span className="mobile-cat-modal-name">{cat.name}</span>
+                                <span className="mobile-cat-modal-pct">{share}%</span>
+                                <span className="mobile-cat-modal-val">{formatCurrency(cat.total)}</span>
+                              </div>
+                              <div className="mobile-tx-hbar-track">
+                                <div className="mobile-tx-hbar-fill" style={{ width: `${Math.max(4, pct)}%`, background: cat.color }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {filterOpen ? (
                   <div className="filter-popover filter-popover--mobile" role="dialog" aria-label="Filtros das transações">
