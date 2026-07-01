@@ -5503,6 +5503,11 @@ function MobileSettingsSheet({
           </button>
         </div>
         <div className="settings-group">
+          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('categories'); }}>
+            <span className="settings-row-icon settings-row-icon--orange"><Tags size={16} /></span>
+            <span className="settings-row-label">Categorias</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
           <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('friends'); }}>
             <span className="settings-row-icon settings-row-icon--blue"><Users size={16} /></span>
             <span className="settings-row-label">Amigos</span>
