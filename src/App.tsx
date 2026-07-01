@@ -2366,11 +2366,11 @@ export function App() {
                           <span className="mobile-tx-card-title">Receitas</span>
                         </div>
                         <div className="mobile-tx-card-right">
-                          <div className="mobile-tx-card-value">{formatCurrency(summary.income - (summary.pendingIncome ?? 0))}</div>
+                          <div className="mobile-tx-card-value">{formatCurrency(summary.income)}</div>
                         </div>
                       </div>
                       <div className="mobile-tx-card-footer">
-                        <span>Previsto: <strong>{formatCurrency(summary.income)}</strong></span>
+                        <span>Recebido: <strong>{formatCurrency(summary.income - (summary.pendingIncome ?? 0))}</strong></span>
                         <span className="mobile-tx-card-subval">A receber: {formatCurrency(summary.pendingIncome ?? 0)}</span>
                       </div>
                     </div>
@@ -2383,11 +2383,11 @@ export function App() {
                           <span className="mobile-tx-card-title">Despesas</span>
                         </div>
                         <div className="mobile-tx-card-right">
-                          <div className="mobile-tx-card-value">{formatCurrency(summary.expense - (summary.pendingExpense ?? 0))}</div>
+                          <div className="mobile-tx-card-value">{formatCurrency(summary.expense)}</div>
                         </div>
                       </div>
                       <div className="mobile-tx-card-footer">
-                        <span>Previsto: <strong>{formatCurrency(summary.expense)}</strong></span>
+                        <span>Pago: <strong>{formatCurrency(summary.expense - (summary.pendingExpense ?? 0))}</strong></span>
                         <span className="mobile-tx-card-subval">A pagar: {formatCurrency(summary.pendingExpense ?? 0)}</span>
                       </div>
                     </div>
@@ -2400,11 +2400,11 @@ export function App() {
                           <span className="mobile-tx-card-title">Saldo</span>
                         </div>
                         <div className="mobile-tx-card-right">
-                          <div className="mobile-tx-card-value">{formatCurrency((summary.income - (summary.pendingIncome ?? 0)) - (summary.expense - (summary.pendingExpense ?? 0)))}</div>
+                          <div className="mobile-tx-card-value">{formatCurrency(summary.balance)}</div>
                         </div>
                       </div>
                       <div className="mobile-tx-card-footer">
-                        <span>Previsto: <strong>{formatCurrency(summary.balance)}</strong></span>
+                        <span>Realizado: <strong>{formatCurrency((summary.income - (summary.pendingIncome ?? 0)) - (summary.expense - (summary.pendingExpense ?? 0)))}</strong></span>
                         <span className="mobile-tx-card-trend">
                           {summary.balance >= 0 ? <TrendingUp size={14} className="trend-up" /> : <TrendingDown size={14} className="trend-down" />}
                         </span>
@@ -6520,26 +6520,37 @@ function TransactionSummaryCard({ summary, activeMode, onModeChange }: { summary
 }
 
 function TransactionSummaryStats({ summary }: { summary: { income: number; expense: number; balance: number; pendingIncome?: number; pendingExpense?: number } }) {
+  const settledIncome = summary.income - (summary.pendingIncome ?? 0);
+  const settledExpense = summary.expense - (summary.pendingExpense ?? 0);
   return (
     <div className="transaction-summary-stats">
-      <MetricCard label="Receita" value={formatCurrency(summary.income)} tone="info" icon={<TrendingUp size={18} />} />
-      <MetricCard label="Despesas" value={formatCurrency(summary.expense)} tone="danger" icon={<TrendingDown size={18} />} />
+      <MetricCard label="Receita" value={formatCurrency(summary.income)} tone="info" icon={<TrendingUp size={18} />}
+        sub1={`Recebido: ${formatCurrency(settledIncome)}`} sub2={`A receber: ${formatCurrency(summary.pendingIncome ?? 0)}`} />
+      <MetricCard label="Despesas" value={formatCurrency(summary.expense)} tone="danger" icon={<TrendingDown size={18} />}
+        sub1={`Pago: ${formatCurrency(settledExpense)}`} sub2={`A pagar: ${formatCurrency(summary.pendingExpense ?? 0)}`} />
       <MetricCard
         label="Saldo"
         value={formatCurrency(summary.balance)}
         tone={summary.balance >= 0 ? 'info' : 'danger'}
         icon={<CircleDollarSign size={18} />}
+        sub1={`Realizado: ${formatCurrency(settledIncome - settledExpense)}`}
       />
     </div>
   );
 }
-function MetricCard({ label, value, icon, tone }: { label: string; value: string; icon: ReactNode; tone: string }) {
+function MetricCard({ label, value, icon, tone, sub1, sub2 }: { label: string; value: string; icon: ReactNode; tone: string; sub1?: string; sub2?: string }) {
   return (
     <article className={`signature-stat-card signature-stat-card--${tone}`}>
       <span className="signature-stat-icon">{icon}</span>
       <span className="signature-stat-copy">
         <span className="signature-stat-label">{label}</span>
         <strong className="signature-stat-value">{value}</strong>
+        {(sub1 || sub2) && (
+          <span className="signature-stat-subs">
+            {sub1 && <span>{sub1}</span>}
+            {sub2 && <span>{sub2}</span>}
+          </span>
+        )}
       </span>
     </article>
   );
