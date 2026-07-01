@@ -6607,14 +6607,54 @@ function LaunchModal({ accounts, incomeCategories, expenseCategories, initialTyp
     </div>
   );
 }
+function ImportPreviewModal({ rows, onClose }: { rows: ImportPreviewRow[]; onClose: () => void }) {
+  return createPortal(
+    <div className="modal-overlay import-preview-overlay" onClick={onClose}>
+      <div className="modal-card import-preview-modal" role="dialog" aria-modal="true" aria-label="Pré-visualização" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2 className="modal-title modal-title-only">Pré-visualização</h2>
+          <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+        </div>
+        <div className="import-preview-modal-body">
+          <div className="import-preview">
+            <div className="import-preview-head">
+              <span>Linha</span><span>Tipo</span><span>Descrição</span><span>Categoria</span><span>Vencimento</span><span>Valor</span><span>Status</span>
+            </div>
+            {rows.map((row) => (
+              <div key={row.rowNumber} className={`import-preview-row${row.error ? ' invalid' : ''}`}>
+                <span>{row.rowNumber}</span>
+                <span>{row.type === 'income' ? 'Receita' : row.type === 'expense' ? 'Despesa' : '-'}</span>
+                <strong>{row.description || '-'}</strong>
+                <span>{row.category || '-'}</span>
+                <span>{row.dueDate ? formatDate(row.dueDate) : '-'}</span>
+                <span>{row.amount > 0 ? formatCurrency(row.amount) : '-'}</span>
+                <span className={row.error ? 'import-row-error' : 'import-row-valid'}>{row.error || 'Válida'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; onImport: (items: Transaction[]) => void }) {
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState<ImportPreviewRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const validRows = rows.filter((row) => !row.error);
   const importedTransactions = validRows.flatMap((row) => row.transactions);
   const invalidCount = rows.length - validRows.length;
+
+  const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const coveredMonths = Array.from(new Set(importedTransactions.map((t) => t.dueDate.slice(0, 7)))).sort();
+  const formattedMonths = coveredMonths.map((m) => {
+    const [y, mo] = m.split('-');
+    return `${MONTH_NAMES[Number(mo) - 1]}/${y.slice(2)}`;
+  }).join(', ');
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -6623,6 +6663,7 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
     setFileName(file.name.slice(0, 180));
     setRows([]);
     setError('');
+    setPreviewOpen(false);
 
     if (!file.name.toLowerCase().endsWith('.xlsx')) {
       setError('Selecione um arquivo Excel no formato .xlsx.');
@@ -6650,6 +6691,8 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
   }
 
   return (
+    <>
+    {previewOpen ? <ImportPreviewModal rows={rows} onClose={() => setPreviewOpen(false)} /> : null}
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card import-modal" role="dialog" aria-modal="true" aria-labelledby="import-modal-title" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
@@ -6680,31 +6723,33 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
           {error ? <div className="import-alert import-alert--error"><AlertCircle size={17} /><span>{error}</span></div> : null}
 
           {rows.length ? (
-            <>
-              <div className="import-summary">
-                <span><strong>{validRows.length}</strong> linhas válidas</span>
-                <span><strong>{importedTransactions.length}</strong> transações serão criadas</span>
-                {invalidCount ? <span className="has-error"><strong>{invalidCount}</strong> com erro</span> : null}
+            <div className="import-info-card">
+              <div className="import-info-row">
+                <span className="import-info-label">Linhas válidas</span>
+                <strong className="import-info-value">{validRows.length}</strong>
               </div>
-
-              <div className="import-preview">
-                <div className="import-preview-head">
-                  <span>Linha</span><span>Tipo</span><span>Descrição</span><span>Categoria</span><span>Vencimento</span><span>Valor</span><span>Status</span>
+              <div className="import-info-row">
+                <span className="import-info-label">Transações a criar</span>
+                <strong className="import-info-value">{importedTransactions.length}</strong>
+              </div>
+              {invalidCount > 0 ? (
+                <div className="import-info-row import-info-row--error">
+                  <span className="import-info-label">Com erro</span>
+                  <strong className="import-info-value">{invalidCount}</strong>
                 </div>
-                {rows.slice(0, 8).map((row) => (
-                  <div key={row.rowNumber} className={`import-preview-row${row.error ? ' invalid' : ''}`}>
-                    <span>{row.rowNumber}</span>
-                    <span>{row.type === 'income' ? 'Receita' : row.type === 'expense' ? 'Despesa' : '-'}</span>
-                    <strong>{row.description || '-'}</strong>
-                    <span>{row.category || '-'}</span>
-                    <span>{row.dueDate ? formatDate(row.dueDate) : '-'}</span>
-                    <span>{row.amount > 0 ? formatCurrency(row.amount) : '-'}</span>
-                    <span className={row.error ? 'import-row-error' : 'import-row-valid'}>{row.error || 'Válida'}</span>
-                  </div>
-                ))}
-                {rows.length > 8 ? <div className="import-preview-more">Mais {rows.length - 8} linhas na planilha</div> : null}
+              ) : null}
+              {coveredMonths.length > 0 ? (
+                <div className="import-info-row">
+                  <span className="import-info-label">Meses cobertos</span>
+                  <span className="import-info-months">{formattedMonths}</span>
+                </div>
+              ) : null}
+              <div className="import-info-row import-info-row--action">
+                <button type="button" className="import-preview-btn" onClick={() => setPreviewOpen(true)}>
+                  <Eye size={14} /> Ver pré-visualização
+                </button>
               </div>
-            </>
+            </div>
           ) : null}
         </div>
 
@@ -6716,6 +6761,7 @@ function ImportTransactionsModal({ onClose, onImport }: { onClose: () => void; o
         </div>
       </div>
     </div>
+    </>
   );
 }
 

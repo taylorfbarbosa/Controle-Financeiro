@@ -2268,6 +2268,91 @@ button {
   font-weight: 750;
 }
 
+.import-info-card {
+  border: 1px solid #e2eaf0;
+  border-radius: 12px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.import-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 16px;
+  border-bottom: 1px solid #e8f0f4;
+  gap: 12px;
+}
+
+.import-info-row:last-child {
+  border-bottom: 0;
+}
+
+.import-info-row--error {
+  background: #fff8f8;
+}
+
+.import-info-row--action {
+  justify-content: flex-start;
+  padding: 10px 16px;
+  background: #f0f7fa;
+}
+
+.import-info-label {
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.import-info-value {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.import-info-row--error .import-info-value {
+  color: #b42318;
+}
+
+.import-info-months {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0369a1;
+  text-align: right;
+}
+
+.import-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1B99D8;
+}
+
+.import-preview-btn:hover {
+  color: #1580b8;
+  text-decoration: underline;
+}
+
+.import-preview-overlay {
+  z-index: 1100 !important;
+}
+
+.import-preview-modal {
+  max-width: 880px !important;
+  width: 95vw !important;
+}
+
+.import-preview-modal-body {
+  overflow-y: auto;
+  max-height: 65vh;
+  padding: 0 20px 20px;
+}
+
 .import-preview-more {
   width: 800px;
   padding: 10px 12px;
