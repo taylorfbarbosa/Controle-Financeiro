@@ -17,13 +17,16 @@
 }
 
 :root[data-theme='dark'] {
-  --bg-color: #0f1923;
-  --surface-color: #1a2533;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --border-color: #2d3a48;
-  --elevation-1: 0 1px 4px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3);
-  --elevation-2: 0 4px 16px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.4);
+  --bg-color: #0e1013;
+  --surface-color: #181b20;
+  --surface-raised: #20242a;
+  --surface-hover: #272c33;
+  --text-primary: #f4f5f7;
+  --text-secondary: #a6acb7;
+  --text-muted: #777f8c;
+  --border-color: #30353d;
+  --elevation-1: 0 1px 4px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --elevation-2: 0 10px 30px rgba(0, 0, 0, 0.28), 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 * {
@@ -13872,4 +13875,755 @@ h1, h2, h3, h4, h5, h6,
     justify-content: flex-end;
     padding: 0 16px 12px;
   }
+}
+/* =====================================================================
+   DARK MODE CANONICO - paleta neutra compartilhada por todo o sistema
+   ===================================================================== */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] body,
+:root[data-theme='dark'] #root,
+:root[data-theme='dark'] .app-layout,
+:root[data-theme='dark'] .content-layout,
+:root[data-theme='dark'] .main-content {
+  background: var(--bg-color) !important;
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .topbar,
+:root[data-theme='dark'] .profile-dropdown,
+:root[data-theme='dark'] .topbar-actions-popover,
+:root[data-theme='dark'] .report-export-popover,
+:root[data-theme='dark'] .row-actions-menu,
+:root[data-theme='dark'] .goal-actions-popover,
+:root[data-theme='dark'] .month-nav-popover,
+:root[data-theme='dark'] .category-icon-picker-dialog {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--elevation-2) !important;
+}
+
+:root[data-theme='dark'] .topbar {
+  box-shadow: 0 1px 0 var(--border-color) !important;
+}
+
+:root[data-theme='dark'] .user-profile:hover,
+:root[data-theme='dark'] .user-profile.active,
+:root[data-theme='dark'] .profile-menu-item:hover,
+:root[data-theme='dark'] .topbar-actions-popover button:hover,
+:root[data-theme='dark'] .report-export-popover button:hover,
+:root[data-theme='dark'] .row-actions-item:hover,
+:root[data-theme='dark'] .row-action-item:hover {
+  background: var(--surface-hover) !important;
+}
+
+:root[data-theme='dark'] .profile-menu-item,
+:root[data-theme='dark'] .topbar-actions-popover button,
+:root[data-theme='dark'] .report-export-popover button,
+:root[data-theme='dark'] .row-actions-item,
+:root[data-theme='dark'] .row-action-item {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .resource-panel,
+:root[data-theme='dark'] .documents-report,
+:root[data-theme='dark'] .documents-report-body,
+:root[data-theme='dark'] .signature-stat-card,
+:root[data-theme='dark'] .transaction-summary-card,
+:root[data-theme='dark'] .report-summary-card,
+:root[data-theme='dark'] .goal-card,
+:root[data-theme='dark'] .category-table-column,
+:root[data-theme='dark'] .help-card,
+:root[data-theme='dark'] .help-flow-card,
+:root[data-theme='dark'] .help-center-guide,
+:root[data-theme='dark'] .profile-registration-card,
+:root[data-theme='dark'] .profile-friend-id-card,
+:root[data-theme='dark'] .profile-category-group,
+:root[data-theme='dark'] .friends-overview-panel,
+:root[data-theme='dark'] .friends-section,
+:root[data-theme='dark'] .shared-transactions-panel,
+:root[data-theme='dark'] .shared-card,
+:root[data-theme='dark'] .shared-approval-card,
+:root[data-theme='dark'] .push-settings-card,
+:root[data-theme='dark'] .notif-feed,
+:root[data-theme='dark'] .appearance-card,
+:root[data-theme='dark'] .shopping-toolbar,
+:root[data-theme='dark'] .shopping-list-card,
+:root[data-theme='dark'] .shopping-detail-head,
+:root[data-theme='dark'] .shopping-summary > div,
+:root[data-theme='dark'] .shopping-add-item,
+:root[data-theme='dark'] .shopping-items-panel {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  background-image: none !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--elevation-1) !important;
+}
+
+:root[data-theme='dark'] .documents-report-head,
+:root[data-theme='dark'] .category-table-head,
+:root[data-theme='dark'] .shopping-items-columns,
+:root[data-theme='dark'] .push-preferences-list,
+:root[data-theme='dark'] .push-preference-row,
+:root[data-theme='dark'] .shopping-card-metrics span,
+:root[data-theme='dark'] .report-scope,
+:root[data-theme='dark'] .friends-segmented-bar {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .documents-report-row,
+:root[data-theme='dark'] .category-table-row,
+:root[data-theme='dark'] .report-transaction-card,
+:root[data-theme='dark'] .launches-report-row,
+:root[data-theme='dark'] .report-launches-row,
+:root[data-theme='dark'] .accounts-report-grid.documents-report-row,
+:root[data-theme='dark'] .categories-report-grid.documents-report-row,
+:root[data-theme='dark'] .notif-item,
+:root[data-theme='dark'] .shopping-item-row {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme='dark'] .documents-report-row:hover,
+:root[data-theme='dark'] .category-table-row:hover,
+:root[data-theme='dark'] .report-transaction-card:hover,
+:root[data-theme='dark'] .launches-report-row:hover,
+:root[data-theme='dark'] .report-launches-row:hover,
+:root[data-theme='dark'] .dm-conversation-identity:hover {
+  background: var(--surface-hover) !important;
+}
+
+:root[data-theme='dark'] .main-content--dashboard .dashboard-metric-grid .signature-stat-card,
+:root[data-theme='dark'] .main-content--dashboard .dashboard-metric-grid .signature-stat-card:hover,
+:root[data-theme='dark'] .dashboard-result-card,
+:root[data-theme='dark'] .dashboard-result-card--negative,
+:root[data-theme='dark'] .dashboard-month-card,
+:root[data-theme='dark'] .dashboard-month-card--negative,
+:root[data-theme='dark'] .dashboard-quick-card,
+:root[data-theme='dark'] .main-content--dashboard .chart-panel {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  background-image: none !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--elevation-1) !important;
+}
+
+:root[data-theme='dark'] .signature-stat-label,
+:root[data-theme='dark'] .dashboard-month-card-head span,
+:root[data-theme='dark'] .dashboard-month-meta,
+:root[data-theme='dark'] .dashboard-quick-label,
+:root[data-theme='dark'] .chart-head span,
+:root[data-theme='dark'] .report-summary-label,
+:root[data-theme='dark'] .shopping-card-metrics small,
+:root[data-theme='dark'] .shopping-card-footer,
+:root[data-theme='dark'] .shopping-summary small {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .signature-stat-value,
+:root[data-theme='dark'] .dashboard-month-balance,
+:root[data-theme='dark'] .dashboard-quick-card strong,
+:root[data-theme='dark'] .report-summary-value,
+:root[data-theme='dark'] .account-balance,
+:root[data-theme='dark'] .goal-card-name,
+:root[data-theme='dark'] .shopping-card-main h2,
+:root[data-theme='dark'] .shopping-card-metrics strong,
+:root[data-theme='dark'] .shopping-summary strong,
+:root[data-theme='dark'] .shopping-item-name strong,
+:root[data-theme='dark'] .shopping-item-row > strong {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .main-content--dashboard .dashboard-metric-grid .signature-stat-icon {
+  background: color-mix(in srgb, var(--sig-card-accent, var(--primary)) 14%, transparent) !important;
+  color: var(--sig-card-accent, var(--primary)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sig-card-accent, var(--primary)) 22%, transparent) !important;
+}
+
+:root[data-theme='dark'] .main-content--dashboard .dashboard-metric-grid .signature-stat-card::before {
+  background: none !important;
+}
+
+:root[data-theme='dark'] .dashboard-month-card-head strong,
+:root[data-theme='dark'] .dashboard-result-card .dashboard-month-card-head strong {
+  color: var(--primary) !important;
+}
+
+:root[data-theme='dark'] .dashboard-month-card--negative .dashboard-month-card-head strong,
+:root[data-theme='dark'] .dashboard-result-card--negative .dashboard-month-card-head strong {
+  color: #ff6b72 !important;
+}
+
+:root[data-theme='dark'] .dashboard-month-track,
+:root[data-theme='dark'] .dashboard-quick-track,
+:root[data-theme='dark'] .goal-track-bg,
+:root[data-theme='dark'] .mobile-tx-col-track {
+  background: var(--surface-raised) !important;
+}
+
+:root[data-theme='dark'] .resource-empty-state {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  color: var(--text-muted) !important;
+}
+
+:root[data-theme='dark'] .resource-empty-state strong,
+:root[data-theme='dark'] .notif-empty strong,
+:root[data-theme='dark'] .shopping-empty h2 {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .resource-empty-state p,
+:root[data-theme='dark'] .notif-empty,
+:root[data-theme='dark'] .shopping-empty p {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .modal-card,
+:root[data-theme='dark'] .modal-header,
+:root[data-theme='dark'] .modal-body,
+:root[data-theme='dark'] .modal-actions,
+:root[data-theme='dark'] .filter-popover,
+:root[data-theme='dark'] .filter-popover-header,
+:root[data-theme='dark'] .filter-popover-actions,
+:root[data-theme='dark'] .shopping-modal-body,
+:root[data-theme='dark'] .shopping-modal-actions,
+:root[data-theme='dark'] .shopping-confirm-modal {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .form-input,
+:root[data-theme='dark'] .form-input-wrap,
+:root[data-theme='dark'] .filter-field input,
+:root[data-theme='dark'] .filter-field select,
+:root[data-theme='dark'] .profile-input-wrap,
+:root[data-theme='dark'] .profile-input-wrap input,
+:root[data-theme='dark'] .help-center-field select,
+:root[data-theme='dark'] .shopping-search,
+:root[data-theme='dark'] .shopping-field input,
+:root[data-theme='dark'] .shopping-field textarea,
+:root[data-theme='dark'] .shopping-add-item input {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme='dark'] .form-input::placeholder,
+:root[data-theme='dark'] .filter-field input::placeholder,
+:root[data-theme='dark'] .profile-input-wrap input::placeholder,
+:root[data-theme='dark'] .shopping-field input::placeholder,
+:root[data-theme='dark'] .shopping-field textarea::placeholder,
+:root[data-theme='dark'] .shopping-add-item input::placeholder {
+  color: var(--text-muted) !important;
+}
+
+:root[data-theme='dark'] .button-secondary,
+:root[data-theme='dark'] .page-secondary-action,
+:root[data-theme='dark'] .filter-trigger,
+:root[data-theme='dark'] .category-action-button,
+:root[data-theme='dark'] .account-icon-option,
+:root[data-theme='dark'] .settlement-action-button,
+:root[data-theme='dark'] .bulk-bar-button,
+:root[data-theme='dark'] .goal-button,
+:root[data-theme='dark'] .shopping-item-actions button,
+:root[data-theme='dark'] .shopping-duplicate-button,
+:root[data-theme='dark'] .modal-close-button {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .recharts-cartesian-grid line,
+:root[data-theme='dark'] .recharts-reference-line line {
+  stroke: var(--border-color) !important;
+}
+
+:root[data-theme='dark'] .recharts-cartesian-axis-tick-value,
+:root[data-theme='dark'] .recharts-legend-item-text {
+  fill: var(--text-secondary) !important;
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme='dark'] .recharts-default-tooltip {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+/* Ajuste final do dark: estruturas pretas e tipografia sempre legivel. */
+:root[data-theme='dark'] .topbar,
+:root[data-theme='dark'] .sidebar,
+:root[data-theme='dark'] .mobile-tab-bar,
+:root[data-theme='dark'] .documents-report-head,
+:root[data-theme='dark'] .category-table-header,
+:root[data-theme='dark'] .sidebar-root-tooltip {
+  border-color: var(--border-color) !important;
+  background: var(--bg-color) !important;
+  background-image: none !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme='dark'] .topbar-logo--desktop {
+  filter: brightness(0) invert(1) !important;
+}
+
+:root[data-theme='dark'] .breadcrumbs,
+:root[data-theme='dark'] .breadcrumb-active,
+:root[data-theme='dark'] .breadcrumb-current,
+:root[data-theme='dark'] .breadcrumb-parent,
+:root[data-theme='dark'] .topbar .user-name,
+:root[data-theme='dark'] .topbar .profile-chevron,
+:root[data-theme='dark'] .topbar .home-icon,
+:root[data-theme='dark'] .topbar .breadcrumb-chevron,
+:root[data-theme='dark'] .documents-report-head,
+:root[data-theme='dark'] .category-table-title,
+:root[data-theme='dark'] .category-table-head,
+:root[data-theme='dark'] .category-table-empty,
+:root[data-theme='dark'] .category-report-name,
+:root[data-theme='dark'] .category-desktop-label,
+:root[data-theme='dark'] .account-main,
+:root[data-theme='dark'] .account-main > strong,
+:root[data-theme='dark'] .launch-category-name,
+:root[data-theme='dark'] .launch-description,
+:root[data-theme='dark'] .report-card-title,
+:root[data-theme='dark'] .report-card-amount {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .main-content :where(h1, h2, h3, h4, h5, h6, p, label, legend, strong, small, em, time),
+:root[data-theme='dark'] .main-content :where(span:not([class*='icon']):not([class*='dot'])) {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .profile-dropdown :where(strong, span, small, p),
+:root[data-theme='dark'] .modal-card :where(h1, h2, h3, h4, p, label, legend, strong, span, small),
+:root[data-theme='dark'] .filter-popover :where(strong, span, label, small) {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .main-content--categories > .resource-panel {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme='dark'] .category-table-column {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+}
+
+:root[data-theme='dark'] .category-table-header,
+:root[data-theme='dark'] .documents-report-head {
+  border-bottom-color: var(--border-color) !important;
+}
+
+:root[data-theme='dark'] .category-table-count {
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .category-table-head {
+  border-color: var(--border-color) !important;
+  background: var(--surface-raised) !important;
+}
+
+:root[data-theme='dark'] .category-table-row,
+:root[data-theme='dark'] .category-table-row:hover,
+:root[data-theme='dark'] .category-table-row.is-selected {
+  border-color: var(--border-color) !important;
+  background: var(--surface-color) !important;
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .sidebar-dashboard,
+:root[data-theme='dark'] .sidebar-dashboard:hover,
+:root[data-theme='dark'] .sidebar-dashboard.active {
+  color: var(--text-primary) !important;
+}
+
+:root[data-theme='dark'] .sidebar-dashboard:hover,
+:root[data-theme='dark'] .sidebar-dashboard.active,
+:root[data-theme='dark'] .sidebar-dashboard-mark {
+  background: var(--surface-raised) !important;
+  box-shadow: inset 0 0 0 1px var(--border-color) !important;
+}
+
+:root[data-theme='dark'] .mobile-tab-item,
+:root[data-theme='dark'] .mobile-tab-item--active,
+:root[data-theme='dark'] .mobile-tab-item.active {
+  color: var(--text-primary) !important;
+}
+
+/* =============================================================
+   DARK MODE — REVISÃO COMPLETA
+   Unifica paleta, garante legibilidade em todo o sistema.
+   ============================================================= */
+
+/* Fundo geral */
+:root[data-theme='dark'] body,
+:root[data-theme='dark'] #root,
+:root[data-theme='dark'] .app-layout,
+:root[data-theme='dark'] .content-layout,
+:root[data-theme='dark'] .main-content {
+  background: var(--bg-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Sidebar */
+:root[data-theme='dark'] .sidebar {
+  background: var(--bg-color) !important;
+  background-image: none !important;
+  box-shadow: inset -1px 0 0 var(--border-color) !important;
+}
+:root[data-theme='dark'] .sidebar-root-group::before {
+  background: var(--primary) !important;
+}
+:root[data-theme='dark'] .sidebar-dashboard {
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+:root[data-theme='dark'] .sidebar-dashboard:hover,
+:root[data-theme='dark'] .sidebar-dashboard.active {
+  background: var(--surface-raised) !important;
+  box-shadow: inset 0 0 0 1px var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .sidebar-dashboard-mark {
+  background: var(--surface-raised) !important;
+  box-shadow: none !important;
+}
+:root[data-theme='dark'] .sidebar-root-tooltip {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--elevation-2) !important;
+}
+
+/* Topbar */
+:root[data-theme='dark'] .topbar {
+  background: var(--bg-color) !important;
+  background-image: none !important;
+  border-bottom-color: var(--border-color) !important;
+  box-shadow: none !important;
+}
+:root[data-theme='dark'] .brand-mark {
+  background: var(--surface-raised) !important;
+}
+:root[data-theme='dark'] .topbar-separator {
+  background: var(--border-color) !important;
+}
+:root[data-theme='dark'] .topbar-icon-btn {
+  color: var(--text-secondary) !important;
+  background: transparent !important;
+}
+:root[data-theme='dark'] .topbar-icon-btn:hover {
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .brand-text,
+:root[data-theme='dark'] .page-title,
+:root[data-theme='dark'] .breadcrumb-current,
+:root[data-theme='dark'] .breadcrumb-active {
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .page-subtitle,
+:root[data-theme='dark'] .breadcrumb-parent {
+  color: var(--text-secondary) !important;
+}
+
+/* Logo branca em dark — desktop e mobile */
+:root[data-theme='dark'] .topbar-logo--desktop,
+:root[data-theme='dark'] .topbar-logo--mobile {
+  filter: brightness(0) invert(1) !important;
+}
+
+/* Signature stat cards — remove gradients coloridos */
+:root[data-theme='dark'] .signature-stat-card,
+:root[data-theme='dark'] .signature-stat-card--info,
+:root[data-theme='dark'] .signature-stat-card--success,
+:root[data-theme='dark'] .signature-stat-card--warning,
+:root[data-theme='dark'] .signature-stat-card--danger,
+:root[data-theme='dark'] .signature-stat-card--alert {
+  background: var(--surface-color) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .signature-stat-value {
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .signature-stat-label {
+  color: var(--text-secondary) !important;
+}
+:root[data-theme='dark'] .signature-stat-card strong,
+:root[data-theme='dark'] .signature-stat-card--info strong,
+:root[data-theme='dark'] .signature-stat-card--success strong,
+:root[data-theme='dark'] .signature-stat-card--warning strong,
+:root[data-theme='dark'] .signature-stat-card--alert strong,
+:root[data-theme='dark'] .signature-stat-card--danger strong {
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .signature-stat-card::before {
+  background: none !important;
+}
+
+/* Modal */
+:root[data-theme='dark'] .modal-card {
+  background: var(--surface-color) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .modal-header {
+  border-bottom-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .modal-body {
+  background: var(--surface-color) !important;
+}
+:root[data-theme='dark'] .modal-actions {
+  background: var(--surface-color) !important;
+  border-top-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .modal-close-button {
+  background: var(--surface-raised) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .modal-title,
+:root[data-theme='dark'] .modal-subtitle {
+  color: var(--text-primary) !important;
+}
+
+/* Botões */
+:root[data-theme='dark'] .button-secondary,
+:root[data-theme='dark'] .page-secondary-action {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .button-secondary:hover,
+:root[data-theme='dark'] .page-secondary-action:hover {
+  background: var(--surface-hover) !important;
+}
+
+/* Filtros */
+:root[data-theme='dark'] .filter-trigger {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .filter-popover {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--elevation-2) !important;
+}
+:root[data-theme='dark'] .filter-popover-header {
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .filter-field span {
+  color: var(--text-secondary) !important;
+}
+:root[data-theme='dark'] .filter-field select,
+:root[data-theme='dark'] .filter-field input {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .filter-popover-actions {
+  background: var(--surface-raised) !important;
+  border-top-color: var(--border-color) !important;
+}
+
+/* Formulários */
+:root[data-theme='dark'] .form-input,
+:root[data-theme='dark'] .form-input-wrap,
+:root[data-theme='dark'] select.form-input,
+:root[data-theme='dark'] textarea.form-input {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .form-input::placeholder {
+  color: var(--text-muted) !important;
+}
+:root[data-theme='dark'] .form-label {
+  color: var(--text-secondary) !important;
+}
+:root[data-theme='dark'] .form-hint {
+  color: var(--text-muted) !important;
+}
+
+/* Resource panel e tabela de transações */
+:root[data-theme='dark'] .resource-panel {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .documents-report {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .documents-report-body {
+  background: var(--surface-color) !important;
+}
+:root[data-theme='dark'] .documents-report-head {
+  background: var(--surface-raised) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-secondary) !important;
+}
+:root[data-theme='dark'] .documents-report-row {
+  background: var(--surface-color) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .documents-report-row:hover {
+  background: var(--surface-raised) !important;
+}
+
+/* Dashboard cards */
+:root[data-theme='dark'] .dashboard-month-card,
+:root[data-theme='dark'] .dashboard-month-card--negative,
+:root[data-theme='dark'] .dashboard-quick-card,
+:root[data-theme='dark'] .dashboard-category-panel,
+:root[data-theme='dark'] .dashboard-result-card,
+:root[data-theme='dark'] .dashboard-result-card--negative {
+  background: var(--surface-color) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .dashboard-month-track {
+  background: var(--surface-raised) !important;
+}
+
+/* Report summary cards */
+:root[data-theme='dark'] .report-summary-card,
+:root[data-theme='dark'] .report-summary-card--balance,
+:root[data-theme='dark'] .report-summary-card--positive,
+:root[data-theme='dark'] .report-summary-card--negative {
+  background: var(--surface-color) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Account cards */
+:root[data-theme='dark'] .account-card {
+  background: var(--surface-color) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Goal cards */
+:root[data-theme='dark'] .goal-card {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Profile dropdown */
+:root[data-theme='dark'] .profile-dropdown {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--elevation-2) !important;
+}
+:root[data-theme='dark'] .profile-dropdown-user {
+  border-bottom-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .profile-logout {
+  background: var(--surface-color) !important;
+  color: #f87171 !important;
+}
+:root[data-theme='dark'] .profile-logout:hover {
+  background: var(--surface-raised) !important;
+}
+
+/* Row actions menu */
+:root[data-theme='dark'] .row-actions-menu {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--elevation-2) !important;
+}
+:root[data-theme='dark'] .row-actions-item {
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .row-actions-item:hover {
+  background: var(--surface-raised) !important;
+}
+
+/* Month nav popover */
+:root[data-theme='dark'] .month-nav-popover {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--elevation-2) !important;
+}
+:root[data-theme='dark'] .month-nav-year strong {
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .month-nav-month {
+  color: var(--text-secondary) !important;
+}
+:root[data-theme='dark'] .month-nav-month:hover {
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .month-nav-month.active {
+  background: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* Import modal */
+:root[data-theme='dark'] .import-info-card {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme='dark'] .import-info-label,
+:root[data-theme='dark'] .import-info-value,
+:root[data-theme='dark'] .import-info-months {
+  color: var(--text-primary) !important;
+}
+
+/* Appearance card */
+:root[data-theme='dark'] .appearance-card {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Settings sheet mobile */
+:root[data-theme='dark'] .settings-sheet,
+:root[data-theme='dark'] .mobile-more-sheet {
+  background: var(--bg-color) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Chart */
+:root[data-theme='dark'] .recharts-default-tooltip {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Mobile tab bar */
+:root[data-theme='dark'] .mobile-tab-bar {
+  background: var(--bg-color) !important;
+  border-top-color: var(--border-color) !important;
+}
+
+/* Textos universais — garante que NADA fique escuro sobre fundo escuro */
+:root[data-theme='dark'] .main-content :where(h1, h2, h3, h4, h5, h6),
+:root[data-theme='dark'] .main-content :where(p, label, legend, small, time),
+:root[data-theme='dark'] .main-content strong:not([class*='income']):not([class*='expense']):not([class*='positive']):not([class*='negative']) {
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .modal-card :where(h1, h2, h3, h4, h5, h6, p, label, legend, strong, small, span, time):not([class*='income']):not([class*='expense']):not([class*='positive']):not([class*='negative']):not([class*='danger']):not([class*='success']) {
+  color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] .profile-dropdown :where(strong, span, small, p) {
+  color: var(--text-primary) !important;
 }
