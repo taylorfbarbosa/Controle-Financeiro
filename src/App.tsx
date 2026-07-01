@@ -991,7 +991,7 @@ async function parseExcelTransactions(file: File): Promise<ImportPreviewRow[]> {
       accountId: '',
       recurrence,
       installments,
-      fixedUntil: '',
+      fixedUntil: recurrence === 'fixed' ? dueDate.slice(0, 7) : '',
     }, type);
 
     return [{
