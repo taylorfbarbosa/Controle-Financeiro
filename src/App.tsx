@@ -818,7 +818,7 @@ function formatCurrencyInput(value: string | number) {
   const clean = raw.replace(/[\u0300-\u036f]/g, '');
   if (!clean) return '';
   const parts = clean.split(',');
-  let intPart = parts[0].replace(/^0+(?=\d)/, '');
+  let intPart = parts[0].replace(/\./g, '').replace(/^0+(?=\d)/, '');
   if (intPart === '' && parts.length > 1) intPart = '0';
   const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   if (parts.length > 1) {
@@ -5421,7 +5421,7 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, notificationCount 
       <div className="topbar-desktop-shell">
         <div className="topbar-left">
           <button type="button" className="brand brand-btn" aria-label="Ir para transações" onClick={() => onNavigate('transactions')}>
-            <img className="topbar-logo topbar-logo--desktop" src={rubyLogoColor} alt="RubyLife" />
+            <img className="topbar-logo topbar-logo--desktop" src={theme === 'dark' ? rubyLogoWhite : rubyLogoColor} alt="RubyLife" />
             <img className="topbar-logo topbar-logo--mobile" src={rubyDiamond} alt="RubyLife" />
           </button>
           <div className="topbar-separator" />
