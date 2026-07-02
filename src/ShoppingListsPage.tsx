@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   CalendarDays,
   Check,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { FriendUser } from './App';
 import rubyDiamond from './assets/Diamante.png';
+import { deleteShoppingList, loadShoppingLists, saveShoppingList, updateShoppingList } from './lib/db';
 import './styles/shopping-lists.css';
 
 type ShoppingListStatus = 'open' | 'finalized' | 'cancelled';
@@ -49,23 +50,7 @@ type ShoppingList = {
 
 type ItemDraft = { name: string; quantity: string; unitPrice: string };
 
-const STORAGE_KEY = 'rubylife-shopping-lists';
 const emptyItem: ItemDraft = { name: '', quantity: '1', unitPrice: '' };
-
-function loadLists(): ShoppingList[] {
-  try {
-    const value = localStorage.getItem(STORAGE_KEY);
-    const parsed = value ? JSON.parse(value) as ShoppingList[] : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLists(lists: ShoppingList[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
-  window.dispatchEvent(new CustomEvent('rubylife-shopping-lists-change'));
-}
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -133,13 +118,24 @@ export function ShoppingListsPage({
   backSignal?: number;
   onDetailChange?: (name: string | null) => void;
 }) {
-  const [lists, setLists] = useState<ShoppingList[]>(loadLists);
+  const [lists, setLists] = useState<ShoppingList[]>([]);
+  const [listsLoading, setListsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [editingList, setEditingList] = useState<ShoppingList | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ShoppingList | null>(null);
   const [confirmAction, setConfirmAction] = useState<'finalize' | 'cancel' | null>(null);
+
+  const fetchLists = useCallback(() => {
+    setListsLoading(true);
+    loadShoppingLists<ShoppingList>()
+      .then((data) => setLists(data))
+      .catch((err) => console.warn('Falha ao carregar listas:', err))
+      .finally(() => setListsLoading(false));
+  }, []);
+
+  useEffect(() => { fetchLists(); }, [fetchLists]);
 
   const lastProcessedSignalRef = useRef(openCreateSignal);
   useEffect(() => {
@@ -157,16 +153,6 @@ export function ShoppingListsPage({
     }
   }, [backSignal]);
 
-  useEffect(() => {
-    const update = () => setLists(loadLists());
-    window.addEventListener('storage', update);
-    window.addEventListener('rubylife-shopping-lists-change', update);
-    return () => {
-      window.removeEventListener('storage', update);
-      window.removeEventListener('rubylife-shopping-lists-change', update);
-    };
-  }, []);
-
   const visibleLists = useMemo(() => lists.filter((list) => list.participantIds.includes(currentUser.id)), [currentUser.id, lists]);
   const selected = visibleLists.find((list) => list.id === selectedId) ?? null;
 
@@ -174,18 +160,17 @@ export function ShoppingListsPage({
     onDetailChange?.(selected ? selected.name : null);
   }, [selected, onDetailChange]);
 
-  function commit(next: ShoppingList[]) {
-    setLists(next);
-    saveLists(next);
-  }
-
   function updateList(nextList: ShoppingList) {
-    commit(lists.map((list) => list.id === nextList.id ? nextList : list));
+    setLists((prev) => prev.map((list) => list.id === nextList.id ? nextList : list));
+    updateShoppingList<ShoppingList>(nextList).then((saved) => {
+      setLists((prev) => prev.map((list) => list.id === saved.id ? saved : list));
+    }).catch((err) => console.warn('Falha ao atualizar lista:', err));
   }
 
   function deleteList(id: string) {
-    commit(lists.filter((list) => list.id !== id));
+    setLists((prev) => prev.filter((list) => list.id !== id));
     setDeleteTarget(null);
+    deleteShoppingList(id).catch((err) => console.warn('Falha ao excluir lista:', err));
   }
 
   function createList(form: { name: string; date: string; note: string; friendIds: string[] }) {
@@ -200,9 +185,12 @@ export function ShoppingListsPage({
       items: [],
       createdAt: new Date().toISOString(),
     };
-    commit([list, ...lists]);
+    setLists((prev) => [list, ...prev]);
     setCreateOpen(false);
     setSelectedId(list.id);
+    saveShoppingList<ShoppingList>(list).then((saved) => {
+      setLists((prev) => prev.map((l) => l.id === list.id ? saved : l));
+    }).catch((err) => console.warn('Falha ao criar lista:', err));
   }
 
   function saveEditedList(form: { name: string; date: string; note: string }) {
@@ -227,8 +215,11 @@ export function ShoppingListsPage({
       finalizedById: undefined,
       cancelledAt: undefined,
     };
-    commit([list, ...lists]);
+    setLists((prev) => [list, ...prev]);
     setSelectedId(list.id);
+    saveShoppingList<ShoppingList>(list).then((saved) => {
+      setLists((prev) => prev.map((l) => l.id === list.id ? saved : l));
+    }).catch((err) => console.warn('Falha ao duplicar lista:', err));
   }
 
   function completeAction() {
@@ -282,7 +273,9 @@ export function ShoppingListsPage({
         <label className="shopping-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar lista ou produto" aria-label="Buscar lista ou produto" /></label>
       </section>
 
-      {filtered.length ? (
+      {listsLoading ? (
+        <section className="shopping-empty"><span className="shopping-loading-spinner" /></section>
+      ) : filtered.length ? (
         <section className="shopping-card-grid">
           {filtered.map((list) => (
             <ShoppingListCard

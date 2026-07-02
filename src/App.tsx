@@ -10,7 +10,7 @@ import rubyLogoWhite from './assets/rubylife-white.png';
 import rubyLogoColor from './assets/rubylife-color.png';
 import rubyDiamond from './assets/Diamante.png';
 import { authClient as supabase } from './lib/auth';
-import { loadAll, searchUserByFriendId, syncAccounts, syncCategories, syncGoals, syncTransactions, updateProfile } from './lib/db';
+import { apiFriendRemove, apiFriendRespond, apiFriendSend, loadAll, loadFriendships, searchUserByFriendId, syncAccounts, syncCategories, syncGoals, syncTransactions, updateProfile } from './lib/db';
 import { DEFAULT_PUSH_PREFERENCES, PUSH_PREFERENCE_LABELS, enablePushNotifications, getPushStatus, savePushPreferences, sendPushNotification, type PushPreferences, type PushStatus } from './lib/push';
 import { ShoppingListsPage } from './ShoppingListsFeature';
 import {
@@ -268,6 +268,7 @@ type BalanceLabelProps = {
   x?: number | string;
   y?: number | string;
   value?: unknown;
+  index?: number;
 };
 
 const TRANSACTION_DESCRIPTION_MAX_LENGTH = 24;
@@ -431,7 +432,6 @@ function sharedTransactionLabel(item: Transaction) {
   return `${item.type === 'income' ? 'Receita' : 'Despesa'} compartilhada por ${item.sharedCreatedByName}`;
 }
 
-const SHOPPING_LISTS_STORAGE_KEY = 'rubylife-shopping-lists';
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   wallet: 'Carteira',
   checking: 'Conta corrente',
@@ -548,37 +548,124 @@ function reportTotals(items: Transaction[]) {
   return { income, expense, balance: income - expense, settledIncome, settledExpense, pendingIncome, pendingExpense };
 }
 
+function drawHorizontalBarChart(
+  doc: jsPDF,
+  cats: [string, number][],
+  x: number,
+  y: number,
+  w: number,
+  rgb: [number, number, number],
+) {
+  if (cats.length === 0) return;
+  const labelW = 38;
+  const valW = 28;
+  const barAreaW = w - labelW - valW - 4;
+  const barH = 5;
+  const rowGap = 3;
+  const maxVal = Math.max(...cats.map(([, v]) => v));
+
+  cats.forEach(([cat, val], i) => {
+    const rowY = y + i * (barH + rowGap);
+    const filled = maxVal > 0 ? (val / maxVal) * barAreaW : 0;
+    const label = cat.length > 14 ? cat.slice(0, 13) + '…' : cat;
+
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    doc.text(label, x, rowY + barH - 1);
+
+    doc.setFillColor(230, 240, 250);
+    doc.roundedRect(x + labelW, rowY, barAreaW, barH, 1, 1, 'F');
+    if (filled > 0) {
+      doc.setFillColor(...rgb);
+      doc.roundedRect(x + labelW, rowY, filled, barH, 1, 1, 'F');
+    }
+
+    doc.setFontSize(6);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...rgb);
+    doc.text(formatCurrency(val), x + labelW + barAreaW + 3, rowY + barH - 1);
+  });
+}
+
 function exportReportPdf(items: Transaction[], title: string) {
   const doc = new jsPDF({ orientation: 'landscape' });
   const totals = reportTotals(items);
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const contentW = pageW - margin * 2;
 
-  // Title
+  // ── Title ──
   doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
   doc.setTextColor(27, 153, 216);
-  doc.text(title, 14, 16);
+  doc.text(title, margin, 16);
 
-  // Summary table
-  doc.setFontSize(10);
-  autoTable(doc, {
-    head: [['', 'Receitas', 'Despesas', 'Saldo']],
-    body: [
-      ['Previsto', formatCurrency(totals.income), formatCurrency(totals.expense), formatCurrency(totals.balance)],
-      ['Realizado', formatCurrency(totals.settledIncome), formatCurrency(totals.settledExpense), formatCurrency(totals.settledIncome - totals.settledExpense)],
-      ['Pendente', formatCurrency(totals.pendingIncome), formatCurrency(totals.pendingExpense), formatCurrency(totals.pendingIncome - totals.pendingExpense)],
-    ],
-    startY: 22,
-    theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 4, halign: 'center' },
-    headStyles: { fillColor: [27, 153, 216], textColor: 255, fontStyle: 'bold' },
-    columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
-    alternateRowStyles: { fillColor: [244, 249, 252] },
+  // ── Cards ──
+  const cardY = 24;
+  const cardH = 30;
+  const cardGap = 6;
+  const cardW = (contentW - cardGap * 2) / 3;
+  const balance = totals.income - totals.expense;
+  const balancePct = totals.income > 0 ? `${Math.round((balance / totals.income) * 100)}% da receita` : '—';
+  const cardDefs: { label: string; value: number; sub: string; rgb: [number, number, number] }[] = [
+    { label: 'Receitas', value: totals.income,  sub: `Recebido: ${formatCurrency(totals.settledIncome)}`, rgb: [27, 153, 216] },
+    { label: 'Despesas', value: totals.expense, sub: `Pago: ${formatCurrency(totals.settledExpense)}`,    rgb: [239, 68, 68]  },
+    { label: 'Saldo',    value: balance,         sub: balancePct,                                          rgb: balance >= 0 ? [27, 153, 216] : [239, 68, 68] },
+  ];
+  cardDefs.forEach((card, i) => {
+    const cx = margin + i * (cardW + cardGap);
+    doc.setFillColor(...card.rgb);
+    doc.roundedRect(cx, cardY, cardW, cardH, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(card.label, cx + 8, cardY + 8);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(card.value), cx + 8, cardY + 19);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(card.sub, cx + 8, cardY + 27);
   });
 
-  // Transactions table
-  const summaryEnd = (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? 50;
-  doc.setFontSize(11);
-  doc.setTextColor(50);
-  doc.text(`Transações (${items.length})`, 14, summaryEnd + 10);
+  // ── Horizontal bar charts side by side ──
+  const buildCatMap = (type: 'income' | 'expense') => {
+    const map: Record<string, number> = {};
+    items.filter((t) => t.type === type).forEach((t) => { map[t.category] = (map[t.category] ?? 0) + t.amount; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 7);
+  };
+  const expCats = buildCatMap('expense');
+  const incCats = buildCatMap('income');
+
+  const chartsY = cardY + cardH + 8;
+  const halfW = (contentW - 10) / 2;
+  const maxRows = Math.max(expCats.length, incCats.length, 1);
+  const chartsH = maxRows * 8 + 6;
+
+  if (expCats.length > 0) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(239, 68, 68);
+    doc.text('Despesas por categoria', margin, chartsY);
+    drawHorizontalBarChart(doc, expCats, margin, chartsY + 4, halfW, [239, 68, 68]);
+  }
+
+  if (incCats.length > 0) {
+    const rx = margin + halfW + 10;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(27, 153, 216);
+    doc.text('Receitas por categoria', rx, chartsY);
+    drawHorizontalBarChart(doc, incCats, rx, chartsY + 4, halfW, [27, 153, 216]);
+  }
+
+  // ── Transactions table ──
+  const tableY = chartsY + chartsH + 6;
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(50, 50, 50);
+  doc.text(`Transações (${items.length})`, margin, tableY);
 
   autoTable(doc, {
     head: [REPORT_COLUMNS],
@@ -592,11 +679,22 @@ function exportReportPdf(items: Transaction[], title: string) {
       item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
       item.status === 'settled' ? (item.account ?? '') : '—',
     ]),
-    startY: summaryEnd + 14,
+    startY: tableY + 4,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27, 153, 216], textColor: 255 },
     alternateRowStyles: { fillColor: [244, 249, 252] },
+    didParseCell: (data) => {
+      if (data.section !== 'body') return;
+      const item = items[data.row.index];
+      if (!item) return;
+      const isIncome = item.type === 'income';
+      if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
+      }
+    },
   });
+
   doc.save(`${slugifyFileName(title)}.pdf`);
 }
 
@@ -1404,7 +1502,7 @@ export function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [friendsTab, setFriendsTab] = useState<'search' | 'received'>('search');
   const [sharedTransactions, setSharedTransactions] = useState<SharedTransactionRequest[]>([]);
-  const [referenceDate, setReferenceDate] = useState(() => new Date(2026, 5, 1));
+  const [referenceDate, setReferenceDate] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchType, setLaunchType] = useState<TransactionType>('expense');
   const [shoppingCreateSignal, setShoppingCreateSignal] = useState(0);
@@ -1494,8 +1592,8 @@ export function App() {
     let cancelled = false;
     setDataLoading(true);
     setSyncError(null);
-    loadAll()
-      .then((data) => {
+    Promise.all([loadAll(), loadFriendships().catch(() => null)])
+      .then(([data, friendsData]) => {
         if (cancelled) return;
         setStoredProfileName(data.profileName ?? '');
         setStoredProfilePhone(data.profilePhone ?? '');
@@ -1504,8 +1602,38 @@ export function App() {
         setCustomCategories(data.categories);
         setTransactions(data.transactions);
         setGoals(data.goals);
-        setFriendInvitations(loadStoredFriendInvitations(userId));
-        setPublicUsers(loadPublicUsers());
+        if (friendsData) {
+          const apiInvitations: FriendshipInvitation[] = friendsData.friendships.map((f) => ({
+            id: f.id,
+            requesterId: f.requesterId,
+            receiverId: f.receiverId,
+            status: f.status as FriendshipInvitationStatus,
+            createdAt: f.createdAt,
+          }));
+          const storedLocal = loadStoredFriendInvitations(userId);
+          // Merge: API is source of truth; keep local-only entries for shared transactions still pending
+          const apiIds = new Set(apiInvitations.map((inv) => inv.id));
+          const localOnly = storedLocal.filter((inv) => !apiIds.has(inv.id) && !inv.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i));
+          setFriendInvitations([...apiInvitations, ...localOnly]);
+          storeFriendInvitations([...apiInvitations, ...localOnly]);
+          const peerProfiles = friendsData.profiles.map((p) => ({
+            id: p.id,
+            publicFriendId: p.publicFriendId ?? publicFriendIdForUser(p.id),
+            name: p.name,
+            email: p.email,
+            avatarUrl: p.avatarUrl,
+          }));
+          setPublicUsers((prev) => {
+            const byId = new Map(prev.map((u) => [u.id, u] as const));
+            peerProfiles.forEach((p) => byId.set(p.id, p));
+            const next = [...byId.values()];
+            storePublicUsers(next);
+            return next;
+          });
+        } else {
+          setFriendInvitations(loadStoredFriendInvitations(userId));
+          setPublicUsers(loadPublicUsers());
+        }
         setNotifications(loadNotifications());
         setSharedTransactions(loadStoredSharedTransactions());
       })
@@ -1518,6 +1646,63 @@ export function App() {
       });
     return () => {
       cancelled = true;
+    };
+  }, [userId]);
+
+  // Auto-refresh: recarrega ao voltar para a aba e a cada 60s
+  useEffect(() => {
+    if (!userId) return;
+    let timer: ReturnType<typeof window.setTimeout>;
+
+    function refreshData() {
+      void Promise.all([loadAll(), loadFriendships().catch(() => null)]).then(([data, friendsData]) => {
+        setAccounts(data.accounts);
+        setCustomCategories(data.categories);
+        setTransactions(data.transactions);
+        setGoals(data.goals);
+        if (data.profileName) setStoredProfileName(data.profileName);
+        if (data.profileAvatarUrl !== undefined) setStoredAvatarUrl(data.profileAvatarUrl ?? null);
+        if (friendsData) {
+          const apiInvitations: FriendshipInvitation[] = friendsData.friendships.map((f) => ({
+            id: f.id,
+            requesterId: f.requesterId,
+            receiverId: f.receiverId,
+            status: f.status as FriendshipInvitationStatus,
+            createdAt: f.createdAt,
+          }));
+          setFriendInvitations(apiInvitations);
+          storeFriendInvitations(apiInvitations);
+          const peerProfiles = friendsData.profiles.map((p) => ({
+            id: p.id,
+            publicFriendId: p.publicFriendId ?? publicFriendIdForUser(p.id),
+            name: p.name,
+            email: p.email,
+            avatarUrl: p.avatarUrl,
+          }));
+          setPublicUsers((prev) => {
+            const byId = new Map(prev.map((u) => [u.id, u] as const));
+            peerProfiles.forEach((p) => byId.set(p.id, p));
+            const next = [...byId.values()];
+            storePublicUsers(next);
+            return next;
+          });
+        }
+      }).catch(() => {/* silently ignore refresh errors */});
+    }
+
+    function scheduleNext() {
+      timer = window.setTimeout(() => { refreshData(); scheduleNext(); }, 60_000);
+    }
+
+    function onVisible() {
+      if (!document.hidden) refreshData();
+    }
+
+    document.addEventListener('visibilitychange', onVisible);
+    scheduleNext();
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearTimeout(timer);
     };
   }, [userId]);
 
@@ -1706,6 +1891,14 @@ export function App() {
     storeFriendInvitations(next);
   }
 
+  function applyFriendshipUpdate(id: string, patch: Partial<FriendshipInvitation>) {
+    setFriendInvitations((prev) => {
+      const next = prev.map((inv) => inv.id === id ? { ...inv, ...patch } : inv);
+      storeFriendInvitations(next);
+      return next;
+    });
+  }
+
   function commitNotifications(next: AppNotification[]) {
     setNotifications(next);
     storeNotifications(next);
@@ -1759,18 +1952,6 @@ export function App() {
     storeNotifications(cleanNotifications);
     setNotifications(cleanNotifications);
 
-    try {
-      const raw = localStorage.getItem(SHOPPING_LISTS_STORAGE_KEY);
-      if (raw) {
-        const lists = JSON.parse(raw) as Array<{ id: string }>;
-        const cleaned = lists.filter((l) => !l.id.startsWith('demo-'));
-        localStorage.setItem(SHOPPING_LISTS_STORAGE_KEY, JSON.stringify(cleaned));
-        window.dispatchEvent(new CustomEvent('rubylife-shopping-lists-change'));
-      }
-    } catch {
-      // armazenamento local indisponível
-    }
-
     localStorage.setItem(cleanKey, '1');
   }, [currentFriendUser, dataLoading, userId]);
 
@@ -1784,14 +1965,16 @@ export function App() {
     if (!userId) return 'Sessão inválida para enviar convite.';
     const blockingMessage = findBlockingFriendInvitation(userId, target, friendInvitations);
     if (blockingMessage) return blockingMessage;
-    const invitation: FriendshipInvitation = {
-      id: crypto.randomUUID(),
+    // Optimistic local update while API call runs
+    const tempId = crypto.randomUUID();
+    const optimistic: FriendshipInvitation = {
+      id: tempId,
       requesterId: userId,
       receiverId: target.id,
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
-    commitFriendInvitations([...friendInvitations, invitation]);
+    commitFriendInvitations([...friendInvitations, optimistic]);
     commitNotifications([
       ...notifications,
       {
@@ -1803,15 +1986,23 @@ export function App() {
       },
     ]);
     notifyUser({ userId: target.id, title: 'Novo convite de amizade', body: currentFriendUser.name + ' enviou um convite de amizade para você.', url: '/amigos?aba=solicitacoes', type: 'friend_invite' });
+    apiFriendSend(target.id)
+      .then((row) => {
+        // Replace temp entry with real ID from Supabase
+        setFriendInvitations((prev) => {
+          const next = prev.map((inv) => inv.id === tempId ? { ...inv, id: row.id } : inv);
+          storeFriendInvitations(next);
+          return next;
+        });
+      })
+      .catch((err) => console.warn('Falha ao salvar convite no Supabase:', err));
     return null;
   }
 
   function acceptFriendInvitation(invitationId: string) {
     const invitation = friendInvitations.find((item) => item.id === invitationId);
     if (!invitation || invitation.receiverId !== currentFriendUser.id || invitation.status !== 'pending') return;
-    commitFriendInvitations(friendInvitations.map((item) => (
-      item.id === invitationId ? { ...item, status: 'accepted', respondedAt: new Date().toISOString() } : item
-    )));
+    applyFriendshipUpdate(invitationId, { status: 'accepted', respondedAt: new Date().toISOString() });
     commitNotifications([
       ...notifications,
       {
@@ -1823,20 +2014,24 @@ export function App() {
       },
     ]);
     notifyUser({ userId: invitation.requesterId, title: 'Convite aceito', body: currentFriendUser.name + ' aceitou seu convite de amizade.', url: '/amigos', type: 'friend_accepted' });
+    apiFriendRespond(invitationId, 'accepted').catch((err) => console.warn('Falha ao aceitar convite no Supabase:', err));
   }
 
   function declineFriendInvitation(invitationId: string) {
-    commitFriendInvitations(friendInvitations.map((invitation) => (
-      invitation.id === invitationId && invitation.receiverId === currentFriendUser.id && invitation.status === 'pending'
-        ? { ...invitation, status: 'declined', respondedAt: new Date().toISOString() }
-        : invitation
-    )));
+    const invitation = friendInvitations.find((inv) => inv.id === invitationId);
+    if (!invitation || invitation.receiverId !== currentFriendUser.id || invitation.status !== 'pending') return;
+    applyFriendshipUpdate(invitationId, { status: 'declined', respondedAt: new Date().toISOString() });
+    apiFriendRespond(invitationId, 'declined').catch((err) => console.warn('Falha ao recusar convite no Supabase:', err));
   }
 
   function removeFriend(friendId: string) {
+    const toRemove = friendInvitations.find((inv) =>
+      inv.status === 'accepted' && invitationConnectsUsers(inv, currentFriendUser.id, friendId)
+    );
     commitFriendInvitations(friendInvitations.filter((invitation) => !(
       invitation.status === 'accepted' && invitationConnectsUsers(invitation, currentFriendUser.id, friendId)
     )));
+    if (toRemove) apiFriendRemove(toRemove.id).catch((err) => console.warn('Falha ao remover amigo no Supabase:', err));
   }
 
   function openFriendRequestsFromNotification() {
@@ -2401,11 +2596,11 @@ export function App() {
                           <span className="mobile-tx-card-title">Saldo</span>
                         </div>
                         <div className="mobile-tx-card-right">
-                          <div className="mobile-tx-card-value">{formatCurrency(summary.balance)}</div>
+                          <div className={`mobile-tx-card-value mobile-tx-card-value--balance${summary.balance >= 0 ? '-pos' : '-neg'}`}>{formatCurrency(summary.balance)}</div>
                         </div>
                       </div>
                       <div className="mobile-tx-card-footer">
-                        <span>Realizado: <strong>{formatCurrency((summary.income - (summary.pendingIncome ?? 0)) - (summary.expense - (summary.pendingExpense ?? 0)))}</strong></span>
+                        <span>{summary.income > 0 ? `${Math.round((summary.balance / summary.income) * 100)}% da receita do mês` : '—'}</span>
                         <span className="mobile-tx-card-trend">
                           {summary.balance >= 0 ? <TrendingUp size={14} className="trend-up" /> : <TrendingDown size={14} className="trend-down" />}
                         </span>
@@ -3283,8 +3478,8 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
     });
   }, [transactions, referenceDate]);
 
-  const mobileChartEnd = referenceDate.getMonth() + 1;
-  const mobileChartStart = Math.max(0, mobileChartEnd - 6);
+  const mobileChartStart = Math.max(0, referenceDate.getMonth() - 1);
+  const mobileChartEnd = Math.min(12, referenceDate.getMonth() + 5);
   const mobileMonthlySeries = monthlySeries.slice(mobileChartStart, mobileChartEnd);
 
   const balanceColor = (value: number) => (value > 0 ? '#0284c7' : value < 0 ? '#dc2626' : '#475569');
@@ -3298,15 +3493,17 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
     return <circle cx={dotX} cy={dotY} r={4} fill="#ffffff" stroke={balanceColor(balance)} strokeWidth={2} />;
   };
 
-  const renderBalanceLabel = ({ x, y, value }: BalanceLabelProps) => {
+  const renderBalanceLabel = ({ x, y, value, index }: BalanceLabelProps) => {
     const labelX = Number(x);
     const labelY = Number(y);
     const balance = Number(value ?? 0);
 
     if (Number.isNaN(labelX) || Number.isNaN(labelY)) return <g />;
 
+    const anchor = index === 0 ? 'start' : index === 11 ? 'end' : 'middle';
+
     return (
-      <text x={labelX} y={labelY + (balance < 0 ? 18 : -10)} textAnchor="middle" fill={balanceColor(balance)} fontSize={11} fontWeight={800}>
+      <text x={labelX} y={labelY + (balance < 0 ? 18 : -10)} textAnchor={anchor} fill={balanceColor(balance)} fontSize={11} fontWeight={800}>
         {formatCurrency(balance)}
       </text>
     );
@@ -3368,12 +3565,12 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
       <section className="dashboard-insights-grid dashboard-insights-grid--mobile">
         <article className={`dashboard-month-card dashboard-month-card--${projectedBalance >= 0 ? 'positive' : 'negative'}`}>
           <div className="dashboard-month-card-head">
-            <span>Resultado do mês</span>
-            <strong>{projectedBalance >= 0 ? 'Positivo' : 'Negativo'}</strong>
+            <span>Saldo do mês</span>
           </div>
-          <div className="dashboard-month-balance">{formatCurrency(projectedBalance)}</div>
-          <div className="dashboard-month-track" aria-label={`${settledPercent}% efetivado`}><span style={{ width: `${settledPercent}%` }} /></div>
-          <div className="dashboard-month-meta"><span>{settledPercent}% efetivado</span><span>{formatCurrency(openTotal)} em aberto</span></div>
+          <div className={`dashboard-month-balance dashboard-month-balance--${projectedBalance >= 0 ? 'pos' : 'neg'}`}>{formatCurrency(projectedBalance)}</div>
+          <div className="dashboard-month-meta">
+            <span>{income > 0 ? `${Math.round((projectedBalance / income) * 100)}% da receita do mês` : '—'}</span>
+          </div>
         </article>
       </section>
 
@@ -3381,7 +3578,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
         <>
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
-              <div className="chart-head"><strong>Receitas x Despesas</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Últimos 6 meses</span></div>
+              <div className="chart-head"><strong>Receitas x Despesas</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Mês anterior + próximos 4</span></div>
               <div ref={incomeExpenseChartRef} className="chart-box chart-box--wide dashboard-income-chart--full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart key={incomeExpenseChartKey} data={monthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
@@ -3411,10 +3608,10 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
 
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
-              <div className="chart-head"><strong>Saldo mensal</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Últimos 6 meses</span></div>
+              <div className="chart-head"><strong>Saldo mensal</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Mês anterior + próximos 4</span></div>
               <div ref={balanceChartRef} className="chart-box chart-box--wide dashboard-balance-chart dashboard-balance-chart--line">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart key={balanceChartKey} data={monthlySeries} margin={{ top: 34, right: 30, left: 30, bottom: 8 }}>
+                  <LineChart key={balanceChartKey} data={monthlySeries} margin={{ top: 34, right: 10, left: 10, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
                     <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                     <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
@@ -3599,14 +3796,9 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
       {movementsGoal ? (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setMovementsGoal(null); }}>
           <div className="modal-card goal-movements-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span className="goal-icon" style={{ backgroundColor: `${movementsGoal.color}18`, color: movementsGoal.color }}><CategoryIconGraphic icon={movementsGoal.icon} size={18} /></span>
-                <div>
-                  <h2 className="modal-title" style={{ marginBottom: '2px' }}>Lançamentos — {movementsGoal.name}</h2>
-                  <p className="goal-modal-subtitle">{movementsGoal.movements.length} {movementsGoal.movements.length === 1 ? 'lan?amento' : 'lan?amentos'} ? Guardado: {formatCurrency(goalSaved(movementsGoal))}</p>
-                </div>
-              </div>
+            <div className="modal-header goal-movements-modal-header">
+              <span className="goal-movements-modal-icon" style={{ backgroundColor: `${movementsGoal.color}18`, color: movementsGoal.color }}><CategoryIconGraphic icon={movementsGoal.icon} size={26} /></span>
+              <h2 className="modal-title">{movementsGoal.name}</h2>
               <button type="button" className="modal-close-button" onClick={() => setMovementsGoal(null)} aria-label="Fechar"><X size={18} /></button>
             </div>
             <div className="modal-body">

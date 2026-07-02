@@ -241,6 +241,75 @@ export async function searchUserByFriendId(friendId: string): Promise<{ id: stri
   return data.user ?? null;
 }
 
+type FriendshipRow = { id: string; requesterId: string; receiverId: string; status: string; createdAt: string; updatedAt?: string };
+type ProfileRow = { id: string; name: string; email: string; avatarUrl: string | null; publicFriendId: string | null };
+
+async function friendsRequest<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
+  const response = await fetch('/api/friends', {
+    method,
+    credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({})) as { error?: string } & T;
+  if (!response.ok) throw new Error(payload.error || 'Erro na API de amizades.');
+  return payload;
+}
+
+export async function loadFriendships(): Promise<{ friendships: FriendshipRow[]; profiles: ProfileRow[] }> {
+  return friendsRequest<{ friendships: FriendshipRow[]; profiles: ProfileRow[] }>('GET');
+}
+
+export async function apiFriendLookup(friendId: string): Promise<ProfileRow | null> {
+  const data = await friendsRequest<{ profile: ProfileRow | null }>('POST', { action: 'lookup', friendId });
+  return data.profile;
+}
+
+export async function apiFriendSend(receiverId: string): Promise<FriendshipRow> {
+  const data = await friendsRequest<{ friendship: FriendshipRow }>('POST', { receiverId });
+  return data.friendship;
+}
+
+export async function apiFriendRespond(id: string, status: 'accepted' | 'declined'): Promise<FriendshipRow> {
+  const data = await friendsRequest<{ friendship: FriendshipRow }>('PATCH', { id, status });
+  return data.friendship;
+}
+
+export async function apiFriendRemove(id: string): Promise<void> {
+  await friendsRequest<{ ok: boolean }>('DELETE', { id });
+}
+
+async function shoppingRequest<T>(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body?: Record<string, unknown>): Promise<T> {
+  const response = await fetch('/api/shopping', {
+    method,
+    credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const payload = await response.json().catch(() => ({})) as { error?: string } & T;
+  if (!response.ok) throw new Error(payload.error || 'Erro na API de listas de compras.');
+  return payload;
+}
+
+export async function loadShoppingLists<T>(): Promise<T[]> {
+  const data = await shoppingRequest<{ lists: T[] }>('GET');
+  return data.lists;
+}
+
+export async function saveShoppingList<T>(list: T): Promise<T> {
+  const data = await shoppingRequest<{ list: T }>('POST', list as Record<string, unknown>);
+  return data.list;
+}
+
+export async function updateShoppingList<T>(list: T): Promise<T> {
+  const data = await shoppingRequest<{ list: T }>('PATCH', list as Record<string, unknown>);
+  return data.list;
+}
+
+export async function deleteShoppingList(id: string): Promise<void> {
+  await shoppingRequest<{ ok: boolean }>('DELETE', { id });
+}
+
 export async function syncGoals(_userId: string, prev: Goal[], next: Goal[]) {
   const { toUpsert, toDelete } = diff(prev, next);
   if (!toDelete.length && !toUpsert.length) return;

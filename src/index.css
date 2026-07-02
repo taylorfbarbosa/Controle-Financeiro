@@ -3115,6 +3115,27 @@ button {
   width: 100%;
 }
 
+.goal-movements-modal-header {
+  align-items: center;
+  gap: 12px;
+}
+
+.goal-movements-modal-header .modal-title {
+  flex: 1;
+  margin-bottom: 0;
+  font-size: 18px;
+}
+
+.goal-movements-modal-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
 .goal-modal-subtitle {
   color: #64748b;
   font-size: 13px;
@@ -6546,7 +6567,7 @@ button {
     white-space: nowrap;
   }
 
-  /* STATUS: sÃ³ o sÃ­mbolo (pago/pendente), abaixo do valor */
+  /* STATUS: pill de texto (Pendente/Efetivado/Atrasado) */
   .launches-report-row .launch-status-cell {
     grid-area: status;
     display: inline-flex !important;
@@ -6563,24 +6584,26 @@ button {
   }
 
   .launches-report-row .launch-status-cell .status-icon svg {
-    width: 18px;
-    height: 18px;
+    display: none;
   }
 
   .launches-report-row .launch-status-cell .status-icon-text {
-    display: none !important;
+    display: inline-block !important;
   }
 
-  .launches-report-row .launch-status-cell .status-icon--settled {
-    color: #0f9d63;
+  :root[data-theme='dark'] .launch-status-cell .status-icon--settled .status-icon-text {
+    background: rgba(22, 163, 74, 0.18);
+    color: #4ade80;
   }
 
-  .launches-report-row .launch-status-cell .status-icon--open {
+  :root[data-theme='dark'] .launch-status-cell .status-icon--open .status-icon-text {
+    background: rgba(100, 116, 139, 0.18);
     color: #94a3b8;
   }
 
-  .launches-report-row .launch-status-cell .status-icon--overdue {
-    color: #dc2626;
+  :root[data-theme='dark'] .launch-status-cell .status-icon--overdue .status-icon-text {
+    background: rgba(220, 38, 38, 0.18);
+    color: #f87171;
   }
 
   .launches-report-row .launch-value {
@@ -7322,6 +7345,21 @@ button {
   .main-content--goals .goal-button--withdraw {
     border-color: #ef4444;
     color: #ef4444;
+  }
+
+  .main-content--goals .goal-history-btn,
+  :root[data-theme='dark'] .main-content--goals .goal-history-btn {
+    display: block !important;
+    grid-column: 1 / -1;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    text-align: center;
+    width: 100%;
+    padding: 6px 0 2px;
+    color: var(--primary) !important;
+    font-size: 13px;
+    font-weight: 600;
   }
 
   .main-content--goals .goal-view-movements {
@@ -8878,18 +8916,10 @@ button {
   }
 
   .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-card-head span,
-  .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-card-head strong,
-  .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-balance,
+  .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-balance--pos,
+  .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-balance--neg,
   .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-meta {
     color: #ffffff !important;
-  }
-
-  .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-track {
-    background: rgba(255, 255, 255, 0.22) !important;
-  }
-
-  .main-content--dashboard .dashboard-insights-grid--mobile .dashboard-month-track span {
-    background: #ffffff !important;
   }
 }
 @media (max-width: 760px) {
@@ -11864,6 +11894,20 @@ svg text {
     letter-spacing: -1px;
   }
 
+  .mobile-tx-card-value--balance-pos {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    color: #1B99D8;
+  }
+
+  .mobile-tx-card-value--balance-neg {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    color: #ef4444;
+  }
+
   .mobile-tx-card-footer {
     display: flex;
     align-items: center;
@@ -12034,17 +12078,28 @@ svg text {
     background: #fff;
     border-radius: 20px 20px 0 0;
     width: 100%;
-    max-height: 75vh;
+    height: 90vh;
     display: flex;
     flex-direction: column;
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .mobile-cat-modal::before {
+    content: '';
+    display: block;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: #d1d5db;
+    margin: 10px auto 0;
+    flex-shrink: 0;
   }
 
   .mobile-cat-modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 18px 20px 12px;
+    padding: 12px 20px 12px;
     border-bottom: 1px solid #f1f5f9;
   }
 
@@ -12055,7 +12110,9 @@ svg text {
   }
 
   .mobile-cat-modal-body {
+    flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 16px 20px;
     display: flex;
     flex-direction: column;
@@ -12905,7 +12962,7 @@ h1, h2, h3, h4, h5, h6,
 
   .tx-desktop-view .launch-category::before { content: "Categoria"; }
   .tx-desktop-view .transaction-kind::before { content: "Tipo"; }
-  .tx-desktop-view .launch-recurrence::before { content: "RecorrÃªncia"; }
+  .tx-desktop-view .launch-recurrence::before { content: "Recorrência"; }
   .tx-desktop-view .launch-date::before { content: "Vencimento"; }
   .tx-desktop-view .launch-value::before { content: "Valor previsto"; }
   .tx-desktop-view .launch-real::before { content: "Valor real"; }

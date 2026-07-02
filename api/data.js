@@ -57,7 +57,10 @@ const profileUpdateSchema = z.object({
   profile: z.object({
     fullName: z.string().trim().min(2).max(160),
     phone: z.string().trim().max(30).regex(/^[0-9()+\-\s]*$/),
-    avatarUrl: z.string().max(800000).nullable().optional(),
+    avatarUrl: z.string().max(800000).nullable().optional()
+      .refine((v) => v == null || v === '' || /^data:image\/(jpeg|jpg|png|gif|webp|svg\+xml);base64,/.test(v), {
+        message: 'avatarUrl must be a valid base64 image data URI',
+      }),
   }).strict(),
 }).strict();
 

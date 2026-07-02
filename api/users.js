@@ -76,22 +76,6 @@ export default async function handler(req, res) {
       } catch (_) {}
     }
 
-    // ── Strategy 4: Full scan fallback (compute friend_id from uuid in-memory) ──
-    if (!foundProfile && validNumeric) {
-      try {
-        const { data: allProfiles } = await readClient
-          .from('profiles')
-          .select('id, full_name, avatar_url, friend_id');
-
-        if (allProfiles?.length > 0) {
-          const match = allProfiles.find((p) =>
-            p.friend_id === numeric6 || computeFriendId(p.id) === numeric6,
-          );
-          if (match) foundProfile = match;
-        }
-      } catch (_) {}
-    }
-
     if (!foundProfile) return sendJson(res, 200, { user: null });
 
     const publicId = foundProfile.friend_id || computeFriendId(foundProfile.id);
