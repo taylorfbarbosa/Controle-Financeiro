@@ -461,6 +461,10 @@ button {
   flex: 0 0 auto;
 }
 
+.main-content--transactions .tx-desktop-view > .page-header {
+  margin-bottom: 20px;
+}
+
 .btn-icon-only {
   width: 40px;
   padding: 0 !important;
@@ -12057,7 +12061,7 @@ svg text {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0;
+    margin: 0 0 18px;
   }
 
   .mobile-tx-month-center {

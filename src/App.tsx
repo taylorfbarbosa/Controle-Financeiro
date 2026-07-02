@@ -154,6 +154,7 @@ type CategoryItem = {
 
 type ReportFilters = {
   date: string;
+  description: string;
   category: string;
   type: TransactionTypeFilter;
 };
@@ -1512,9 +1513,10 @@ export function App() {
   const [typeFilter, setTypeFilter] = useState<TransactionTypeFilter>('all');
   const [transactionSummaryMode, setTransactionSummaryMode] = useState<TransactionSummaryMode>('balance');
   const [dateFilter, setDateFilter] = useState('');
+  const [descriptionFilter, setDescriptionFilter] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
-  const [draftFilters, setDraftFilters] = useState<ReportFilters>({ date: '', category: 'all', type: 'all' });
+  const [draftFilters, setDraftFilters] = useState<ReportFilters>({ date: '', description: '', category: 'all', type: 'all' });
   const filterControlRef = useRef<HTMLDivElement>(null);
   const [accountFilters, setAccountFilters] = useState<AccountFilters>({ search: '', type: 'all' });
   const [draftAccountFilters, setDraftAccountFilters] = useState<AccountFilters>({ search: '', type: 'all' });
@@ -2079,13 +2081,15 @@ export function App() {
     categoryItems.forEach((category) => map.set(`${category.kind}:${category.name}`, category));
     return map;
   }, [categoryItems]);
+  const appliedDescriptionFilter = descriptionFilter.trim().toLowerCase();
   const monthItems = useMemo(() =>
     transactions
       .filter((item) => (dateFilter ? item.dueDate === dateFilter : item.dueDate.slice(0, 7) === currentMonth))
       .filter((item) => categoryFilter === 'all' || item.category === categoryFilter)
       .filter((item) => typeFilter === 'all' || item.type === typeFilter)
+      .filter((item) => !appliedDescriptionFilter || item.description.toLowerCase().includes(appliedDescriptionFilter))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-    [transactions, dateFilter, currentMonth, categoryFilter, typeFilter],
+    [transactions, dateFilter, currentMonth, categoryFilter, typeFilter, appliedDescriptionFilter],
   );
 
   const selectedInView = useMemo(() => monthItems.filter((item) => selectedTxIds.has(item.id)), [monthItems, selectedTxIds]);
@@ -2154,7 +2158,7 @@ export function App() {
   }
 
 
-  const activeFilterCount = Number(categoryFilter !== 'all') + Number(typeFilter !== 'all') + Number(Boolean(dateFilter));
+  const activeFilterCount = Number(categoryFilter !== 'all') + Number(typeFilter !== 'all') + Number(Boolean(dateFilter)) + Number(Boolean(descriptionFilter));
 
   const summary = useMemo(() => {
     const income = monthItems.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
@@ -2205,6 +2209,7 @@ export function App() {
   function openFilters() {
     setDraftFilters({
       date: dateFilter,
+      description: descriptionFilter,
       category: categoryFilter,
       type: typeFilter,
     });
@@ -2213,6 +2218,7 @@ export function App() {
 
   function applyFilters() {
     setDateFilter(draftFilters.date);
+    setDescriptionFilter(draftFilters.description.trim());
     setCategoryFilter(draftFilters.category);
     setTypeFilter(draftFilters.type);
     setFilterOpen(false);
@@ -2264,7 +2270,7 @@ export function App() {
           <button type="button" onClick={() => setSyncError(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#fff', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Fechar</button>
         </div>
       )}
-      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
+      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} transactionFilterOpen={filterOpen} transactionActiveFilterCount={activeFilterCount} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
         <Sidebar activePage={pendingPage} onNavigate={handleNavigate} />
         <MobileTabBar
@@ -2291,15 +2297,42 @@ export function App() {
                 <section className="page-header page-header-split">
                   <div className="page-header-left">
                     <h1 className="page-title">Transações</h1>
+                    {activeFilterCount > 0 ? (
+                      <div className="active-filters-bar">
+                        {dateFilter ? (
+                          <span className="active-filter-chip">
+                            Data fixa: <strong>{dateFilter.split('-').reverse().join('/')}</strong>
+                            <button type="button" onClick={() => setDateFilter('')} aria-label="Remover filtro de data fixa"><X size={12} /></button>
+                          </span>
+                        ) : null}
+                        {descriptionFilter ? (
+                          <span className="active-filter-chip">
+                            Descrição: <strong>{descriptionFilter}</strong>
+                            <button type="button" onClick={() => setDescriptionFilter('')} aria-label="Remover filtro de descrição"><X size={12} /></button>
+                          </span>
+                        ) : null}
+                        {categoryFilter !== 'all' ? (
+                          <span className="active-filter-chip">
+                            Categoria: <strong>{categoryFilter}</strong>
+                            <button type="button" onClick={() => setCategoryFilter('all')} aria-label="Remover filtro de categoria"><X size={12} /></button>
+                          </span>
+                        ) : null}
+                        {typeFilter !== 'all' ? (
+                          <span className="active-filter-chip">
+                            Tipo: <strong>{typeFilter === 'income' ? 'Receita' : 'Despesa'}</strong>
+                            <button type="button" onClick={() => setTypeFilter('all')} aria-label="Remover filtro de tipo"><X size={12} /></button>
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="page-header-center">
                     <MonthNavigator date={referenceDate} onChange={(next) => { setReferenceDate(next); setDateFilter(''); }} />
                   </div>
                   <div className="page-header-actions">
                     <div className="filter-control" ref={filterControlRef}>
-                      <button type="button" className={`filter-trigger btn-icon-only${filterOpen ? ' active' : ''}`} onClick={openFilters} aria-expanded={filterOpen} aria-haspopup="dialog" title="Filtros">
+                      <button type="button" className={`filter-trigger btn-icon-only${filterOpen || activeFilterCount > 0 ? ' active' : ''}`} onClick={openFilters} aria-expanded={filterOpen} aria-haspopup="dialog" title="Filtros">
                         <ListFilter size={16} />
-                        {activeFilterCount > 0 ? <span className="filter-badge">{activeFilterCount}</span> : null}
                       </button>
 
                       {filterOpen ? (
@@ -2309,6 +2342,10 @@ export function App() {
                             <button type="button" className="filter-popover-close" onClick={() => setFilterOpen(false)} aria-label="Fechar filtros"><X size={18} /></button>
                           </div>
                           <div className="filter-grid filter-grid--stacked">
+                            <label className="filter-field">
+                              <span>Descrição</span>
+                              <input type="text" placeholder="Buscar por descrição..." value={draftFilters.description} onChange={(event) => setDraftFilters((current) => ({ ...current, description: event.target.value }))} />
+                            </label>
                             <label className="filter-field">
                               <span>Data fixa</span>
                               <input type="date" value={draftFilters.date} onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))} />
@@ -2330,7 +2367,7 @@ export function App() {
                             </label>
                           </div>
                           <div className="filter-popover-actions">
-                            <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', category: 'all', type: 'all' })}>
+                            <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', description: '', category: 'all', type: 'all' })}>
                               <RotateCcw size={14} /> Limpar
                             </button>
                             <button type="button" className="filter-apply" onClick={applyFilters}>Aplicar filtros</button>
@@ -2435,6 +2472,35 @@ export function App() {
                       <MonthNavigator date={referenceDate} onChange={(next) => { setReferenceDate(next); setDateFilter(''); }} />
                     </div>
                   </div>
+
+                  {activeFilterCount > 0 ? (
+                    <div className="active-filters-bar mobile-tx-filters-bar">
+                      {dateFilter ? (
+                        <span className="active-filter-chip">
+                          Data fixa: <strong>{dateFilter.split('-').reverse().join('/')}</strong>
+                          <button type="button" onClick={() => setDateFilter('')} aria-label="Remover filtro de data fixa"><X size={12} /></button>
+                        </span>
+                      ) : null}
+                      {descriptionFilter ? (
+                        <span className="active-filter-chip">
+                          Descrição: <strong>{descriptionFilter}</strong>
+                          <button type="button" onClick={() => setDescriptionFilter('')} aria-label="Remover filtro de descrição"><X size={12} /></button>
+                        </span>
+                      ) : null}
+                      {categoryFilter !== 'all' ? (
+                        <span className="active-filter-chip">
+                          Categoria: <strong>{categoryFilter}</strong>
+                          <button type="button" onClick={() => setCategoryFilter('all')} aria-label="Remover filtro de categoria"><X size={12} /></button>
+                        </span>
+                      ) : null}
+                      {typeFilter !== 'all' ? (
+                        <span className="active-filter-chip">
+                          Tipo: <strong>{typeFilter === 'income' ? 'Receita' : 'Despesa'}</strong>
+                          <button type="button" onClick={() => setTypeFilter('all')} aria-label="Remover filtro de tipo"><X size={12} /></button>
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   <div className="mobile-tx-summary-carousel">
                     {/* Card 1: Receitas */}
@@ -2557,6 +2623,10 @@ export function App() {
                     </div>
                     <div className="filter-grid filter-grid--stacked">
                       <label className="filter-field">
+                        <span>Descrição</span>
+                        <input type="text" placeholder="Buscar por descrição..." value={draftFilters.description} onChange={(event) => setDraftFilters((current) => ({ ...current, description: event.target.value }))} />
+                      </label>
+                      <label className="filter-field">
                         <span>Data fixa</span>
                         <input type="date" value={draftFilters.date} onChange={(event) => setDraftFilters((current) => ({ ...current, date: event.target.value }))} />
                       </label>
@@ -2577,7 +2647,7 @@ export function App() {
                       </label>
                     </div>
                     <div className="filter-popover-actions">
-                      <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', category: 'all', type: 'all' })}>
+                      <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', description: '', category: 'all', type: 'all' })}>
                         <RotateCcw size={14} /> Limpar
                       </button>
                       <button type="button" className="filter-apply" onClick={applyFilters}>Aplicar filtros</button>
@@ -2663,6 +2733,7 @@ export function App() {
               filterOpen={categoryPageFilterOpen}
               filterControlRef={categoryPageFilterControlRef}
               onOpenFilters={openCategoryPageFilters}
+              onFiltersChange={setCategoryPageFilters}
               onDraftFiltersChange={setDraftCategoryPageFilters}
               onApplyFilters={applyCategoryPageFilters}
               onNew={() => { setEditingCategory(null); setCategoryOpen(true); }}
@@ -2685,6 +2756,7 @@ export function App() {
               filterOpen={goalFilterOpen}
               filterControlRef={goalFilterControlRef}
               onOpenFilters={openGoalFilters}
+              onFiltersChange={setGoalFilters}
               onDraftFiltersChange={setDraftGoalFilters}
               onApplyFilters={applyGoalFilters}
               onNew={() => { setEditingGoal(null); setGoalOpen(true); }}
@@ -2753,6 +2825,7 @@ export function App() {
               filterOpen={accountFilterOpen}
               filterControlRef={accountFilterControlRef}
               onOpenFilters={openAccountFilters}
+              onFiltersChange={setAccountFilters}
               onDraftFiltersChange={setDraftAccountFilters}
               onApplyFilters={applyAccountFilters}
               onNew={() => { setEditingAccount(null); setAccountOpen(true); }}
@@ -3543,13 +3616,14 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
     </>
   );
 });
-function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onDeposit, onWithdraw }: {
+function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onFiltersChange, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onDeposit, onWithdraw }: {
   goals: Goal[];
   filters: GoalFilters;
   draftFilters: GoalFilters;
   filterOpen: boolean;
   filterControlRef: RefObject<HTMLDivElement | null>;
   onOpenFilters: () => void;
+  onFiltersChange: (filters: GoalFilters) => void;
   onDraftFiltersChange: (filters: GoalFilters) => void;
   onApplyFilters: () => void;
   onNew: () => void;
@@ -3575,13 +3649,29 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
       <section className="page-header page-header-split">
         <div className="page-header-left">
           <h1 className="page-title">Metas</h1>
+          {activeFilterCount > 0 ? (
+            <div className="active-filters-bar">
+              {filters.search.trim() ? (
+                <span className="active-filter-chip">
+                  Meta: <strong>{filters.search.trim()}</strong>
+                  <button type="button" onClick={() => onFiltersChange({ ...filters, search: '' })} aria-label="Remover filtro de meta"><X size={12} /></button>
+                </span>
+              ) : null}
+              {filters.status !== 'all' ? (
+                <span className="active-filter-chip">
+                  Status: <strong>{filters.status === 'active' ? 'Em andamento' : 'Concluídas'}</strong>
+                  <button type="button" onClick={() => onFiltersChange({ ...filters, status: 'all' })} aria-label="Remover filtro de status"><X size={12} /></button>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="page-header-center"></div>
         <div className="page-header-actions">
           <div className="filter-control goal-filter-control" ref={filterControlRef}>
             <button
               type="button"
-              className={`filter-trigger btn-icon-only${filterOpen ? ' active' : ''}`}
+              className={`filter-trigger btn-icon-only${filterOpen || activeFilterCount > 0 ? ' active' : ''}`}
               data-goal-filter-trigger
               onClick={onOpenFilters}
               aria-expanded={filterOpen}
@@ -3589,7 +3679,6 @@ function GoalsPage({ goals, filters, draftFilters, filterOpen, filterControlRef,
               title="Filtros"
             >
               <ListFilter size={16} />
-              {activeFilterCount > 0 ? <span className="filter-badge">{activeFilterCount}</span> : null}
             </button>
             {filterOpen ? (
               <div className="filter-popover goal-filter-popover" role="dialog" aria-label="Filtros das metas">
@@ -5259,7 +5348,7 @@ function shortUserName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
+function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, transactionFilterOpen, transactionActiveFilterCount, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
   activePage: AppPage;
   userName: string;
   userAvatarUrl?: string | null;
@@ -5276,6 +5365,8 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
   onNavigate: (page: AppPage) => void;
   onLogout: () => void;
   onOpenTransactionFilters: () => void;
+  transactionFilterOpen?: boolean;
+  transactionActiveFilterCount?: number;
   onImportTransactions: () => void;
   onOpenAccountFilters: () => void;
   accountFilterOpen: boolean;
@@ -5358,13 +5449,13 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
         <div className="topbar-right">
           {activePage === 'transactions' ? (
             <div className="topbar-actions-menu" ref={actionsRef}>
-              <button type="button" className="topbar-more-button" aria-label="Mais opções" aria-expanded={actionsOpen} aria-haspopup="menu" onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={20} /></button>
+              <button type="button" className={`topbar-more-button${actionsOpen || transactionFilterOpen || (transactionActiveFilterCount && transactionActiveFilterCount > 0) ? ' active' : ''}`} aria-label="Mais opções" aria-expanded={actionsOpen} aria-haspopup="menu" onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={20} /></button>
               {actionsOpen ? <div className="topbar-actions-popover" role="menu"><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenTransactionFilters(); }}><ListFilter size={16} />Filtros</button><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onImportTransactions(); }}><Upload size={16} />Importar</button></div> : null}
             </div>
           ) : activePage === 'accounts' ? (
-            <button type="button" className={`topbar-account-filter-button${accountFilterOpen ? ' active' : ''}`} data-account-filter-trigger aria-label="Filtrar contas" aria-expanded={accountFilterOpen} aria-haspopup="dialog" onClick={onOpenAccountFilters}><ListFilter size={19} />{accountActiveFilterCount > 0 ? <span className="filter-badge">{accountActiveFilterCount}</span> : null}</button>
+            <button type="button" className={`topbar-account-filter-button${accountFilterOpen || accountActiveFilterCount > 0 ? ' active' : ''}`} data-account-filter-trigger aria-label="Filtrar contas" aria-expanded={accountFilterOpen} aria-haspopup="dialog" onClick={onOpenAccountFilters}><ListFilter size={19} /></button>
           ) : activePage === 'categories' ? (
-            <button type="button" className={`topbar-category-filter-button${categoryFilterOpen ? ' active' : ''}`} data-category-filter-trigger aria-label="Filtrar categorias" aria-expanded={categoryFilterOpen} aria-haspopup="dialog" onClick={onOpenCategoryFilters}><ListFilter size={19} />{categoryActiveFilterCount > 0 ? <span className="filter-badge">{categoryActiveFilterCount}</span> : null}</button>
+            <button type="button" className={`topbar-category-filter-button${categoryFilterOpen || categoryActiveFilterCount > 0 ? ' active' : ''}`} data-category-filter-trigger aria-label="Filtrar categorias" aria-expanded={categoryFilterOpen} aria-haspopup="dialog" onClick={onOpenCategoryFilters}><ListFilter size={19} /></button>
           ) : activePage === 'goals' ? (
             <button type="button" className="topbar-goal-add-button" aria-label="Nova meta" onClick={onOpenGoalCreate}><Plus size={20} /></button>
           ) : activePage === 'shopping' && shoppingDetailName ? (
@@ -5589,13 +5680,14 @@ function MobileTabBar({
   );
 }
 
-function CategoriesPage({ items, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onBulkDelete }: {
+function CategoriesPage({ items, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onFiltersChange, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onBulkDelete }: {
   items: CategoryItem[];
   filters: CategoryFilters;
   draftFilters: CategoryFilters;
   filterOpen: boolean;
   filterControlRef: RefObject<HTMLDivElement | null>;
   onOpenFilters: () => void;
+  onFiltersChange: (filters: CategoryFilters) => void;
   onDraftFiltersChange: (filters: CategoryFilters) => void;
   onApplyFilters: () => void;
   onNew: () => void;
@@ -5694,13 +5786,28 @@ function CategoriesPage({ items, filters, draftFilters, filterOpen, filterContro
       <section className="page-header page-header-split">
         <div className="page-header-left">
           <h1 className="page-title">Categorias</h1>
+          {activeFilterCount > 0 ? (
+            <div className="active-filters-bar">
+              {filters.search.trim() ? (
+                <span className="active-filter-chip">
+                  Categoria: <strong>{filters.search.trim()}</strong>
+                  <button type="button" onClick={() => onFiltersChange({ ...filters, search: '' })} aria-label="Remover filtro de categoria"><X size={12} /></button>
+                </span>
+              ) : null}
+              {filters.type !== 'all' ? (
+                <span className="active-filter-chip">
+                  Tipo: <strong>{filters.type === 'income' ? 'Receita' : filters.type === 'expense' ? 'Despesa' : 'Transferência'}</strong>
+                  <button type="button" onClick={() => onFiltersChange({ ...filters, type: 'all' })} aria-label="Remover filtro de tipo"><X size={12} /></button>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="page-header-center"></div>
         <div className="page-header-actions">
           <div className="filter-control category-page-filter-control" ref={filterControlRef}>
-            <button type="button" className={`filter-trigger btn-icon-only${filterOpen ? ' active' : ''}`} data-category-filter-trigger onClick={onOpenFilters} aria-expanded={filterOpen} aria-haspopup="dialog" title="Filtros">
+            <button type="button" className={`filter-trigger btn-icon-only${filterOpen || activeFilterCount > 0 ? ' active' : ''}`} data-category-filter-trigger onClick={onOpenFilters} aria-expanded={filterOpen} aria-haspopup="dialog" title="Filtros">
               <ListFilter size={16} />
-              {activeFilterCount ? <span className="filter-badge">{activeFilterCount}</span> : null}
             </button>
             {filterOpen ? (
               <div className="filter-popover category-filter-popover" role="dialog" aria-label="Filtros das categorias">
@@ -6082,7 +6189,7 @@ function EditTransactionModal({ item, accounts, incomeCategories, expenseCategor
   );
 }
 
-function AccountsPage({ accounts, balances, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onBulkDelete }: {
+function AccountsPage({ accounts, balances, filters, draftFilters, filterOpen, filterControlRef, onOpenFilters, onFiltersChange, onDraftFiltersChange, onApplyFilters, onNew, onEdit, onDelete, onBulkDelete }: {
   accounts: Account[];
   balances: Record<string, number>;
   filters: AccountFilters;
@@ -6090,6 +6197,7 @@ function AccountsPage({ accounts, balances, filters, draftFilters, filterOpen, f
   filterOpen: boolean;
   filterControlRef: RefObject<HTMLDivElement | null>;
   onOpenFilters: () => void;
+  onFiltersChange: (filters: AccountFilters) => void;
   onDraftFiltersChange: (filters: AccountFilters) => void;
   onApplyFilters: () => void;
   onNew: () => void;
@@ -6128,13 +6236,29 @@ function AccountsPage({ accounts, balances, filters, draftFilters, filterOpen, f
       <section className="page-header page-header-split">
         <div className="page-header-left">
           <h1 className="page-title">Contas</h1>
+          {activeFilterCount > 0 ? (
+            <div className="active-filters-bar">
+              {filters.search.trim() ? (
+                <span className="active-filter-chip">
+                  Conta: <strong>{filters.search.trim()}</strong>
+                  <button type="button" onClick={() => onFiltersChange({ ...filters, search: '' })} aria-label="Remover filtro de conta"><X size={12} /></button>
+                </span>
+              ) : null}
+              {filters.type !== 'all' ? (
+                <span className="active-filter-chip">
+                  Tipo: <strong>{ACCOUNT_TYPE_LABELS[filters.type]}</strong>
+                  <button type="button" onClick={() => onFiltersChange({ ...filters, type: 'all' })} aria-label="Remover filtro de tipo"><X size={12} /></button>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="page-header-center"></div>
         <div className="page-header-actions">
           <div className="filter-control account-filter-control" ref={filterControlRef}>
             <button
               type="button"
-              className={`filter-trigger btn-icon-only${filterOpen ? ' active' : ''}`}
+              className={`filter-trigger btn-icon-only${filterOpen || activeFilterCount > 0 ? ' active' : ''}`}
               data-account-filter-trigger
               onClick={onOpenFilters}
               aria-expanded={filterOpen}
@@ -6142,7 +6266,6 @@ function AccountsPage({ accounts, balances, filters, draftFilters, filterOpen, f
               title="Filtros"
             >
               <ListFilter size={16} />
-              {activeFilterCount > 0 ? <span className="filter-badge">{activeFilterCount}</span> : null}
             </button>
             {filterOpen ? (
               <div className="filter-popover account-filter-popover" role="dialog" aria-label="Filtros das contas">
