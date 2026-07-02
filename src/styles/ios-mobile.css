@@ -129,6 +129,7 @@
   /* AÃ§Ãµes da nav bar = estilo "plain" iOS (Ã­cone accent, sem moldura) */
   .topbar-more-button,
   .topbar-account-filter-button,
+  .topbar-account-add-button,
   .topbar-category-filter-button,
   .topbar-goal-filter-button {
     width: 40px;
@@ -142,6 +143,7 @@
 
   .topbar-more-button:active,
   .topbar-account-filter-button:active,
+  .topbar-account-add-button:active,
   .topbar-category-filter-button:active,
   .topbar-goal-filter-button:active {
     background: var(--ios-fill);
@@ -1364,6 +1366,7 @@
   .settings-row-icon--purple { background: #5e5ce6; }
   .settings-row-icon--blue { background: var(--ios-accent); }
   .settings-row-icon--orange { background: #ff9f0a; }
+  .settings-row-icon--green { background: #34c759; }
   .settings-row-icon--gray { background: #8e8e93; }
   .settings-row-icon--red { background: var(--ios-red); }
 
@@ -2536,6 +2539,7 @@
   }
 
   :root[data-theme='dark'] .topbar-account-filter-button,
+  :root[data-theme='dark'] .topbar-account-add-button,
   :root[data-theme='dark'] .topbar-category-filter-button,
   :root[data-theme='dark'] .topbar-goal-filter-button,
   :root[data-theme='dark'] .topbar-friend-add-button,

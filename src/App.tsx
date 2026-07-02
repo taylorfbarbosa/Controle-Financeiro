@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
 import type { Row } from 'read-excel-file/browser';
 import type { Cell, SheetData } from 'write-excel-file/browser';
 import { createPortal } from 'react-dom';
@@ -1446,6 +1446,35 @@ function UpdatePasswordScreen({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Windowing das listas longas: renderiza em blocos para não montar centenas de
+// linhas de uma vez. Os resumos/gráficos continuam usando a base inteira; só a
+// quantidade de linhas no DOM é limitada e cresce ao rolar (ou no botão).
+const TX_PAGE_SIZE = 50;
+
+function LoadMoreSentinel({ remaining, onLoadMore }: { remaining: number; onLoadMore: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (remaining <= 0) return;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      (entries) => { if (entries.some((entry) => entry.isIntersecting)) onLoadMore(); },
+      { rootMargin: '400px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [remaining, onLoadMore]);
+
+  if (remaining <= 0) return null;
+  return (
+    <div ref={ref} className="tx-load-more">
+      <button type="button" className="tx-load-more-button" onClick={onLoadMore}>
+        Mostrar mais {Math.min(remaining, TX_PAGE_SIZE)}
+      </button>
+    </div>
+  );
+}
+
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -1516,6 +1545,8 @@ export function App() {
   const [descriptionFilter, setDescriptionFilter] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
+  const mobileTxCarouselRef = useRef<HTMLDivElement>(null);
+  const [mobileTxCarouselIndex, setMobileTxCarouselIndex] = useState(0);
   const [draftFilters, setDraftFilters] = useState<ReportFilters>({ date: '', description: '', category: 'all', type: 'all' });
   const filterControlRef = useRef<HTMLDivElement>(null);
   const [accountFilters, setAccountFilters] = useState<AccountFilters>({ search: '', type: 'all' });
@@ -2092,6 +2123,12 @@ export function App() {
     [transactions, dateFilter, currentMonth, categoryFilter, typeFilter, appliedDescriptionFilter],
   );
 
+  const [txVisibleCount, setTxVisibleCount] = useState(TX_PAGE_SIZE);
+  // Volta ao topo da paginação quando o "recorte" da lista muda (mês/filtros).
+  useEffect(() => { setTxVisibleCount(TX_PAGE_SIZE); }, [currentMonth, dateFilter, categoryFilter, typeFilter, appliedDescriptionFilter]);
+  const visibleMonthItems = useMemo(() => monthItems.slice(0, txVisibleCount), [monthItems, txVisibleCount]);
+  const loadMoreTx = useCallback(() => setTxVisibleCount((count) => count + TX_PAGE_SIZE), []);
+
   const selectedInView = useMemo(() => monthItems.filter((item) => selectedTxIds.has(item.id)), [monthItems, selectedTxIds]);
   const selectedOpenInView = useMemo(() => selectedInView.filter((item) => item.status === 'open'), [selectedInView]);
   const selectedSettledInView = useMemo(() => selectedInView.filter((item) => item.status === 'settled'), [selectedInView]);
@@ -2270,7 +2307,7 @@ export function App() {
           <button type="button" onClick={() => setSyncError(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#fff', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Fechar</button>
         </div>
       )}
-      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} transactionFilterOpen={filterOpen} transactionActiveFilterCount={activeFilterCount} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
+      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} transactionFilterOpen={filterOpen} transactionActiveFilterCount={activeFilterCount} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} onOpenAccountCreate={() => { setEditingAccount(null); setAccountOpen(true); }} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
         <Sidebar activePage={pendingPage} onNavigate={handleNavigate} />
         <MobileTabBar
@@ -2439,27 +2476,32 @@ export function App() {
                           <strong>Nenhuma transação encontrada</strong>
                           <p>Use o botão de nova transação para registrar receitas, despesas, parcelas ou valores fixos.</p>
                         </div>
-                      ) : monthItems.map((item, index) => {
-                        const showDateGroup = index === 0 || monthItems[index - 1]?.dueDate !== item.dueDate;
+                      ) : (
+                        <>
+                          {visibleMonthItems.map((item, index) => {
+                            const showDateGroup = index === 0 || visibleMonthItems[index - 1]?.dueDate !== item.dueDate;
 
-                        return (
-                          <Fragment key={item.id}>
-                            {showDateGroup ? <div className="mobile-date-separator">{formatDateGroup(item.dueDate)}</div> : null}
-                            <SwipeableTransactionRow
-                              item={item}
-                              isSelected={selectedTxIds.has(item.id)}
-                              selectionMode={selectedTxIds.size > 0}
-                              onToggleSelect={() => toggleSelectTx(item.id)}
-                              onEdit={() => setEditingTransaction(item)}
-                              onSettle={() => setSettleTarget(item)}
-                              onDelete={() => setDeletingTransaction(item)}
-                              onMarkPending={() => markTransactionAsPending(item.id)}
-                              onLongPress={() => setLongPressTransaction(item)}
-                              categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
-                            />
-                          </Fragment>
-                        );
-                      })}
+                            return (
+                              <Fragment key={item.id}>
+                                {showDateGroup ? <div className="mobile-date-separator">{formatDateGroup(item.dueDate)}</div> : null}
+                                <SwipeableTransactionRow
+                                  item={item}
+                                  isSelected={selectedTxIds.has(item.id)}
+                                  selectionMode={selectedTxIds.size > 0}
+                                  onToggleSelect={() => toggleSelectTx(item.id)}
+                                  onEdit={() => setEditingTransaction(item)}
+                                  onSettle={() => setSettleTarget(item)}
+                                  onDelete={() => setDeletingTransaction(item)}
+                                  onMarkPending={() => markTransactionAsPending(item.id)}
+                                  onLongPress={() => setLongPressTransaction(item)}
+                                  categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
+                                />
+                              </Fragment>
+                            );
+                          })}
+                          <LoadMoreSentinel remaining={monthItems.length - visibleMonthItems.length} onLoadMore={loadMoreTx} />
+                        </>
+                      )}
                     </div>
                   </div>
                 </section>
@@ -2502,7 +2544,18 @@ export function App() {
                     </div>
                   ) : null}
 
-                  <div className="mobile-tx-summary-carousel">
+                  <div
+                    className="mobile-tx-summary-carousel"
+                    ref={mobileTxCarouselRef}
+                    onScroll={() => {
+                      const el = mobileTxCarouselRef.current;
+                      if (!el) return;
+                      const count = el.children.length;
+                      if (count === 0) return;
+                      const idx = Math.round(el.scrollLeft / (el.scrollWidth / count));
+                      setMobileTxCarouselIndex(Math.max(0, Math.min(count - 1, idx)));
+                    }}
+                  >
                     {/* Card 1: Receitas */}
                     <div className="mobile-tx-summary-card mobile-tx-summary-card--income">
                       <div className="mobile-tx-card-row">
@@ -2581,6 +2634,25 @@ export function App() {
                         </>
                       )}
                     </button>
+                  </div>
+
+                  <div className="mobile-tx-carousel-dots" role="tablist" aria-label="Passe para o lado para ver mais cards">
+                    {[0, 1, 2, 3].map((i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        role="tab"
+                        aria-selected={i === mobileTxCarouselIndex}
+                        aria-label={`Ir para o card ${i + 1}`}
+                        className={`mobile-tx-carousel-dot ${i === mobileTxCarouselIndex ? 'mobile-tx-carousel-dot--active' : ''}`}
+                        onClick={() => {
+                          const el = mobileTxCarouselRef.current;
+                          if (!el) return;
+                          const count = el.children.length || 4;
+                          el.scrollTo({ left: (el.scrollWidth / count) * i, behavior: 'smooth' });
+                        }}
+                      />
+                    ))}
                   </div>
                 </section>
 
@@ -2699,27 +2771,30 @@ export function App() {
                         <p>Toque nos botões de Receita, Despesa ou no + para registrar.</p>
                       </div>
                     ) : (
-                      monthItems.map((item, index) => {
-                        const showDateGroup = index === 0 || monthItems[index - 1]?.dueDate !== item.dueDate;
+                      <>
+                        {visibleMonthItems.map((item, index) => {
+                          const showDateGroup = index === 0 || visibleMonthItems[index - 1]?.dueDate !== item.dueDate;
 
-                        return (
-                          <Fragment key={item.id}>
-                            {showDateGroup ? <div className="mobile-date-separator">{formatDateGroup(item.dueDate)}</div> : null}
-                            <SwipeableTransactionRow
-                              item={item}
-                              isSelected={selectedTxIds.has(item.id)}
-                              selectionMode={selectedTxIds.size > 0}
-                              onToggleSelect={() => toggleSelectTx(item.id)}
-                              onEdit={() => setEditingTransaction(item)}
-                              onSettle={() => setSettleTarget(item)}
-                              onDelete={() => setDeletingTransaction(item)}
-                              onMarkPending={() => markTransactionAsPending(item.id)}
-                              onLongPress={() => setLongPressTransaction(item)}
-                              categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
-                            />
-                          </Fragment>
-                        );
-                      })
+                          return (
+                            <Fragment key={item.id}>
+                              {showDateGroup ? <div className="mobile-date-separator">{formatDateGroup(item.dueDate)}</div> : null}
+                              <SwipeableTransactionRow
+                                item={item}
+                                isSelected={selectedTxIds.has(item.id)}
+                                selectionMode={selectedTxIds.size > 0}
+                                onToggleSelect={() => toggleSelectTx(item.id)}
+                                onEdit={() => setEditingTransaction(item)}
+                                onSettle={() => setSettleTarget(item)}
+                                onDelete={() => setDeletingTransaction(item)}
+                                onMarkPending={() => markTransactionAsPending(item.id)}
+                                onLongPress={() => setLongPressTransaction(item)}
+                                categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
+                              />
+                            </Fragment>
+                          );
+                        })}
+                        <LoadMoreSentinel remaining={monthItems.length - visibleMonthItems.length} onLoadMore={loadMoreTx} />
+                      </>
                     )}
                   </div>
                 </section>
@@ -5348,7 +5423,7 @@ function shortUserName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, transactionFilterOpen, transactionActiveFilterCount, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
+function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, transactionFilterOpen, transactionActiveFilterCount, onImportTransactions, onOpenAccountFilters, onOpenAccountCreate, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
   activePage: AppPage;
   userName: string;
   userAvatarUrl?: string | null;
@@ -5369,6 +5444,7 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
   transactionActiveFilterCount?: number;
   onImportTransactions: () => void;
   onOpenAccountFilters: () => void;
+  onOpenAccountCreate: () => void;
   accountFilterOpen: boolean;
   accountActiveFilterCount: number;
   onOpenCategoryFilters: () => void;
@@ -5453,7 +5529,10 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
               {actionsOpen ? <div className="topbar-actions-popover" role="menu"><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenTransactionFilters(); }}><ListFilter size={16} />Filtros</button><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onImportTransactions(); }}><Upload size={16} />Importar</button></div> : null}
             </div>
           ) : activePage === 'accounts' ? (
-            <button type="button" className={`topbar-account-filter-button${accountFilterOpen || accountActiveFilterCount > 0 ? ' active' : ''}`} data-account-filter-trigger aria-label="Filtrar contas" aria-expanded={accountFilterOpen} aria-haspopup="dialog" onClick={onOpenAccountFilters}><ListFilter size={19} /></button>
+            <>
+              <button type="button" className="topbar-account-add-button" aria-label="Nova conta" onClick={onOpenAccountCreate}><Plus size={20} /></button>
+              <button type="button" className={`topbar-account-filter-button${accountFilterOpen || accountActiveFilterCount > 0 ? ' active' : ''}`} data-account-filter-trigger aria-label="Filtrar contas" aria-expanded={accountFilterOpen} aria-haspopup="dialog" onClick={onOpenAccountFilters}><ListFilter size={19} /></button>
+            </>
           ) : activePage === 'categories' ? (
             <button type="button" className={`topbar-category-filter-button${categoryFilterOpen || categoryActiveFilterCount > 0 ? ' active' : ''}`} data-category-filter-trigger aria-label="Filtrar categorias" aria-expanded={categoryFilterOpen} aria-haspopup="dialog" onClick={onOpenCategoryFilters}><ListFilter size={19} /></button>
           ) : activePage === 'goals' ? (
@@ -5527,6 +5606,11 @@ function MobileSettingsSheet({
           </button>
         </div>
         <div className="settings-group">
+          <button type="button" className="settings-row" onClick={() => { onNavigate('accounts'); onClose(); }}>
+            <span className="settings-row-icon settings-row-icon--green"><CreditCard size={16} /></span>
+            <span className="settings-row-label">Contas</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
           <button type="button" className="settings-row" onClick={() => { onNavigate('categories'); onClose(); }}>
             <span className="settings-row-icon settings-row-icon--orange"><Tags size={16} /></span>
             <span className="settings-row-label">Categorias</span>
