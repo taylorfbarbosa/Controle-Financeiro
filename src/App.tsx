@@ -11,7 +11,6 @@ import rubyLogoColor from './assets/rubylife-color.png';
 import rubyDiamond from './assets/Diamante.png';
 import { authClient as supabase } from './lib/auth';
 import { apiFriendRemove, apiFriendRespond, apiFriendSend, loadAll, loadFriendships, searchUserByFriendId, syncAccounts, syncCategories, syncGoals, syncTransactions, updateProfile } from './lib/db';
-import { DEFAULT_PUSH_PREFERENCES, PUSH_PREFERENCE_LABELS, enablePushNotifications, getPushStatus, savePushPreferences, sendPushNotification, type PushPreferences, type PushStatus } from './lib/push';
 import { ShoppingListsPage } from './ShoppingListsFeature';
 import {
   AlertCircle,
@@ -21,7 +20,6 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
-  Bell,
   BookOpen,
   BriefcaseBusiness,
   CalendarDays,
@@ -92,7 +90,7 @@ import {
 } from 'lucide-react';
 
 type TransactionType = 'income' | 'expense';
-type AppPage = 'dashboard' | 'transactions' | 'categories' | 'goals' | 'reports' | 'accounts' | 'shopping' | 'friends' | 'profile' | 'help' | 'notifications';
+type AppPage = 'dashboard' | 'transactions' | 'categories' | 'goals' | 'reports' | 'accounts' | 'shopping' | 'friends' | 'profile' | 'help';
 const PAGE_LABELS: Record<AppPage, string> = {
   dashboard: 'Visão Geral',
   transactions: 'Transações',
@@ -104,7 +102,6 @@ const PAGE_LABELS: Record<AppPage, string> = {
   friends: 'Amigos',
   profile: 'Meu perfil',
   help: 'Ajuda',
-  notifications: 'Notificações',
 };
 export type FriendshipInvitationStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
 export type SharedTransactionStatus = 'pending' | 'approved' | 'declined' | 'cancelled';
@@ -248,15 +245,6 @@ type SharedTransactionForm = {
   note: string;
 };
 
-type AppNotification = {
-  id: string;
-  userId: string;
-  type: 'friend_invite' | 'friend_accepted' | 'shared_created' | 'shared_approved' | 'shared_declined' | 'shared_cancelled';
-  message: string;
-  createdAt: string;
-  read?: boolean;
-};
-
 
 type BalanceDotProps = {
   cx?: number | string;
@@ -334,7 +322,6 @@ function findBlockingFriendInvitation(currentUserId: string, target: FriendUser,
 
 const PUBLIC_USERS_STORAGE_KEY = 'rubylife-public-users';
 const FRIEND_INVITATIONS_STORAGE_KEY = 'rubylife-friend-invitations';
-const APP_NOTIFICATIONS_STORAGE_KEY = 'rubylife-notifications';
 
 function loadPublicUsers(): FriendUser[] {
   try {
@@ -388,24 +375,6 @@ function storeFriendInvitations(invitations: FriendshipInvitation[]) {
   }
 }
 
-function loadNotifications(): AppNotification[] {
-  try {
-    const raw = localStorage.getItem(APP_NOTIFICATIONS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as AppNotification[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function storeNotifications(notifications: AppNotification[]) {
-  try {
-    localStorage.setItem(APP_NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
-  } catch {
-    // armazenamento local indisponível
-  }
-}
 const SHARED_TRANSACTIONS_STORAGE_KEY = 'rubylife-shared-transactions';
 
 function loadStoredSharedTransactions(): SharedTransactionRequest[] {
@@ -1499,7 +1468,6 @@ export function App() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [friendInvitations, setFriendInvitations] = useState<FriendshipInvitation[]>([]);
   const [publicUsers, setPublicUsers] = useState<FriendUser[]>([]);
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [friendsTab, setFriendsTab] = useState<'search' | 'received'>('search');
   const [sharedTransactions, setSharedTransactions] = useState<SharedTransactionRequest[]>([]);
   const [referenceDate, setReferenceDate] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
@@ -1585,7 +1553,6 @@ export function App() {
       setGoals([]);
       setFriendInvitations([]);
       setPublicUsers([]);
-      setNotifications([]);
       setSharedTransactions([]);
       return;
     }
@@ -1634,7 +1601,6 @@ export function App() {
           setFriendInvitations(loadStoredFriendInvitations(userId));
           setPublicUsers(loadPublicUsers());
         }
-        setNotifications(loadNotifications());
         setSharedTransactions(loadStoredSharedTransactions());
       })
       .catch((error) => {
@@ -1734,7 +1700,7 @@ export function App() {
     setPendingPage(page);
     startNavTransition(() => {
       setActivePage((current) => {
-        if (current !== 'notifications' && current !== 'help' && current !== 'profile') {
+        if (current !== 'help' && current !== 'profile') {
           setPreviousPage(current);
         }
         if (current === page) scrollContentToTop();
@@ -1761,11 +1727,11 @@ export function App() {
 
   useEffect(() => {
     navigateFromUrl(window.location.href);
-    function onServiceWorkerMessage(event: MessageEvent) {
-      if (event.data?.type === 'RUBYLIFE_PUSH_NAVIGATE' && event.data.url) navigateFromUrl(event.data.url);
-    }
-    navigator.serviceWorker?.addEventListener('message', onServiceWorkerMessage);
-    return () => navigator.serviceWorker?.removeEventListener('message', onServiceWorkerMessage);
+    navigator.serviceWorker?.getRegistrations?.()
+      .then((registrations) => registrations
+        .filter((registration) => registration.active?.scriptURL.includes('push-sw'))
+        .forEach((registration) => registration.unregister()))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1899,20 +1865,9 @@ export function App() {
     });
   }
 
-  function commitNotifications(next: AppNotification[]) {
-    setNotifications(next);
-    storeNotifications(next);
-  }
-
   function commitSharedTransactions(next: SharedTransactionRequest[]) {
     setSharedTransactions(next);
     storeSharedTransactions(next);
-  }
-
-  function notifyUser(input: Parameters<typeof sendPushNotification>[0]) {
-    void sendPushNotification(input).catch((error) => {
-      console.warn('Falha ao enviar push notification:', error);
-    });
   }
 
   const currentFriendUser = useMemo<FriendUser>(() => ({
@@ -1948,10 +1903,6 @@ export function App() {
     storeSharedTransactions(cleanShared);
     setSharedTransactions(cleanShared);
 
-    const cleanNotifications = loadNotifications().filter((n) => !n.id.startsWith('demo-'));
-    storeNotifications(cleanNotifications);
-    setNotifications(cleanNotifications);
-
     localStorage.setItem(cleanKey, '1');
   }, [currentFriendUser, dataLoading, userId]);
 
@@ -1975,17 +1926,6 @@ export function App() {
       createdAt: new Date().toISOString(),
     };
     commitFriendInvitations([...friendInvitations, optimistic]);
-    commitNotifications([
-      ...notifications,
-      {
-        id: crypto.randomUUID(),
-        userId: target.id,
-        type: 'friend_invite',
-        message: `${currentFriendUser.name} enviou um convite de amizade para você.`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    notifyUser({ userId: target.id, title: 'Novo convite de amizade', body: currentFriendUser.name + ' enviou um convite de amizade para você.', url: '/amigos?aba=solicitacoes', type: 'friend_invite' });
     apiFriendSend(target.id)
       .then((row) => {
         // Replace temp entry with real ID from Supabase
@@ -2003,17 +1943,6 @@ export function App() {
     const invitation = friendInvitations.find((item) => item.id === invitationId);
     if (!invitation || invitation.receiverId !== currentFriendUser.id || invitation.status !== 'pending') return;
     applyFriendshipUpdate(invitationId, { status: 'accepted', respondedAt: new Date().toISOString() });
-    commitNotifications([
-      ...notifications,
-      {
-        id: crypto.randomUUID(),
-        userId: invitation.requesterId,
-        type: 'friend_accepted',
-        message: `${currentFriendUser.name} aceitou seu convite de amizade.`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    notifyUser({ userId: invitation.requesterId, title: 'Convite aceito', body: currentFriendUser.name + ' aceitou seu convite de amizade.', url: '/amigos', type: 'friend_accepted' });
     apiFriendRespond(invitationId, 'accepted').catch((err) => console.warn('Falha ao aceitar convite no Supabase:', err));
   }
 
@@ -2034,13 +1963,6 @@ export function App() {
     if (toRemove) apiFriendRemove(toRemove.id).catch((err) => console.warn('Falha ao remover amigo no Supabase:', err));
   }
 
-  function openFriendRequestsFromNotification() {
-    setFriendsTab('received');
-    setActivePage('friends');
-    commitNotifications(notifications.map((notification) => (
-      notification.userId === currentFriendUser.id && notification.type === 'friend_invite' ? { ...notification, read: true } : notification
-    )));
-  }
   const acceptedFriends = useMemo(() => {
     const byId = new Map(friendDirectory.map((friend) => [friend.id, friend] as const));
     return friendInvitations
@@ -2073,24 +1995,6 @@ export function App() {
         createdAt: new Date().toISOString(),
       },
     ]);
-    commitNotifications([
-      ...notifications,
-      {
-        id: crypto.randomUUID(),
-        userId: friend.id,
-        type: 'shared_created',
-        message: `${currentFriendUser.name} criou uma ${form.type === 'income' ? 'receita' : 'despesa'} para você aprovar: ${description}.`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    notifyUser({
-      userId: friend.id,
-      title: form.type === 'income' ? 'Nova receita para aprovar' : 'Nova despesa para aprovar',
-      body: `${currentFriendUser.name} criou uma ${form.type === 'income' ? 'receita' : 'despesa'} de ${formatCurrency(amount)} para você aprovar.`,
-      url: '/transacoes-compartilhadas?aba=pendentes',
-      type: form.type === 'income' ? 'shared_income_created' : 'shared_expense_created',
-      data: { requestId },
-    });
     return null;
   }
   function approveSharedTransaction(requestId: string) {
@@ -2120,17 +2024,6 @@ export function App() {
         ? { ...item, status: 'approved', respondedAt: new Date().toISOString(), approvedTransactionId: newTransactionId }
         : item
     )));
-    commitNotifications([
-      ...notifications,
-      {
-        id: crypto.randomUUID(),
-        userId: request.creatorId,
-        type: 'shared_approved',
-        message: `${currentFriendUser.name} aprovou a transação: ${request.description}.`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    notifyUser({ userId: request.creatorId, title: 'Transação aprovada', body: currentFriendUser.name + ' aprovou a transação compartilhada.', url: '/transacoes-compartilhadas?aba=pendentes', type: 'shared_approved', data: { requestId } });
   }
 
   function declineSharedTransaction(requestId: string, reason: string) {
@@ -2142,17 +2035,6 @@ export function App() {
     commitSharedTransactions(sharedTransactions.map((item) => (
       item.id === requestId ? { ...item, status: 'declined', declineReason, respondedAt: new Date().toISOString() } : item
     )));
-    commitNotifications([
-      ...notifications,
-      {
-        id: crypto.randomUUID(),
-        userId: request.creatorId,
-        type: 'shared_declined',
-        message: `${currentFriendUser.name} recusou a transação: ${request.description}. Motivo: ${declineReason}`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-    notifyUser({ userId: request.creatorId, title: 'Transação recusada', body: `${currentFriendUser.name} recusou a transação compartilhada. Motivo: ${declineReason}`, url: '/transacoes-compartilhadas?aba=pendentes', type: 'shared_declined', data: { requestId } });
   }
 
   function cancelSharedTransaction(requestId: string) {
@@ -2162,16 +2044,6 @@ export function App() {
     commitSharedTransactions(sharedTransactions.map((item) => (
       item.id === requestId ? { ...item, status: 'cancelled', respondedAt: new Date().toISOString() } : item
     )));
-    commitNotifications([
-      ...notifications,
-      {
-        id: crypto.randomUUID(),
-        userId: request.receiverId,
-        type: 'shared_cancelled',
-        message: `${currentFriendUser.name} cancelou a transação: ${request.description}.`,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
   }
 
   const currentMonth = monthKey(referenceDate);
@@ -2381,7 +2253,7 @@ export function App() {
           <button type="button" onClick={() => setSyncError(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#fff', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Fechar</button>
         </div>
       )}
-      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} notificationCount={notifications.filter((notification) => notification.userId === currentFriendUser.id && !notification.read).length} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendRequests={openFriendRequestsFromNotification} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
+      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
         <Sidebar activePage={pendingPage} onNavigate={handleNavigate} />
         <MobileTabBar
@@ -2813,7 +2685,7 @@ export function App() {
           ) : activePage === 'reports' ? (
             <ReportsPage transactions={transactions} categoryLookup={categoryLookup} referenceDate={referenceDate} onChangeDate={setReferenceDate} />
           ) : activePage === 'shopping' ? (
-            <ShoppingListsPage currentUser={currentFriendUser} friends={acceptedFriends} openCreateSignal={shoppingCreateSignal} backSignal={shoppingBackSignal} onDetailChange={setActiveShoppingListName} onListItemAdded={({ listId, listName, itemName, participantIds }) => { participantIds.forEach((participantId) => notifyUser({ userId: participantId, title: 'Lista de compras atualizada', body: `${currentFriendUser.name} adicionou ${itemName} à lista ${listName}.`, url: `/listas-compras/${listId}`, type: 'shopping_list_updated', data: { listId } })); }} />
+            <ShoppingListsPage currentUser={currentFriendUser} friends={acceptedFriends} openCreateSignal={shoppingCreateSignal} backSignal={shoppingBackSignal} onDetailChange={setActiveShoppingListName} />
           ) : activePage === 'friends' ? (
             <FriendsPage
               currentUser={currentFriendUser}
@@ -2861,11 +2733,6 @@ export function App() {
             />
           ) : activePage === 'help' ? (
             <HelpPage />
-          ) : activePage === 'notifications' ? (
-            <NotificationsPage
-              notifications={notifications}
-              onClearNotifications={() => commitNotifications([])}
-            />
           ) : (
             <AccountsPage
               accounts={accounts}
@@ -4224,84 +4091,6 @@ function DeleteGoalModal({ goal, onClose, onConfirm }: { goal: Goal; onClose: ()
   );
 }
 
-function NotificationsPage({
-  notifications,
-  onClearNotifications,
-}: {
-  notifications: AppNotification[];
-  onClearNotifications: () => void;
-}) {
-  const unread = notifications.filter((n) => !n.read).length;
-  const sorted = useMemo(() => [...notifications].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [notifications]);
-
-  function relativeTime(iso: string) {
-    const diff = Date.now() - new Date(iso).getTime();
-    const m = Math.floor(diff / 60000);
-    if (m < 1) return 'Agora mesmo';
-    if (m < 60) return `${m} min atrás`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h}h atrás`;
-    const d = Math.floor(h / 24);
-    return `${d} ${d === 1 ? 'dia' : 'dias'} atrás`;
-  }
-
-  const notifMeta: Record<AppNotification['type'], { icon: ReactNode; color: string }> = {
-    friend_invite: { icon: <UserPlus size={18} />, color: 'blue' },
-    friend_accepted: { icon: <Users size={18} />, color: 'green' },
-    shared_created: { icon: <ArrowUpRight size={18} />, color: 'orange' },
-    shared_approved: { icon: <CheckCircle2 size={18} />, color: 'green' },
-    shared_declined: { icon: <X size={18} />, color: 'red' },
-    shared_cancelled: { icon: <X size={18} />, color: 'gray' },
-  };
-
-  return (
-    <section className="notifications-page">
-      <section className="page-header page-header-split">
-        <div className="page-header-left">
-          <h1 className="page-title">Notificações</h1>
-          {unread > 0 ? <span className="page-subtitle">{unread} não {unread === 1 ? 'lida' : 'lidas'}</span> : null}
-        </div>
-        <div className="page-header-actions">
-          {notifications.length > 0 ? (
-            <button type="button" className="page-secondary-action" onClick={onClearNotifications}>
-              Limpar histórico
-            </button>
-          ) : null}
-        </div>
-      </section>
-
-      <DeviceNotificationsCard />
-
-      {sorted.length > 0 ? (
-        <section className="notif-feed-section">
-          <h2 className="notif-feed-title">Histórico de avisos</h2>
-          <div className="notif-feed">
-            {sorted.map((notification) => {
-              const { icon, color } = notifMeta[notification.type];
-              return (
-                <div key={notification.id} className={`notif-item${notification.read ? '' : ' notif-item--unread'}`}>
-                  <span className={`notif-icon notif-icon--${color}`}>{icon}</span>
-                  <div className="notif-body">
-                    <span className="notif-message">{notification.message}</span>
-                    <span className="notif-time">{relativeTime(notification.createdAt)}</span>
-                  </div>
-                  {!notification.read ? <span className="notif-dot" aria-label="Não lida" /> : null}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      ) : (
-        <div className="notif-empty">
-          <span className="notif-empty-icon"><Bell size={28} /></span>
-          <strong>Sem notificações</strong>
-          <span>Convites de amizade e atualizações de compartilhamentos aparecerão aqui.</span>
-        </div>
-      )}
-    </section>
-  );
-}
-
 function HelpPage() {
   const sections = [
     {
@@ -4412,17 +4201,6 @@ function HelpPage() {
       ],
     },
     {
-      title: 'Notificações',
-      intro: 'Notificações avisam sobre convites, compartilhamentos e atualizações importantes mesmo fora da tela atual.',
-      steps: [
-        'Abra Notificações pelo sino da barra superior ou pelo menu de ajustes.',
-        'Ative todas as notificações de uma vez ou escolha individualmente quais tipos deseja receber.',
-        'Quando o navegador solicitar permissão, confirme para permitir os avisos do dispositivo.',
-        'No iPhone, instale o RubyLife na Tela de Início e abra o aplicativo instalado antes de ativar notificações push.',
-        'Use Limpar histórico para remover os avisos exibidos na central sem alterar seus dados financeiros.',
-      ],
-    },
-    {
       title: 'Perfil e configurações',
       intro: 'O perfil concentra sua identificação, foto, ID de amizade e preferências gerais do aplicativo.',
       steps: [
@@ -4469,114 +4247,6 @@ function HelpPage() {
           ))}
         </ol>
       </article>
-    </section>
-  );
-}
-function DeviceNotificationsCard() {
-  const [status, setStatus] = useState<PushStatus | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  const [preferences, setPreferences] = useState<PushPreferences>(() => {
-    try {
-      const raw = localStorage.getItem('rubylife-push-preferences');
-      return raw ? { ...DEFAULT_PUSH_PREFERENCES, ...JSON.parse(raw) } : DEFAULT_PUSH_PREFERENCES;
-    } catch {
-      return DEFAULT_PUSH_PREFERENCES;
-    }
-  });
-
-  async function refreshStatus() {
-    setStatus(await getPushStatus());
-  }
-
-  useEffect(() => {
-    void refreshStatus();
-  }, []);
-
-
-
-  const allActive = PUSH_PREFERENCE_LABELS.every((item) => preferences[item.key]);
-
-  async function toggleAllPreferences() {
-    setBusy(true);
-    setMessage(null);
-
-    const nextState = !allActive;
-
-    if (nextState && status && !status.subscribed && status.supported && status.publicKeyConfigured) {
-      try {
-        await enablePushNotifications();
-        await refreshStatus();
-      } catch (error) {
-        console.warn('Browser push subscription failed:', error);
-      }
-    }
-
-    const next = { ...preferences };
-    PUSH_PREFERENCE_LABELS.forEach((item) => {
-      next[item.key] = nextState;
-    });
-
-    setPreferences(next);
-    localStorage.setItem('rubylife-push-preferences', JSON.stringify(next));
-    try {
-      await savePushPreferences(next);
-      setMessage({ type: 'success', text: nextState ? 'Todas as notificações foram ativadas.' : 'Todas as notificações foram desativadas.' });
-    } catch {
-      setMessage({ type: 'error', text: 'Preferências atualizadas neste dispositivo, mas não foi possível sincronizar agora.' });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function togglePreference(key: keyof PushPreferences) {
-    const next = { ...preferences, [key]: !preferences[key] };
-    setPreferences(next);
-    localStorage.setItem('rubylife-push-preferences', JSON.stringify(next));
-    try {
-      await savePushPreferences(next);
-      setMessage({ type: 'success', text: 'Preferências de notificação salvas.' });
-    } catch {
-      setMessage({ type: 'error', text: 'Preferência salva neste dispositivo, mas não foi possível sincronizar agora.' });
-    }
-  }
-
-  const iosHint = status?.platform === 'ios' && !status.standalone
-    ? 'Para receber notificações no iPhone, adicione o RubyLife à Tela de Início e depois toque em “Ativar notificações”.'
-    : null;
-  const unsupported = status && !status.supported;
-  const missingKey = status?.supported && !status.publicKeyConfigured;
-
-  return (
-    <section className="push-settings-card">
-      <div className="push-settings-head">
-        <span className="push-settings-icon"><Bell size={20} /></span>
-        <div>
-          <strong>Notificações do dispositivo</strong>
-          <small>Receba avisos importantes do RubyLife mesmo quando o sistema estiver fechado.</small>
-        </div>
-      </div>
-
-      <div className="push-preferences-list" style={{ margin: '16px 0 20px' }}>
-        <button type="button" className="push-preference-row" onClick={toggleAllPreferences} disabled={busy} style={{ width: '100%' }}>
-          <span><strong>Ativar todas as notificações</strong></span>
-          <span className={`ios-switch ${allActive ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span>
-        </button>
-      </div>
-
-      {iosHint ? <p className="push-settings-note">{iosHint}</p> : null}
-      {unsupported ? <p className="push-settings-note push-settings-note--error">Este navegador ou dispositivo não suporta notificações push para PWA.</p> : null}
-      {missingKey ? <p className="push-settings-note push-settings-note--error">A chave pública VAPID ainda não está configurada no ambiente do app.</p> : null}
-      {message ? <p className={`push-settings-message push-settings-message--${message.type}`}>{message.text}</p> : null}
-
-      <div className="push-preferences-list">
-        {PUSH_PREFERENCE_LABELS.map((item) => (
-          <button type="button" key={item.key} className="push-preference-row" onClick={() => togglePreference(item.key)}>
-            <span><strong>{item.label}</strong><small>{item.description}</small></span>
-            <span className={`ios-switch ${preferences[item.key] ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span>
-          </button>
-        ))}
-      </div>
     </section>
   );
 }
@@ -5569,17 +5239,15 @@ function shortUserName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-function Topbar({ activePage, userName, userAvatarUrl, theme, notificationCount = 0, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
+function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, onImportTransactions, onOpenAccountFilters, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
   activePage: AppPage;
   userName: string;
   userAvatarUrl?: string | null;
   theme: 'light' | 'dark';
-  notificationCount?: number;
   friendDetailName?: string | null;
   onFriendDetailBack?: () => void;
   shoppingDetailName?: string | null;
   onShoppingDetailBack?: () => void;
-  onOpenFriendRequests?: () => void;
   onOpenFriendSearch?: () => void;
   onOpenShoppingCreate?: () => void;
   onOpenGoalCreate?: () => void;
@@ -5642,7 +5310,6 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, notificationCount 
           <div className="profile-dropdown-user"><strong>{userName}</strong><span>Perfil do usuário</span></div>
           <button type="button" className="profile-menu-item profile-menu-item--toggle" role="menuitem" onClick={onToggleTheme}><span>{theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />} Modo escuro</span><span className={`ios-switch ${theme === 'dark' ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span></button>
           <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('profile'); }}><UserRound size={16} /> Meu perfil</button>
-          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('notifications'); }}><Bell size={16} /> Notificações{notificationCount > 0 ? <span className="menu-notif-badge">{notificationCount}</span> : null}</button>
           <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('help'); }}><HelpCircle size={16} /> Central de Ajuda</button>
           <button type="button" className="profile-logout" role="menuitem" onClick={() => { setProfileOpen(false); onLogout(); }}><LogOut size={16} /> Sair</button>
         </div>
@@ -5688,7 +5355,7 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, notificationCount 
             <button type="button" className="topbar-friend-back-button" aria-label="Voltar para amigos" onClick={onFriendDetailBack}><ChevronLeft size={22} /></button>
           ) : activePage === 'friends' ? (
             <button type="button" className="topbar-friend-add-button" aria-label="Adicionar amigo" onClick={onOpenFriendSearch}><UserPlus size={19} /></button>
-          ) : activePage === 'notifications' || activePage === 'help' || activePage === 'profile' ? (
+          ) : activePage === 'help' || activePage === 'profile' ? (
             <button type="button" className="topbar-friend-back-button" aria-label="Voltar" onClick={onGoBack}><ChevronLeft size={22} /></button>
           ) : null}
           {profileMenu}
@@ -5699,7 +5366,6 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, notificationCount 
           userName={userName}
           userAvatarUrl={userAvatarUrl}
           theme={theme}
-          notificationCount={notificationCount}
           onToggleTheme={onToggleTheme}
           onNavigate={onNavigate}
           onLogout={onLogout}
@@ -5714,7 +5380,6 @@ function MobileSettingsSheet({
   userName,
   userAvatarUrl,
   theme,
-  notificationCount = 0,
   onToggleTheme,
   onNavigate,
   onLogout,
@@ -5723,7 +5388,6 @@ function MobileSettingsSheet({
   userName: string;
   userAvatarUrl?: string | null;
   theme: 'light' | 'dark';
-  notificationCount?: number;
   onToggleTheme: () => void;
   onNavigate: (page: AppPage) => void;
   onLogout: () => void;
@@ -5760,11 +5424,6 @@ function MobileSettingsSheet({
           <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('friends'); }}>
             <span className="settings-row-icon settings-row-icon--blue"><Users size={16} /></span>
             <span className="settings-row-label">Amigos</span>
-            <ChevronRight className="settings-chevron" size={16} />
-          </button>
-          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('notifications'); }}>
-            <span className="settings-row-icon settings-row-icon--red"><Bell size={16} /></span>
-            <span className="settings-row-label">Notificações{notificationCount > 0 ? <span className="settings-notif-badge">{notificationCount}</span> : null}</span>
             <ChevronRight className="settings-chevron" size={16} />
           </button>
           <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('help'); }}>

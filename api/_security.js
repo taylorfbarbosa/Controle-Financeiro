@@ -1,10 +1,33 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 export const ACCESS_COOKIE = 'cf_access';
 export const REFRESH_COOKIE = 'cf_refresh';
 
+let localEnvLoaded = false;
+
+function loadLocalEnv() {
+  if (localEnvLoaded) return;
+  localEnvLoaded = true;
+
+  for (const file of ['.env', '.env.local']) {
+    const path = join(process.cwd(), file);
+    if (!existsSync(path)) continue;
+
+    for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)\s*$/);
+      if (!match || match[1].startsWith('#')) continue;
+      const [, key, rawValue] = match;
+      if (process.env[key] !== undefined) continue;
+      process.env[key] = rawValue.replace(/^(['"])(.*)\1$/, '$2');
+    }
+  }
+}
+
 function env(name, fallbackName) {
+  loadLocalEnv();
   const value = process.env[name] || (fallbackName ? process.env[fallbackName] : undefined);
   if (!value) throw new Error(`Missing server environment variable: ${name}`);
   return value;
