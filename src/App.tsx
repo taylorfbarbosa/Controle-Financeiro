@@ -1602,7 +1602,7 @@ export function App() {
         setCustomCategories(data.categories);
         setTransactions(data.transactions);
         setGoals(data.goals);
-        if (friendsData) {
+        if (friendsData && Array.isArray(friendsData.friendships)) {
           const apiInvitations: FriendshipInvitation[] = friendsData.friendships.map((f) => ({
             id: f.id,
             requesterId: f.requesterId,
@@ -1616,7 +1616,7 @@ export function App() {
           const localOnly = storedLocal.filter((inv) => !apiIds.has(inv.id) && !inv.id.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i));
           setFriendInvitations([...apiInvitations, ...localOnly]);
           storeFriendInvitations([...apiInvitations, ...localOnly]);
-          const peerProfiles = friendsData.profiles.map((p) => ({
+          const peerProfiles = (friendsData.profiles ?? []).map((p) => ({
             id: p.id,
             publicFriendId: p.publicFriendId ?? publicFriendIdForUser(p.id),
             name: p.name,
@@ -1662,7 +1662,7 @@ export function App() {
         setGoals(data.goals);
         if (data.profileName) setStoredProfileName(data.profileName);
         if (data.profileAvatarUrl !== undefined) setStoredAvatarUrl(data.profileAvatarUrl ?? null);
-        if (friendsData) {
+        if (friendsData && Array.isArray(friendsData.friendships)) {
           const apiInvitations: FriendshipInvitation[] = friendsData.friendships.map((f) => ({
             id: f.id,
             requesterId: f.requesterId,
@@ -1672,7 +1672,7 @@ export function App() {
           }));
           setFriendInvitations(apiInvitations);
           storeFriendInvitations(apiInvitations);
-          const peerProfiles = friendsData.profiles.map((p) => ({
+          const peerProfiles = (friendsData.profiles ?? []).map((p) => ({
             id: p.id,
             publicFriendId: p.publicFriendId ?? publicFriendIdForUser(p.id),
             name: p.name,
@@ -3514,13 +3514,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
     () => transactions.filter((item) => item.dueDate.slice(0, 7) === monthKeyValue),
     [transactions, monthKeyValue],
   );
-  const settledTotal = useMemo(
-    () => monthTransactions.filter((item) => item.status === 'settled').reduce((sum, item) => sum + item.amount, 0),
-    [monthTransactions],
-  );
-  const openTotal = pendingIncome + pendingExpense;
-  const monthTotal = income + expense;
-  const settledPercent = monthTotal > 0 ? Math.round((settledTotal / monthTotal) * 100) : 0;
+  const resultRevenuePercent = income > 0 ? Math.round((projectedBalance / income) * 1000) / 10 : null;
 
   // Relatório de transações do mês (listar + exportar)
   const reportItems = useMemo(() => [...monthTransactions].sort((a, b) => a.dueDate.localeCompare(b.dueDate)), [monthTransactions]);
@@ -3550,15 +3544,16 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
       </section>
 
       <div className="dashboard-metric-grid">
-        <MetricCard label="Receita prevista" value={formatCurrency(income)} tone="success" icon={<TrendingUp size={18} />} />
-        <MetricCard label="Despesa prevista" value={formatCurrency(expense)} tone="danger" icon={<TrendingDown size={18} />} />
+        <MetricCard label="Receita" value={formatCurrency(income)} tone="success" icon={<TrendingUp size={18} />} />
+        <MetricCard label="Despesa" value={formatCurrency(expense)} tone="danger" icon={<TrendingDown size={18} />} />
         <MetricCard label="Falta a receber" value={formatCurrency(pendingIncome)} tone="warning" icon={<Clock3 size={18} />} />
         <MetricCard label="Falta a pagar" value={formatCurrency(pendingExpense)} tone="alert" icon={<Clock3 size={18} />} />
         <article className={`dashboard-result-card dashboard-result-card--desktop dashboard-result-card--${projectedBalance >= 0 ? 'positive' : 'negative'}`}>
           <div className="dashboard-month-card-head"><span>Resultado do mês</span><strong>{projectedBalance >= 0 ? 'Positivo' : 'Negativo'}</strong></div>
           <div className="dashboard-month-balance">{formatCurrency(projectedBalance)}</div>
-          <div className="dashboard-month-track" aria-label={`${settledPercent}% efetivado`}><span style={{ width: `${settledPercent}%` }} /></div>
-          <div className="dashboard-month-meta"><span>{settledPercent}% efetivado</span><span>{formatCurrency(openTotal)} em aberto</span></div>
+          <div className="dashboard-month-meta dashboard-month-meta--result">
+            <span>{resultRevenuePercent === null ? '—' : `${resultRevenuePercent.toLocaleString('pt-BR')}% da receita do mês`}</span>
+          </div>
         </article>
       </div>
 

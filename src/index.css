@@ -8886,9 +8886,14 @@ button {
 }
 
 .dashboard-result-card,
-.dashboard-result-card--negative {
+.dashboard-result-card--positive {
   background: linear-gradient(135deg, #1B99D8 0%, #0579b8 100%) !important;
   border-color: #0579b8 !important;
+}
+
+.dashboard-result-card--negative {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%) !important;
+  border-color: #b91c1c !important;
 }
 
 @media (max-width: 760px) {
@@ -15356,4 +15361,44 @@ h1, h2, h3, h4, h5, h6,
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* Dashboard result card: signed monthly outcome */
+.dashboard-result-card--positive {
+  background: linear-gradient(135deg, #1b99d8 0%, #0579b8 100%);
+  border-color: rgba(5, 121, 184, 0.28);
+}
+
+.dashboard-result-card--negative {
+  background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+  border-color: rgba(153, 27, 27, 0.32);
+  box-shadow: 0 12px 28px rgba(185, 28, 28, 0.18);
+}
+
+.dashboard-month-meta--result {
+  justify-content: flex-start;
+  min-height: 18px;
+}
+
+.dashboard-month-meta--result span {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+:root[data-theme='dark'] .dashboard-result-card--positive {
+  background: linear-gradient(135deg, #168dcc 0%, #075f91 100%) !important;
+  border-color: rgba(73, 184, 239, 0.32) !important;
+}
+
+:root[data-theme='dark'] .dashboard-result-card--negative {
+  background: linear-gradient(135deg, #d9363e 0%, #8f1820 100%) !important;
+  border-color: rgba(255, 107, 114, 0.34) !important;
+}
+
+:root[data-theme='dark'] .dashboard-result-card .dashboard-month-card-head span,
+:root[data-theme='dark'] .dashboard-result-card .dashboard-month-card-head strong,
+:root[data-theme='dark'] .dashboard-result-card .dashboard-month-balance,
+:root[data-theme='dark'] .dashboard-result-card .dashboard-month-meta {
+  color: #fff !important;
 }

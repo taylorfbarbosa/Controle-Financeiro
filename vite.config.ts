@@ -10,10 +10,11 @@ function localApiPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const path = req.url?.split('?')[0]
-        if (path !== '/api/auth' && path !== '/api/data' && path !== '/api/push' && path !== '/api/users') return next()
+        const apiPaths = ['/api/auth', '/api/data', '/api/push', '/api/users', '/api/friends', '/api/shopping']
+        if (!apiPaths.includes(path)) return next()
 
         try {
-          if (req.method === 'POST') {
+          if (req.method !== 'GET') {
             const chunks: Buffer[] = []
             let size = 0
             for await (const chunk of req) {
@@ -27,7 +28,15 @@ function localApiPlugin(): Plugin {
           }
 
           // @ts-ignore Local development loads the same JavaScript handlers used by Vercel.
-          const module = path === '/api/auth' ? await import('./api/auth.js') : path === '/api/push' ? await import('./api/push.js') : path === '/api/users' ? await import('./api/users.js') : await import('./api/data.js')
+          const moduleMap: Record<string, () => Promise<{ default: (req: unknown, res: unknown) => void }>> = {
+            '/api/auth': () => import('./api/auth.js'),
+            '/api/push': () => import('./api/push.js'),
+            '/api/users': () => import('./api/users.js'),
+            '/api/friends': () => import('./api/friends.js'),
+            '/api/shopping': () => import('./api/shopping.js'),
+          }
+          // @ts-ignore
+          const module = await (moduleMap[path] ?? (() => import('./api/data.js')))()
           await module.default(req, res)
         } catch (error) {
           console.error('Local API failure', error)
