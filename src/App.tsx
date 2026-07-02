@@ -1,9 +1,7 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import type { Row } from 'read-excel-file/browser';
+import type { Cell, SheetData } from 'write-excel-file/browser';
 import { createPortal } from 'react-dom';
-import { readSheet, type Row } from 'read-excel-file/browser';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import writeXlsxFile, { type Cell, type SheetData } from 'write-excel-file/browser';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
 import type { Session } from './lib/auth';
 import rubyLogoWhite from './assets/rubylife-white.png';
@@ -517,8 +515,20 @@ function reportTotals(items: Transaction[]) {
   return { income, expense, balance: income - expense, settledIncome, settledExpense, pendingIncome, pendingExpense };
 }
 
+type PdfDocument = {
+  internal: { pageSize: { getWidth: () => number } };
+  setFontSize: (size: number) => void;
+  setFont: (family: string, style?: string) => void;
+  setTextColor: (...rgb: number[]) => void;
+  text: (text: string, x: number, y: number) => void;
+  setFillColor: (...rgb: number[]) => void;
+  roundedRect: (x: number, y: number, w: number, h: number, rx: number, ry: number, style?: string) => void;
+  save: (filename: string) => void;
+};
+
+
 function drawHorizontalBarChart(
-  doc: jsPDF,
+  doc: PdfDocument,
   cats: [string, number][],
   x: number,
   y: number,
@@ -557,7 +567,8 @@ function drawHorizontalBarChart(
   });
 }
 
-function exportReportPdf(items: Transaction[], title: string) {
+async function exportReportPdf(items: Transaction[], title: string) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ orientation: 'landscape' });
   const totals = reportTotals(items);
   const pageW = doc.internal.pageSize.getWidth();
@@ -687,6 +698,7 @@ async function exportReportExcel(items: Transaction[], title: string) {
       item.status === 'settled' ? (item.account ?? '') : '',
     ]),
   ];
+  const { default: writeXlsxFile } = await import('write-excel-file/browser');
   await writeXlsxFile([
     { data: summaryData, sheet: 'Resumo', columns: [14, 18, 18, 18].map((width) => ({ width })) },
     { data: transactionData, sheet: 'Transações', columns: [10, 28, 18, 12, 15, 15, 12, 16].map((width) => ({ width })), stickyRowsCount: 1 },
@@ -694,6 +706,7 @@ async function exportReportExcel(items: Transaction[], title: string) {
 }
 
 async function downloadImportTemplate() {
+  const { default: writeXlsxFile } = await import('write-excel-file/browser');
   const headers = ['Tipo', 'Descrição', 'Valor', 'Vencimento', 'Categoria', 'Recorrência', 'Parcelas'];
   const data: SheetData = [
     headers.map(excelHeader),
@@ -1001,6 +1014,7 @@ async function isSafeXlsxContainer(file: File) {
 }
 
 async function parseExcelTransactions(file: File): Promise<ImportPreviewRow[]> {
+  const { readSheet } = await import('read-excel-file/browser');
   const rows: Row[] = await readSheet(file);
   if (rows.length < 2) throw new Error('A planilha precisa ter um cabeçalho e pelo menos uma transação.');
   if (rows.length > 5001) throw new Error('A planilha pode conter no máximo 5.000 transações.');
@@ -1453,7 +1467,6 @@ export function App() {
   const [activePage, setActivePage] = useState<AppPage>('dashboard');
   const [pendingPage, setPendingPage] = useState<AppPage>('dashboard');
   const [previousPage, setPreviousPage] = useState<AppPage>('dashboard');
-  const [, startNavTransition] = useTransition();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
     return localStorage.getItem('rubylife-theme') === 'dark' ? 'dark' : 'light';
@@ -1696,17 +1709,15 @@ export function App() {
   }
 
   function handleNavigate(page: AppPage) {
-    // Update tab bar highlight immediately — no waiting for the heavy re-render
     setPendingPage(page);
-    startNavTransition(() => {
-      setActivePage((current) => {
-        if (current !== 'help' && current !== 'profile') {
-          setPreviousPage(current);
-        }
-        if (current === page) scrollContentToTop();
-        return page;
-      });
-      setPendingPage(page);
+    setActivePage((current) => {
+      if (current !== 'help' && current !== 'profile') {
+        setPreviousPage(current);
+      }
+      if (current === page) {
+        window.requestAnimationFrame(scrollContentToTop);
+      }
+      return page;
     });
   }
 
@@ -3318,29 +3329,38 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
   const monthKeyValue = monthKey(referenceDate);
 
   const { income, expense, pendingIncome, pendingExpense } = useMemo(() => {
-    const monthTxs = transactions.filter((item) => item.dueDate.slice(0, 7) === monthKeyValue);
-    return {
-      income: monthTxs.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0),
-      expense: monthTxs.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0),
-      pendingIncome: monthTxs.filter((item) => item.type === 'income' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0),
-      pendingExpense: monthTxs.filter((item) => item.type === 'expense' && item.status === 'open').reduce((sum, item) => sum + item.amount, 0),
-    };
+    return transactions.reduce((totals, item) => {
+      if (item.dueDate.slice(0, 7) !== monthKeyValue) return totals;
+      if (item.type === 'income') {
+        totals.income += item.amount;
+        if (item.status === 'open') totals.pendingIncome += item.amount;
+      } else {
+        totals.expense += item.amount;
+        if (item.status === 'open') totals.pendingExpense += item.amount;
+      }
+      return totals;
+    }, { income: 0, expense: 0, pendingIncome: 0, pendingExpense: 0 });
   }, [transactions, monthKeyValue]);
 
   const projectedBalance = income - expense;
 
   const monthlySeries = useMemo(() => {
     const year = referenceDate.getFullYear();
-    return Array.from({ length: 12 }, (_, index) => {
+    const totals = Array.from({ length: 12 }, () => ({ income: 0, expense: 0 }));
+    transactions.forEach((item) => {
+      if (!item.dueDate.startsWith(String(year) + '-')) return;
+      const monthIndex = Number(item.dueDate.slice(5, 7)) - 1;
+      if (monthIndex < 0 || monthIndex > 11) return;
+      if (item.type === 'income') totals[monthIndex].income += item.amount;
+      else totals[monthIndex].expense += item.amount;
+    });
+    return totals.map((item, index) => {
       const date = new Date(year, index, 1);
-      const key = monthKey(date);
-      const monthIncome = transactions.filter((item) => item.type === 'income' && item.dueDate.slice(0, 7) === key).reduce((sum, item) => sum + item.amount, 0);
-      const monthExpense = transactions.filter((item) => item.type === 'expense' && item.dueDate.slice(0, 7) === key).reduce((sum, item) => sum + item.amount, 0);
       return {
         month: new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(date).replace('.', ''),
-        Receitas: monthIncome,
-        Despesas: monthExpense,
-        Saldo: monthIncome - monthExpense,
+        Receitas: item.income,
+        Despesas: item.expense,
+        Saldo: item.income - item.expense,
       };
     });
   }, [transactions, referenceDate]);
@@ -3387,7 +3407,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
   const reportItems = useMemo(() => [...monthTransactions].sort((a, b) => a.dueDate.localeCompare(b.dueDate)), [monthTransactions]);
   const exportMonthLabel = `${MONTH_OPTIONS[referenceDate.getMonth()]?.label ?? ''} de ${referenceDate.getFullYear()}`;
   const reportTitle = `Relatório de ${exportMonthLabel}`;
-  const exportPdf = () => exportReportPdf(reportItems, reportTitle);
+  const exportPdf = () => { void exportReportPdf(reportItems, reportTitle); };
   const exportExcel = () => { void exportReportExcel(reportItems, reportTitle); };
 
   return (
@@ -3792,9 +3812,9 @@ function ReportsPage({ transactions, categoryLookup, referenceDate, onChangeDate
           <MonthNavigator date={referenceDate} onChange={onChangeDate} />
         </div>
         <div className="page-header-actions">
-          <button type="button" className="page-secondary-action report-export-desktop" onClick={() => exportReportPdf(filtered, title)}><FileText size={16} /> Baixar PDF</button>
-          <button type="button" className="page-primary-action report-export-desktop" onClick={() => exportReportExcel(filtered, title)}><FileSpreadsheet size={16} /> Baixar Excel</button>
-          <ReportExportMenu onPdf={() => exportReportPdf(filtered, title)} onExcel={() => exportReportExcel(filtered, title)} />
+          <button type="button" className="page-secondary-action report-export-desktop" onClick={() => { void exportReportPdf(filtered, title); }}><FileText size={16} /> Baixar PDF</button>
+          <button type="button" className="page-primary-action report-export-desktop" onClick={() => { void exportReportExcel(filtered, title); }}><FileSpreadsheet size={16} /> Baixar Excel</button>
+          <ReportExportMenu onPdf={() => { void exportReportPdf(filtered, title); }} onExcel={() => { void exportReportExcel(filtered, title); }} />
         </div>
       </section>
 
@@ -4207,7 +4227,7 @@ function HelpPage() {
         'Em Meu perfil, atualize nome, telefone e foto. O e-mail identifica a conta e não é alterado nesse formulário.',
         'Toque na foto para escolher uma imagem, confira a prévia e use Salvar alterações para confirmar.',
         'Copie o ID de amizade quando quiser receber convites de outros usuários.',
-        'Abra o menu do perfil na barra superior para alternar entre modo claro e escuro, acessar notificações ou voltar à Central de Ajuda.',
+        'Abra o menu do perfil na barra superior para alternar entre modo claro e escuro, acessar seu perfil ou voltar à Central de Ajuda.',
         'Use Sair somente quando desejar encerrar a sessão neste dispositivo.',
       ],
     },
@@ -5309,8 +5329,8 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
         <div className="profile-dropdown" role="menu">
           <div className="profile-dropdown-user"><strong>{userName}</strong><span>Perfil do usuário</span></div>
           <button type="button" className="profile-menu-item profile-menu-item--toggle" role="menuitem" onClick={onToggleTheme}><span>{theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />} Modo escuro</span><span className={`ios-switch ${theme === 'dark' ? 'ios-switch--on' : ''}`} aria-hidden="true"><span className="ios-switch-knob" /></span></button>
-          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('profile'); }}><UserRound size={16} /> Meu perfil</button>
-          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { setProfileOpen(false); onNavigate('help'); }}><HelpCircle size={16} /> Central de Ajuda</button>
+          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { onNavigate('profile'); setProfileOpen(false); }}><UserRound size={16} /> Meu perfil</button>
+          <button type="button" className="profile-menu-item" role="menuitem" onClick={() => { onNavigate('help'); setProfileOpen(false); }}><HelpCircle size={16} /> Central de Ajuda</button>
           <button type="button" className="profile-logout" role="menuitem" onClick={() => { setProfileOpen(false); onLogout(); }}><LogOut size={16} /> Sair</button>
         </div>
       ) : null}
@@ -5399,7 +5419,7 @@ function MobileSettingsSheet({
         <div className="settings-screen-head">
           <button type="button" className="settings-close" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
         </div>
-        <button type="button" className="settings-profile-card" onClick={() => { onClose(); onNavigate('profile'); }}>
+        <button type="button" className="settings-profile-card" onClick={() => { onNavigate('profile'); onClose(); }}>
           {userAvatarUrl ? (
             <img src={userAvatarUrl} alt={userName} className="settings-avatar" />
           ) : (
@@ -5416,17 +5436,17 @@ function MobileSettingsSheet({
           </button>
         </div>
         <div className="settings-group">
-          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('categories'); }}>
+          <button type="button" className="settings-row" onClick={() => { onNavigate('categories'); onClose(); }}>
             <span className="settings-row-icon settings-row-icon--orange"><Tags size={16} /></span>
             <span className="settings-row-label">Categorias</span>
             <ChevronRight className="settings-chevron" size={16} />
           </button>
-          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('friends'); }}>
+          <button type="button" className="settings-row" onClick={() => { onNavigate('friends'); onClose(); }}>
             <span className="settings-row-icon settings-row-icon--blue"><Users size={16} /></span>
             <span className="settings-row-label">Amigos</span>
             <ChevronRight className="settings-chevron" size={16} />
           </button>
-          <button type="button" className="settings-row" onClick={() => { onClose(); onNavigate('help'); }}>
+          <button type="button" className="settings-row" onClick={() => { onNavigate('help'); onClose(); }}>
             <span className="settings-row-icon settings-row-icon--gray"><HelpCircle size={16} /></span>
             <span className="settings-row-label">Central de Ajuda</span>
             <ChevronRight className="settings-chevron" size={16} />
