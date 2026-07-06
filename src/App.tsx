@@ -1,4 +1,4 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
 import type { Row } from 'read-excel-file/browser';
 import type { Cell, SheetData } from 'write-excel-file/browser';
 import { createPortal } from 'react-dom';
@@ -1497,6 +1497,7 @@ export function App() {
   const [activePage, setActivePage] = useState<AppPage>('dashboard');
   const [pendingPage, setPendingPage] = useState<AppPage>('dashboard');
   const [previousPage, setPreviousPage] = useState<AppPage>('dashboard');
+  const [, startNavigation] = useTransition();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
     return localStorage.getItem('rubylife-theme') === 'dark' ? 'dark' : 'light';
@@ -1723,7 +1724,7 @@ export function App() {
     setSyncError(`Não foi possível salvar (${scope}). Verifique sua conexão.`);
   }
 
-  function scrollContentToTop() {
+  const scrollContentToTop = useCallback(() => {
     const main = mainContentRef.current;
     if (main) {
       main.scrollTop = 0;
@@ -1739,20 +1740,29 @@ export function App() {
       mainContentRef.current?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     });
-  }
+  }, []);
 
-  function handleNavigate(page: AppPage) {
+  const handleNavigate = useCallback((page: AppPage) => {
+    // Feedback imediato: destaca a aba tocada na hora (síncrono e barato).
     setPendingPage(page);
-    setActivePage((current) => {
-      if (current !== 'help' && current !== 'profile') {
-        setPreviousPage(current);
-      }
-      if (current === page) {
-        window.requestAnimationFrame(scrollContentToTop);
-      }
-      return page;
+
+    // Já estamos na página: só rola para o topo, sem re-renderizar o conteúdo.
+    if (page === activePage) {
+      window.requestAnimationFrame(scrollContentToTop);
+      return;
+    }
+
+    if (activePage !== 'help' && activePage !== 'profile') {
+      setPreviousPage(activePage);
+    }
+
+    // Troca do conteúdo pesado como transição: não bloqueia o toque nem a
+    // interface, e o React pode interromper a renderização se o usuário tocar
+    // em outra aba antes de terminar.
+    startNavigation(() => {
+      setActivePage(page);
     });
-  }
+  }, [activePage, scrollContentToTop, startNavigation]);
 
   function navigateFromUrl(rawUrl: string) {
     const url = new URL(rawUrl, window.location.origin);
@@ -1780,7 +1790,7 @@ export function App() {
 
   useEffect(() => {
     requestAnimationFrame(() => scrollContentToTop());
-  }, [activePage]);
+  }, [activePage, scrollContentToTop]);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -2135,13 +2145,13 @@ export function App() {
   const selectedOpenWithoutAccount = useMemo(() => selectedOpenInView.filter((item) => !accounts.some((account) => account.id === item.accountId || account.name === item.account)), [selectedOpenInView, accounts]);
   const allSelected = monthItems.length > 0 && selectedInView.length === monthItems.length;
 
-  function toggleSelectTx(id: string) {
+  const toggleSelectTx = useCallback((id: string) => {
     setSelectedTxIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  }
+  }, []);
 
   function toggleSelectAllTx() {
     setSelectedTxIds((current) => {
@@ -2176,13 +2186,15 @@ export function App() {
     setSelectedTxIds(new Set());
   }
 
-  function markTransactionAsPending(targetId: string) {
-    commitTransactions(transactions.map((item) => {
+  const markTransactionAsPending = useCallback((targetId: string) => {
+    const next: Transaction[] = transactions.map((item) => {
       if (item.id !== targetId) return item;
       const { settledAt: _settledAt, settledAmount: _settledAmount, ...rest } = item;
       return { ...rest, status: 'open' };
-    }));
-  }
+    });
+    setTransactions(next);
+    if (userId) void syncTransactions(userId, transactions, next).catch((error) => reportSyncError('transações', error));
+  }, [transactions, userId]);
 
   function bulkMarkSelectedTransactionsAsPending() {
     const selectedIds = new Set(selectedSettledInView.map((item) => item.id));
@@ -2488,12 +2500,12 @@ export function App() {
                                   item={item}
                                   isSelected={selectedTxIds.has(item.id)}
                                   selectionMode={selectedTxIds.size > 0}
-                                  onToggleSelect={() => toggleSelectTx(item.id)}
-                                  onEdit={() => setEditingTransaction(item)}
-                                  onSettle={() => setSettleTarget(item)}
-                                  onDelete={() => setDeletingTransaction(item)}
-                                  onMarkPending={() => markTransactionAsPending(item.id)}
-                                  onLongPress={() => setLongPressTransaction(item)}
+                                  onToggleSelect={toggleSelectTx}
+                                  onEdit={setEditingTransaction}
+                                  onSettle={setSettleTarget}
+                                  onDelete={setDeletingTransaction}
+                                  onMarkPending={markTransactionAsPending}
+                                  onLongPress={setLongPressTransaction}
                                   categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
                                 />
                               </Fragment>
@@ -2782,12 +2794,12 @@ export function App() {
                                 item={item}
                                 isSelected={selectedTxIds.has(item.id)}
                                 selectionMode={selectedTxIds.size > 0}
-                                onToggleSelect={() => toggleSelectTx(item.id)}
-                                onEdit={() => setEditingTransaction(item)}
-                                onSettle={() => setSettleTarget(item)}
-                                onDelete={() => setDeletingTransaction(item)}
-                                onMarkPending={() => markTransactionAsPending(item.id)}
-                                onLongPress={() => setLongPressTransaction(item)}
+                                onToggleSelect={toggleSelectTx}
+                                onEdit={setEditingTransaction}
+                                onSettle={setSettleTarget}
+                                onDelete={setDeletingTransaction}
+                                onMarkPending={markTransactionAsPending}
+                                onLongPress={setLongPressTransaction}
                                 categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
                               />
                             </Fragment>
@@ -3207,7 +3219,7 @@ function LongPressOptionsModal({ item, onClose, onEdit, onSettle, onDelete, onMa
   );
 }
 
-function SwipeableTransactionRow({
+const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
   item,
   isSelected,
   selectionMode,
@@ -3222,12 +3234,12 @@ function SwipeableTransactionRow({
   item: Transaction;
   isSelected: boolean;
   selectionMode: boolean;
-  onToggleSelect: () => void;
-  onEdit: () => void;
-  onSettle: () => void;
-  onDelete: () => void;
-  onMarkPending: () => void;
-  onLongPress: () => void;
+  onToggleSelect: (id: string) => void;
+  onEdit: (item: Transaction) => void;
+  onSettle: (item: Transaction) => void;
+  onDelete: (item: Transaction) => void;
+  onMarkPending: (id: string) => void;
+  onLongPress: (item: Transaction) => void;
   categoryMeta?: { color: string; icon: CategoryIconKey };
 }) {
   const [offsetX, setOffsetX] = useState(0);
@@ -3252,7 +3264,7 @@ function SwipeableTransactionRow({
 
     clearTimer();
     longPressTimerRef.current = setTimeout(() => {
-      onLongPress();
+      onLongPress(item);
       touchStartRef.current = null;
     }, 500);
   }
@@ -3283,10 +3295,10 @@ function SwipeableTransactionRow({
 
     if (offsetX <= -70) {
       setOffsetX(0);
-      onDelete();
+      onDelete(item);
     } else if (offsetX >= 70 && item.status === 'open') {
       setOffsetX(0);
-      onSettle();
+      onSettle(item);
     } else {
       setOffsetX(0);
     }
@@ -3332,11 +3344,11 @@ function SwipeableTransactionRow({
         onClick={(event) => {
           if (!selectionMode) return;
           if (event.target instanceof HTMLElement && (event.target.closest('button') || event.target.closest('input') || event.target.closest('.row-actions'))) return;
-          onToggleSelect();
+          onToggleSelect(item.id);
         }}
       >
         <span className="row-check-col" onClick={(e) => e.stopPropagation()}>
-          <input type="checkbox" className="row-check" checked={isSelected} onChange={onToggleSelect} aria-label={`Selecionar ${item.description}`} />
+          <input type="checkbox" className="row-check" checked={isSelected} onChange={() => onToggleSelect(item.id)} aria-label={`Selecionar ${item.description}`} />
         </span>
         <div className="launch-main" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {categoryMeta ? (
@@ -3381,17 +3393,17 @@ function SwipeableTransactionRow({
         </span>
         <span className="launch-actions-cell" onClick={(e) => e.stopPropagation()}>
           <RowActions actions={[
-            { key: 'edit', label: 'Editar', icon: <Pencil size={15} />, onClick: onEdit },
+            { key: 'edit', label: 'Editar', icon: <Pencil size={15} />, onClick: () => onEdit(item) },
             ...(item.status === 'open'
-              ? [{ key: 'settle', label: 'Efetivado', icon: <CheckCircle2 size={15} />, onClick: onSettle }]
-              : [{ key: 'pending', label: 'Desefetivar', icon: <RotateCcw size={15} />, onClick: onMarkPending }]),
-            { key: 'delete', label: 'Excluir', icon: <Trash2 size={15} />, onClick: onDelete, danger: true },
+              ? [{ key: 'settle', label: 'Efetivado', icon: <CheckCircle2 size={15} />, onClick: () => onSettle(item) }]
+              : [{ key: 'pending', label: 'Desefetivar', icon: <RotateCcw size={15} />, onClick: () => onMarkPending(item.id) }]),
+            { key: 'delete', label: 'Excluir', icon: <Trash2 size={15} />, onClick: () => onDelete(item), danger: true },
           ]} />
         </span>
       </article>
     </div>
   );
-}
+});
 
 function StatusIcon({ status, dueDate }: { status: TransactionStatus; dueDate?: string }) {
   const today = new Date().toISOString().slice(0, 10);
