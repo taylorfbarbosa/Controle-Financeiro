@@ -158,12 +158,11 @@ type ReportFilters = {
   description: string;
   category: string;
   type: TransactionTypeFilter;
-};
-
-type TransactionExportFilters = ReportFilters & {
   status: 'all' | TransactionStatus;
   accountId: string;
 };
+
+type TransactionExportFilters = ReportFilters;
 
 const DEFAULT_TRANSACTION_EXPORT_FILTERS: TransactionExportFilters = {
   date: '',
@@ -1594,8 +1593,8 @@ export function App() {
   const [referenceDate, setReferenceDate] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchType, setLaunchType] = useState<TransactionType>('expense');
-  const [shoppingItemCreateSignal, setShoppingItemCreateSignal] = useState(0);
   const [shoppingCreateSignal, setShoppingCreateSignal] = useState(0);
+  const [shoppingItemCreateSignal, setShoppingItemCreateSignal] = useState(0);
   const [friendSearchSignal, setFriendSearchSignal] = useState(0);
   const [friendBackSignal, setFriendBackSignal] = useState(0);
   const [activeFriendThreadName, setActiveFriendThreadName] = useState<string | null>(null);
@@ -1623,6 +1622,8 @@ export function App() {
   const [confirmDialog, setConfirmDialog] = useState<ConfirmConfig | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<TransactionTypeFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | TransactionStatus>('all');
+  const [accountFilter, setAccountFilter] = useState('all');
   const [transactionSummaryMode, setTransactionSummaryMode] = useState<TransactionSummaryMode>('balance');
   const [dateFilter, setDateFilter] = useState('');
   const [descriptionFilter, setDescriptionFilter] = useState('');
@@ -1633,7 +1634,7 @@ export function App() {
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
   const mobileTxCarouselRef = useRef<HTMLDivElement>(null);
   const [mobileTxCarouselIndex, setMobileTxCarouselIndex] = useState(0);
-  const [draftFilters, setDraftFilters] = useState<ReportFilters>({ date: '', description: '', category: 'all', type: 'all' });
+  const [draftFilters, setDraftFilters] = useState<ReportFilters>({ date: '', description: '', category: 'all', type: 'all', status: 'all', accountId: 'all' });
   const filterControlRef = useRef<HTMLDivElement>(null);
   const transactionActionsControlRef = useRef<HTMLDivElement>(null);
   const [accountFilters, setAccountFilters] = useState<AccountFilters>({ search: '', type: 'all' });
@@ -2249,19 +2250,21 @@ export function App() {
     return map;
   }, [categoryItems]);
   const appliedDescriptionFilter = descriptionFilter.trim().toLowerCase();
-  const monthItems = useMemo(() =>
-    transactions
+  const monthItems = useMemo(() => {
+    const filterAccount = accountFilter === 'all' ? null : accounts.find((account) => account.id === accountFilter);
+    return transactions
       .filter((item) => (dateFilter ? item.dueDate === dateFilter : item.dueDate.slice(0, 7) === currentMonth))
       .filter((item) => categoryFilter === 'all' || item.category === categoryFilter)
       .filter((item) => typeFilter === 'all' || item.type === typeFilter)
+      .filter((item) => statusFilter === 'all' || item.status === statusFilter)
+      .filter((item) => accountFilter === 'all' || item.accountId === accountFilter || (!!filterAccount && item.account === filterAccount.name))
       .filter((item) => !appliedDescriptionFilter || item.description.toLowerCase().includes(appliedDescriptionFilter))
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-    [transactions, dateFilter, currentMonth, categoryFilter, typeFilter, appliedDescriptionFilter],
-  );
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [transactions, dateFilter, currentMonth, categoryFilter, typeFilter, statusFilter, accountFilter, accounts, appliedDescriptionFilter]);
 
   const [txVisibleCount, setTxVisibleCount] = useState(TX_PAGE_SIZE);
   // Volta ao topo da paginação quando o "recorte" da lista muda (mês/filtros).
-  useEffect(() => { setTxVisibleCount(TX_PAGE_SIZE); }, [currentMonth, dateFilter, categoryFilter, typeFilter, appliedDescriptionFilter]);
+  useEffect(() => { setTxVisibleCount(TX_PAGE_SIZE); }, [currentMonth, dateFilter, categoryFilter, typeFilter, statusFilter, accountFilter, appliedDescriptionFilter]);
   const visibleMonthItems = useMemo(() => monthItems.slice(0, txVisibleCount), [monthItems, txVisibleCount]);
   const loadMoreTx = useCallback(() => setTxVisibleCount((count) => count + TX_PAGE_SIZE), []);
 
@@ -2357,7 +2360,8 @@ export function App() {
   }
 
 
-  const activeFilterCount = Number(categoryFilter !== 'all') + Number(typeFilter !== 'all') + Number(Boolean(dateFilter)) + Number(Boolean(descriptionFilter));
+  const activeFilterCount = Number(categoryFilter !== 'all') + Number(typeFilter !== 'all') + Number(statusFilter !== 'all') + Number(accountFilter !== 'all') + Number(Boolean(dateFilter)) + Number(Boolean(descriptionFilter));
+  const accountFilterLabel = accounts.find((account) => account.id === accountFilter)?.name ?? accountFilter;
 
   const summary = useMemo(() => {
     const income = monthItems.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
@@ -2413,6 +2417,8 @@ export function App() {
       description: descriptionFilter,
       category: categoryFilter,
       type: typeFilter,
+      status: statusFilter,
+      accountId: accountFilter,
     });
     setFilterOpen((open) => !open);
   }
@@ -2422,6 +2428,8 @@ export function App() {
     setDescriptionFilter(draftFilters.description.trim());
     setCategoryFilter(draftFilters.category);
     setTypeFilter(draftFilters.type);
+    setStatusFilter(draftFilters.status);
+    setAccountFilter(draftFilters.accountId);
     setFilterOpen(false);
   }
 
@@ -2615,6 +2623,18 @@ export function App() {
                             <button type="button" onClick={() => setTypeFilter('all')} aria-label="Remover filtro de tipo"><X size={12} /></button>
                           </span>
                         ) : null}
+                        {statusFilter !== 'all' ? (
+                          <span className="active-filter-chip">
+                            Status: <strong>{statusFilter === 'open' ? 'Em aberto' : 'Efetivadas'}</strong>
+                            <button type="button" onClick={() => setStatusFilter('all')} aria-label="Remover filtro de status"><X size={12} /></button>
+                          </span>
+                        ) : null}
+                        {accountFilter !== 'all' ? (
+                          <span className="active-filter-chip">
+                            Conta: <strong>{accountFilterLabel}</strong>
+                            <button type="button" onClick={() => setAccountFilter('all')} aria-label="Remover filtro de conta"><X size={12} /></button>
+                          </span>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -2657,9 +2677,24 @@ export function App() {
                                 <option value="expense">Despesa</option>
                               </select>
                             </label>
+                            <label className="filter-field">
+                              <span>Status</span>
+                              <select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value as ReportFilters['status'] }))}>
+                                <option value="all">Todos</option>
+                                <option value="open">Em aberto</option>
+                                <option value="settled">Efetivadas</option>
+                              </select>
+                            </label>
+                            <label className="filter-field">
+                              <span>Conta</span>
+                              <select value={draftFilters.accountId} onChange={(event) => setDraftFilters((current) => ({ ...current, accountId: event.target.value }))}>
+                                <option value="all">Todas</option>
+                                {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                              </select>
+                            </label>
                           </div>
                           <div className="filter-popover-actions">
-                            <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', description: '', category: 'all', type: 'all' })}>
+                            <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', description: '', category: 'all', type: 'all', status: 'all', accountId: 'all' })}>
                               <RotateCcw size={14} /> Limpar
                             </button>
                             <button type="button" className="filter-apply" onClick={applyFilters}>Aplicar filtros</button>
@@ -2669,7 +2704,6 @@ export function App() {
                     </div>
                     <div className="transaction-actions-control" ref={transactionActionsControlRef}>
                       <button type="button" className={`page-secondary-action transaction-actions-trigger${transactionActionsOpen || transactionExportOpen ? ' active' : ''}`} onClick={() => { setTransactionExportOpen(false); setTransactionActionsOpen((open) => !open); }} aria-expanded={transactionActionsOpen} aria-haspopup="menu" title="Ações das transações">
-                        <MoreHorizontal size={16} />
                         Ações
                         <ChevronDown size={14} />
                       </button>
@@ -2805,6 +2839,18 @@ export function App() {
                         <span className="active-filter-chip">
                           Tipo: <strong>{typeFilter === 'income' ? 'Receita' : 'Despesa'}</strong>
                           <button type="button" onClick={() => setTypeFilter('all')} aria-label="Remover filtro de tipo"><X size={12} /></button>
+                        </span>
+                      ) : null}
+                      {statusFilter !== 'all' ? (
+                        <span className="active-filter-chip">
+                          Status: <strong>{statusFilter === 'open' ? 'Em aberto' : 'Efetivadas'}</strong>
+                          <button type="button" onClick={() => setStatusFilter('all')} aria-label="Remover filtro de status"><X size={12} /></button>
+                        </span>
+                      ) : null}
+                      {accountFilter !== 'all' ? (
+                        <span className="active-filter-chip">
+                          Conta: <strong>{accountFilterLabel}</strong>
+                          <button type="button" onClick={() => setAccountFilter('all')} aria-label="Remover filtro de conta"><X size={12} /></button>
                         </span>
                       ) : null}
                     </div>
@@ -2983,9 +3029,24 @@ export function App() {
                           <option value="expense">Despesa</option>
                         </select>
                       </label>
+                      <label className="filter-field">
+                        <span>Status</span>
+                        <select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value as ReportFilters['status'] }))}>
+                          <option value="all">Todos</option>
+                          <option value="open">Em aberto</option>
+                          <option value="settled">Efetivadas</option>
+                        </select>
+                      </label>
+                      <label className="filter-field">
+                        <span>Conta</span>
+                        <select value={draftFilters.accountId} onChange={(event) => setDraftFilters((current) => ({ ...current, accountId: event.target.value }))}>
+                          <option value="all">Todas</option>
+                          {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                        </select>
+                      </label>
                     </div>
                     <div className="filter-popover-actions">
-                      <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', description: '', category: 'all', type: 'all' })}>
+                      <button type="button" className="filter-clear" onClick={() => setDraftFilters({ date: '', description: '', category: 'all', type: 'all', status: 'all', accountId: 'all' })}>
                         <RotateCcw size={14} /> Limpar
                       </button>
                       <button type="button" className="filter-apply" onClick={applyFilters}>Aplicar filtros</button>

@@ -1391,7 +1391,7 @@ button {
 }
 
 .transaction-export-download--pdf {
-  background: #0f172a;
+  background: #dc2626;
 }
 
 .transaction-export-download--excel {
@@ -1412,7 +1412,9 @@ button {
     height: 100svh !important;
     max-height: none !important;
     flex-direction: column;
-    overflow: hidden !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
     border: 0 !important;
     border-radius: 0 !important;
     background: #f1f2f5 !important;
@@ -1420,6 +1422,9 @@ button {
   }
 
   .main-content--transactions .transaction-export-popover--mobile .transaction-export-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     padding: calc(18px + env(safe-area-inset-top)) 20px 14px !important;
     border-bottom: 0 !important;
     background: #f1f2f5 !important;
@@ -1442,8 +1447,7 @@ button {
   .main-content--transactions .transaction-export-popover--mobile .transaction-export-grid {
     grid-template-columns: 1fr !important;
     gap: 14px !important;
-    flex: 1;
-    overflow-y: auto;
+    flex: 0 0 auto;
     padding: 0 20px 18px !important;
   }
 
@@ -5930,7 +5934,9 @@ button {
     width: 100vw !important;
     height: 100svh !important;
     flex-direction: column;
-    overflow: hidden !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
     border: 0 !important;
     border-radius: 0 !important;
     background: #f1f2f5 !important;
@@ -5939,6 +5945,9 @@ button {
   }
 
   .main-content--transactions .filter-popover-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
     padding: calc(22px + env(safe-area-inset-top)) 22px 18px !important;
     border-bottom: 0 !important;
     background: #f1f2f5 !important;
@@ -5953,8 +5962,7 @@ button {
   .main-content--transactions .filter-grid {
     grid-template-columns: 1fr !important;
     gap: 14px !important;
-    flex: 1;
-    overflow-y: auto;
+    flex: 0 0 auto;
     padding: 0 22px 22px !important;
   }
 
