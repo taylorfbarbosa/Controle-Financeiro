@@ -57,6 +57,7 @@ import {
   Moon,
   Music,
   Dumbbell,
+  Download,
   Plane,
   Sun,
   PiggyBank,
@@ -157,6 +158,20 @@ type ReportFilters = {
   description: string;
   category: string;
   type: TransactionTypeFilter;
+};
+
+type TransactionExportFilters = ReportFilters & {
+  status: 'all' | TransactionStatus;
+  accountId: string;
+};
+
+const DEFAULT_TRANSACTION_EXPORT_FILTERS: TransactionExportFilters = {
+  date: '',
+  description: '',
+  category: 'all',
+  type: 'all',
+  status: 'all',
+  accountId: 'all',
 };
 
 export type Transaction = {
@@ -702,6 +717,68 @@ async function exportReportExcel(items: Transaction[], title: string) {
   const { default: writeXlsxFile } = await import('write-excel-file/browser');
   await writeXlsxFile([
     { data: summaryData, sheet: 'Resumo', columns: [14, 18, 18, 18].map((width) => ({ width })) },
+    { data: transactionData, sheet: 'Transações', columns: [10, 28, 18, 12, 15, 15, 12, 16].map((width) => ({ width })), stickyRowsCount: 1 },
+  ]).toFile(`${slugifyFileName(title)}.xlsx`);
+}
+
+async function exportTransactionsPdf(items: Transaction[], title: string) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+  const doc = new jsPDF({ orientation: 'landscape' });
+  const margin = 14;
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(27, 153, 216);
+  doc.text(title, margin, 16);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(50, 50, 50);
+  doc.text(`Transações (${items.length})`, margin, 26);
+
+  autoTable(doc, {
+    head: [REPORT_COLUMNS],
+    body: items.map((item) => [
+      item.type === 'income' ? 'Receita' : 'Despesa',
+      item.description,
+      item.category,
+      formatDate(item.dueDate),
+      formatCurrency(item.amount),
+      item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—',
+      item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+      item.status === 'settled' ? (item.account ?? '') : '—',
+    ]),
+    startY: 30,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [27, 153, 216], textColor: 255 },
+    alternateRowStyles: { fillColor: [244, 249, 252] },
+    didParseCell: (data) => {
+      if (data.section !== 'body') return;
+      const item = items[data.row.index];
+      if (!item) return;
+      const isIncome = item.type === 'income';
+      if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
+      }
+    },
+  });
+
+  doc.save(`${slugifyFileName(title)}.pdf`);
+}
+
+async function exportTransactionsExcel(items: Transaction[], title: string) {
+  const transactionData: SheetData = [
+    REPORT_COLUMNS.map(excelHeader),
+    ...items.map((item) => [
+      item.type === 'income' ? 'Receita' : 'Despesa', item.description, item.category, formatDate(item.dueDate),
+      excelCurrency(item.amount), item.status === 'settled' ? excelCurrency(item.settledAmount ?? item.amount) : '',
+      item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+      item.status === 'settled' ? (item.account ?? '') : '',
+    ]),
+  ];
+  const { default: writeXlsxFile } = await import('write-excel-file/browser');
+  await writeXlsxFile([
     { data: transactionData, sheet: 'Transações', columns: [10, 28, 18, 12, 15, 15, 12, 16].map((width) => ({ width })), stickyRowsCount: 1 },
   ]).toFile(`${slugifyFileName(title)}.xlsx`);
 }
@@ -1545,11 +1622,15 @@ export function App() {
   const [dateFilter, setDateFilter] = useState('');
   const [descriptionFilter, setDescriptionFilter] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [transactionActionsOpen, setTransactionActionsOpen] = useState(false);
+  const [transactionExportOpen, setTransactionExportOpen] = useState(false);
+  const [transactionExportFilters, setTransactionExportFilters] = useState<TransactionExportFilters>(DEFAULT_TRANSACTION_EXPORT_FILTERS);
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
   const mobileTxCarouselRef = useRef<HTMLDivElement>(null);
   const [mobileTxCarouselIndex, setMobileTxCarouselIndex] = useState(0);
   const [draftFilters, setDraftFilters] = useState<ReportFilters>({ date: '', description: '', category: 'all', type: 'all' });
   const filterControlRef = useRef<HTMLDivElement>(null);
+  const transactionActionsControlRef = useRef<HTMLDivElement>(null);
   const [accountFilters, setAccountFilters] = useState<AccountFilters>({ search: '', type: 'all' });
   const [draftAccountFilters, setDraftAccountFilters] = useState<AccountFilters>({ search: '', type: 'all' });
   const [accountFilterOpen, setAccountFilterOpen] = useState(false);
@@ -1813,6 +1894,46 @@ export function App() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [filterOpen]);
+
+  useEffect(() => {
+    if (!transactionExportOpen) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      const target = event.target as Element | null;
+      if (!transactionActionsControlRef.current?.contains(target) && !target?.closest('.transaction-export-popover') && !target?.closest('.topbar-actions-menu')) setTransactionExportOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setTransactionExportOpen(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [transactionExportOpen]);
+
+  useEffect(() => {
+    if (!transactionActionsOpen) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      const target = event.target as Element | null;
+      if (!transactionActionsControlRef.current?.contains(target)) setTransactionActionsOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setTransactionActionsOpen(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [transactionActionsOpen]);
 
   useEffect(() => {
     if (!accountFilterOpen) return;
@@ -2139,6 +2260,30 @@ export function App() {
   const visibleMonthItems = useMemo(() => monthItems.slice(0, txVisibleCount), [monthItems, txVisibleCount]);
   const loadMoreTx = useCallback(() => setTxVisibleCount((count) => count + TX_PAGE_SIZE), []);
 
+  const transactionExportActiveCount = Number(transactionExportFilters.category !== 'all')
+    + Number(transactionExportFilters.type !== 'all')
+    + Number(transactionExportFilters.status !== 'all')
+    + Number(transactionExportFilters.accountId !== 'all')
+    + Number(Boolean(transactionExportFilters.date))
+    + Number(Boolean(transactionExportFilters.description.trim()));
+  const transactionExportMonthLabel = `${MONTH_OPTIONS[referenceDate.getMonth()]?.label ?? ''} de ${referenceDate.getFullYear()}`;
+  const transactionExportItems = useMemo(() => {
+    const normalizedDescription = transactionExportFilters.description.trim().toLowerCase();
+    const selectedAccount = accounts.find((account) => account.id === transactionExportFilters.accountId);
+
+    return transactions
+      .filter((item) => (transactionExportFilters.date ? item.dueDate === transactionExportFilters.date : item.dueDate.slice(0, 7) === currentMonth))
+      .filter((item) => transactionExportFilters.category === 'all' || item.category === transactionExportFilters.category)
+      .filter((item) => transactionExportFilters.type === 'all' || item.type === transactionExportFilters.type)
+      .filter((item) => transactionExportFilters.status === 'all' || item.status === transactionExportFilters.status)
+      .filter((item) => transactionExportFilters.accountId === 'all' || item.accountId === transactionExportFilters.accountId || (!!selectedAccount && item.account === selectedAccount.name))
+      .filter((item) => !normalizedDescription || item.description.toLowerCase().includes(normalizedDescription))
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  }, [accounts, currentMonth, transactionExportFilters, transactions]);
+  const transactionExportTitle = transactionExportFilters.date
+    ? `Transações de ${formatDate(transactionExportFilters.date)}`
+    : `Transações - ${transactionExportMonthLabel}${transactionExportActiveCount > 0 ? ' filtradas' : ''}`;
+
   const selectedInView = useMemo(() => monthItems.filter((item) => selectedTxIds.has(item.id)), [monthItems, selectedTxIds]);
   const selectedOpenInView = useMemo(() => selectedInView.filter((item) => item.status === 'open'), [selectedInView]);
   const selectedSettledInView = useMemo(() => selectedInView.filter((item) => item.status === 'settled'), [selectedInView]);
@@ -2256,6 +2401,8 @@ export function App() {
   }, [accounts, transactions]);
 
   function openFilters() {
+    setTransactionActionsOpen(false);
+    setTransactionExportOpen(false);
     setDraftFilters({
       date: dateFilter,
       description: descriptionFilter,
@@ -2272,6 +2419,95 @@ export function App() {
     setTypeFilter(draftFilters.type);
     setFilterOpen(false);
   }
+
+  function openTransactionExport() {
+    setFilterOpen(false);
+    setTransactionActionsOpen(false);
+    if (!transactionExportOpen) {
+      setTransactionExportFilters({
+        date: dateFilter,
+        description: descriptionFilter,
+        category: categoryFilter,
+        type: typeFilter,
+        status: 'all',
+        accountId: 'all',
+      });
+    }
+    setTransactionExportOpen(true);
+  }
+
+  function clearTransactionExportFilters() {
+    setTransactionExportFilters({ ...DEFAULT_TRANSACTION_EXPORT_FILTERS });
+  }
+
+  function downloadTransactionExport(format: 'pdf' | 'excel') {
+    if (transactionExportItems.length === 0) return;
+    setTransactionExportOpen(false);
+    if (format === 'pdf') {
+      void exportTransactionsPdf(transactionExportItems, transactionExportTitle);
+      return;
+    }
+    void exportTransactionsExcel(transactionExportItems, transactionExportTitle);
+  }
+
+  const renderTransactionExportPanel = (variant: 'desktop' | 'mobile') => (
+    <div className={`filter-popover transaction-export-popover transaction-export-popover--${variant}`} role="dialog" aria-label="Baixar transações filtradas">
+      <div className="filter-popover-header transaction-export-header">
+        <div>
+          <strong>Baixar transações</strong>
+
+        </div>
+        <button type="button" className="transaction-export-close" onClick={() => setTransactionExportOpen(false)} aria-label="Fechar download"><X size={16} /></button>
+      </div>
+
+      <div className="filter-grid transaction-export-grid">
+        <label className="filter-field filter-field--wide">
+          <span>Descrição</span>
+          <input type="text" placeholder="Buscar por descrição..." value={transactionExportFilters.description} onChange={(event) => setTransactionExportFilters((current) => ({ ...current, description: event.target.value }))} />
+        </label>
+        <label className="filter-field">
+          <span>Data fixa</span>
+          <input type="date" value={transactionExportFilters.date} onChange={(event) => setTransactionExportFilters((current) => ({ ...current, date: event.target.value }))} />
+        </label>
+        <label className="filter-field">
+          <span>Categoria</span>
+          <select value={transactionExportFilters.category} onChange={(event) => setTransactionExportFilters((current) => ({ ...current, category: event.target.value }))}>
+            <option value="all">Todas</option>
+            {transactionCategoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
+          </select>
+        </label>
+        <label className="filter-field">
+          <span>Tipo</span>
+          <select value={transactionExportFilters.type} onChange={(event) => setTransactionExportFilters((current) => ({ ...current, type: event.target.value as TransactionTypeFilter }))}>
+            <option value="all">Todos</option>
+            <option value="income">Receita</option>
+            <option value="expense">Despesa</option>
+          </select>
+        </label>
+        <label className="filter-field">
+          <span>Status</span>
+          <select value={transactionExportFilters.status} onChange={(event) => setTransactionExportFilters((current) => ({ ...current, status: event.target.value as TransactionExportFilters['status'] }))}>
+            <option value="all">Todos</option>
+            <option value="open">Em aberto</option>
+            <option value="settled">Efetivadas</option>
+          </select>
+        </label>
+        <label className="filter-field filter-field--wide">
+          <span>Conta</span>
+          <select value={transactionExportFilters.accountId} onChange={(event) => setTransactionExportFilters((current) => ({ ...current, accountId: event.target.value }))}>
+            <option value="all">Todas</option>
+            {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <div className="filter-popover-actions transaction-export-actions">
+        <button type="button" className="filter-clear transaction-export-clear" onClick={clearTransactionExportFilters}><RotateCcw size={14} /> Limpar</button>
+        <button type="button" className="transaction-export-download transaction-export-download--pdf" disabled={transactionExportItems.length === 0} onClick={() => downloadTransactionExport('pdf')}><FileText size={15} /> PDF</button>
+        <button type="button" className="transaction-export-download transaction-export-download--excel" disabled={transactionExportItems.length === 0} onClick={() => downloadTransactionExport('excel')}><FileSpreadsheet size={15} /> Excel</button>
+      </div>
+    </div>
+  );
 
   function openAccountFilters() {
     setDraftAccountFilters(accountFilters);
@@ -2319,7 +2555,7 @@ export function App() {
           <button type="button" onClick={() => setSyncError(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#fff', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Fechar</button>
         </div>
       )}
-      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} transactionFilterOpen={filterOpen} transactionActiveFilterCount={activeFilterCount} onImportTransactions={() => setImportOpen(true)} onOpenAccountFilters={openAccountFilters} onOpenAccountCreate={() => { setEditingAccount(null); setAccountOpen(true); }} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
+      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} transactionFilterOpen={filterOpen} transactionActiveFilterCount={activeFilterCount} onDownloadTransactions={openTransactionExport} onImportTransactions={() => { setTransactionExportOpen(false); setImportOpen(true); }} onOpenAccountFilters={openAccountFilters} onOpenAccountCreate={() => { setEditingAccount(null); setAccountOpen(true); }} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
         <Sidebar activePage={pendingPage} onNavigate={handleNavigate} />
         <MobileTabBar
@@ -2424,9 +2660,20 @@ export function App() {
                         </div>
                       ) : null}
                     </div>
-                    <button type="button" className="page-secondary-action btn-icon-only" onClick={() => setImportOpen(true)} title="Importar Excel">
-                      <Upload size={16} />
-                    </button>
+                    <div className="transaction-actions-control" ref={transactionActionsControlRef}>
+                      <button type="button" className={`page-secondary-action transaction-actions-trigger${transactionActionsOpen || transactionExportOpen ? ' active' : ''}`} onClick={() => { setTransactionExportOpen(false); setTransactionActionsOpen((open) => !open); }} aria-expanded={transactionActionsOpen} aria-haspopup="menu" title="Ações das transações">
+                        <MoreHorizontal size={16} />
+                        Ações
+                        <ChevronDown size={14} />
+                      </button>
+                      {transactionActionsOpen ? (
+                        <div className="transaction-actions-popover" role="menu">
+                          <button type="button" role="menuitem" onClick={openTransactionExport}><Download size={16} /> Baixar</button>
+                          <button type="button" role="menuitem" onClick={() => { setTransactionActionsOpen(false); setImportOpen(true); }}><Upload size={16} /> Importar Excel</button>
+                        </div>
+                      ) : null}
+                      {transactionExportOpen ? renderTransactionExportPanel('desktop') : null}
+                    </div>
                     <button type="button" className="page-primary-action" onClick={() => setLaunchOpen(true)}>
                       <Plus size={16} />
                       Nova transação
@@ -2738,6 +2985,8 @@ export function App() {
                     </div>
                   </div>
                 ) : null}
+
+                {transactionExportOpen ? renderTransactionExportPanel('mobile') : null}
 
                 <section className="mobile-tx-bottom-sheet">
                   <div className="mobile-tx-sheet-pull-indicator">
@@ -3464,6 +3713,28 @@ function MonthNavigator({ date, onChange }: { date: Date; onChange: (date: Date)
   );
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
+
+// Só é considerado "aberto" quando o Recharts realmente renderiza o conteúdo do
+// tooltip dentro do wrapper. Evita remontar o gráfico à toa em cada toque.
+function hasChartTooltipOpen(container: HTMLElement | null) {
+  const wrapper = container?.querySelector<HTMLElement>('.recharts-tooltip-wrapper');
+  return !!wrapper && wrapper.childElementCount > 0 && wrapper.style.visibility !== 'hidden';
+}
+
 const DashboardPage = memo(function DashboardPage({ transactions, referenceDate, onChangeDate, onNavigate }: {
   transactions: Transaction[];
   referenceDate: Date;
@@ -3475,11 +3746,36 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
   const [incomeExpenseChartKey, setIncomeExpenseChartKey] = useState(0);
   const [balanceChartKey, setBalanceChartKey] = useState(0);
 
+  // Renderiza apenas o conjunto de gráficos do viewport atual (mobile OU
+  // desktop) em vez de montar os dois e esconder metade com CSS.
+  const isMobile = useMediaQuery('(max-width: 760px)');
+
+  // Adia a montagem dos gráficos (Recharts é pesado) para depois da primeira
+  // pintura, deixando a entrada na Visão Geral instantânea.
+  const [chartsReady, setChartsReady] = useState(false);
+  useEffect(() => {
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setChartsReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, []);
+
   useEffect(() => {
     function closeChartTooltips(event: PointerEvent) {
       const target = event.target as Node;
-      if (!incomeExpenseChartRef.current?.contains(target)) setIncomeExpenseChartKey((key) => key + 1);
-      if (!balanceChartRef.current?.contains(target)) setBalanceChartKey((key) => key + 1);
+      // Só remonta o gráfico que de fato tem um tooltip aberto — assim um toque
+      // para navegar não dispara o remonte pesado do Recharts (o que fazia a
+      // navegação exigir vários cliques).
+      if (!incomeExpenseChartRef.current?.contains(target) && hasChartTooltipOpen(incomeExpenseChartRef.current)) {
+        setIncomeExpenseChartKey((key) => key + 1);
+      }
+      if (!balanceChartRef.current?.contains(target) && hasChartTooltipOpen(balanceChartRef.current)) {
+        setBalanceChartKey((key) => key + 1);
+      }
     }
 
     document.addEventListener('pointerdown', closeChartTooltips);
@@ -3621,29 +3917,32 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
               <div className="chart-head"><strong>Receitas x Despesas</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Mês anterior + próximos 4</span></div>
-              <div ref={incomeExpenseChartRef} className="chart-box chart-box--wide dashboard-income-chart--full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart key={incomeExpenseChartKey} data={monthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="Receitas" fill="#1B99D8" radius={[6, 6, 0, 0]} maxBarSize={30} />
-                    <Bar dataKey="Despesas" fill="#dc2626" radius={[6, 6, 0, 0]} maxBarSize={30} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="chart-box chart-box--wide dashboard-income-chart--mobile">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart key={`mob-${incomeExpenseChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="Receitas" fill="#1B99D8" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                    <Bar dataKey="Despesas" fill="#dc2626" radius={[6, 6, 0, 0]} maxBarSize={36} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div ref={incomeExpenseChartRef} className="chart-box chart-box--wide">
+                {!chartsReady ? (
+                  <div className="chart-loading" aria-hidden="true" />
+                ) : isMobile ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart key={`mob-${incomeExpenseChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="Receitas" fill="#1B99D8" radius={[6, 6, 0, 0]} maxBarSize={36} isAnimationActive={false} />
+                      <Bar dataKey="Despesas" fill="#dc2626" radius={[6, 6, 0, 0]} maxBarSize={36} isAnimationActive={false} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart key={incomeExpenseChartKey} data={monthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="Receitas" fill="#1B99D8" radius={[6, 6, 0, 0]} maxBarSize={30} />
+                      <Bar dataKey="Despesas" fill="#dc2626" radius={[6, 6, 0, 0]} maxBarSize={30} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </section>
           </div>
@@ -3651,35 +3950,38 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
           <div className="dashboard-charts dashboard-charts--single">
             <section className="resource-panel chart-panel chart-panel--wide">
               <div className="chart-head"><strong>Saldo mensal</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Mês anterior + próximos 4</span></div>
-              <div ref={balanceChartRef} className="chart-box chart-box--wide dashboard-balance-chart dashboard-balance-chart--line">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart key={balanceChartKey} data={monthlySeries} margin={{ top: 34, right: 10, left: 10, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
-                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#94a3b8', strokeWidth: 1 }} />
-                    <Line type="monotone" dataKey="Saldo" stroke="#334155" strokeWidth={3} dot={renderBalanceDot} activeDot={{ r: 6 }}>
-                      <LabelList dataKey="Saldo" content={renderBalanceLabel} />
-                    </Line>
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="chart-box chart-box--wide dashboard-balance-chart dashboard-balance-chart--area">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart key={`mob-area-${balanceChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#1B99D8" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#1B99D8" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
-                    <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
-                    <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#94a3b8', strokeWidth: 1 }} />
-                    <Area type="monotone" dataKey="Saldo" stroke="#1B99D8" strokeWidth={2.5} fill="url(#balanceGradient)" dot={{ r: 4, fill: '#1B99D8', strokeWidth: 0 }} activeDot={{ r: 6 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
+              <div ref={balanceChartRef} className="chart-box chart-box--wide">
+                {!chartsReady ? (
+                  <div className="chart-loading" aria-hidden="true" />
+                ) : isMobile ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart key={`mob-area-${balanceChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#1B99D8" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#1B99D8" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
+                      <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#94a3b8', strokeWidth: 1 }} />
+                      <Area type="monotone" dataKey="Saldo" stroke="#1B99D8" strokeWidth={2.5} fill="url(#balanceGradient)" dot={{ r: 4, fill: '#1B99D8', strokeWidth: 0 }} activeDot={{ r: 6 }} isAnimationActive={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart key={balanceChartKey} data={monthlySeries} margin={{ top: 34, right: 10, left: 10, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
+                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
+                      <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#94a3b8', strokeWidth: 1 }} />
+                      <Line type="monotone" dataKey="Saldo" stroke="#334155" strokeWidth={3} dot={renderBalanceDot} activeDot={{ r: 6 }}>
+                        <LabelList dataKey="Saldo" content={renderBalanceLabel} />
+                      </Line>
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </section>
           </div>
@@ -5435,7 +5737,7 @@ function shortUserName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, transactionFilterOpen, transactionActiveFilterCount, onImportTransactions, onOpenAccountFilters, onOpenAccountCreate, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
+function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, transactionFilterOpen, transactionActiveFilterCount, onDownloadTransactions, onImportTransactions, onOpenAccountFilters, onOpenAccountCreate, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
   activePage: AppPage;
   userName: string;
   userAvatarUrl?: string | null;
@@ -5454,6 +5756,7 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
   onOpenTransactionFilters: () => void;
   transactionFilterOpen?: boolean;
   transactionActiveFilterCount?: number;
+  onDownloadTransactions: () => void;
   onImportTransactions: () => void;
   onOpenAccountFilters: () => void;
   onOpenAccountCreate: () => void;
@@ -5538,7 +5841,7 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
           {activePage === 'transactions' ? (
             <div className="topbar-actions-menu" ref={actionsRef}>
               <button type="button" className={`topbar-more-button${actionsOpen || transactionFilterOpen || (transactionActiveFilterCount && transactionActiveFilterCount > 0) ? ' active' : ''}`} aria-label="Mais opções" aria-expanded={actionsOpen} aria-haspopup="menu" onClick={() => setActionsOpen((open) => !open)}><MoreHorizontal size={20} /></button>
-              {actionsOpen ? <div className="topbar-actions-popover" role="menu"><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenTransactionFilters(); }}><ListFilter size={16} />Filtros</button><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onImportTransactions(); }}><Upload size={16} />Importar</button></div> : null}
+              {actionsOpen ? <div className="topbar-actions-popover" role="menu"><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onOpenTransactionFilters(); }}><ListFilter size={16} />Filtros</button><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onDownloadTransactions(); }}><Download size={16} />Baixar</button><button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onImportTransactions(); }}><Upload size={16} />Importar</button></div> : null}
             </div>
           ) : activePage === 'accounts' ? (
             <>

@@ -150,7 +150,9 @@
   }
 
   .topbar-actions-popover {
-    border-radius: 16px;
+    min-width: 190px;
+    padding: 6px;
+    border-radius: 18px;
     border: 0.5px solid var(--ios-separator);
     background: var(--ios-bg-elevated);
     box-shadow: var(--ios-shadow-card);
@@ -158,7 +160,11 @@
   }
 
   .topbar-actions-popover button {
+    height: 46px;
+    border-radius: 12px;
+    background: transparent;
     color: var(--ios-label);
+    font-weight: 600 !important;
   }
 
   .topbar-actions-popover button:active {
