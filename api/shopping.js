@@ -22,6 +22,7 @@ const itemSchema = z.object({
   unitPrice: z.number().finite().min(0).max(1e12),
   addedById: uuid,
   createdAt: z.string().max(100),
+  purchased: z.boolean().optional(),
 });
 
 const listSchema = z.object({

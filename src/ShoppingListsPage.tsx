@@ -2,13 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
   CheckCircle2,
   Clock3,
   Copy,
   PackageOpen,
   Pencil,
   Plus,
-  Save,
   Search,
   ShoppingCart,
   Trash2,
@@ -31,6 +31,7 @@ type ShoppingListItem = {
   unitPrice: number;
   addedById: string;
   createdAt: string;
+  purchased?: boolean;
 };
 
 type ShoppingList = {
@@ -108,15 +109,15 @@ export function ShoppingListsPage({
   friends,
   onListItemAdded,
   openCreateSignal,
-  backSignal,
+  openItemSignal,
   onDetailChange,
 }: {
   currentUser: FriendUser;
   friends: FriendUser[];
   onListItemAdded?: (event: { listId: string; listName: string; itemName: string; participantIds: string[] }) => void;
   openCreateSignal?: number;
-  backSignal?: number;
-  onDetailChange?: (name: string | null) => void;
+  openItemSignal?: number;
+  onDetailChange?: (name: string | null, canAdd?: boolean) => void;
 }) {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [listsLoading, setListsLoading] = useState(true);
@@ -125,7 +126,7 @@ export function ShoppingListsPage({
   const [createOpen, setCreateOpen] = useState(false);
   const [editingList, setEditingList] = useState<ShoppingList | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ShoppingList | null>(null);
-  const [confirmAction, setConfirmAction] = useState<'finalize' | 'cancel' | null>(null);
+  const [actionTarget, setActionTarget] = useState<{ list: ShoppingList; action: 'finalize' | 'cancel' } | null>(null);
 
   const fetchLists = useCallback(() => {
     setListsLoading(true);
@@ -145,19 +146,12 @@ export function ShoppingListsPage({
     }
   }, [openCreateSignal]);
 
-  const lastProcessedBackSignalRef = useRef(backSignal);
-  useEffect(() => {
-    if (backSignal && backSignal !== lastProcessedBackSignalRef.current) {
-      setSelectedId(null);
-      lastProcessedBackSignalRef.current = backSignal;
-    }
-  }, [backSignal]);
 
   const visibleLists = useMemo(() => lists.filter((list) => list.participantIds.includes(currentUser.id)), [currentUser.id, lists]);
   const selected = visibleLists.find((list) => list.id === selectedId) ?? null;
 
   useEffect(() => {
-    onDetailChange?.(selected ? selected.name : null);
+    onDetailChange?.(selected ? selected.name : null, selected?.status === 'open');
   }, [selected, onDetailChange]);
 
   function updateList(nextList: ShoppingList) {
@@ -223,12 +217,13 @@ export function ShoppingListsPage({
   }
 
   function completeAction() {
-    if (!selected || !confirmAction || selected.status !== 'open') return;
+    if (!actionTarget || actionTarget.list.status !== 'open') return;
+    const { list, action } = actionTarget;
     const now = new Date().toISOString();
-    updateList(confirmAction === 'finalize'
-      ? { ...selected, status: 'finalized', finalizedAt: now, finalizedById: currentUser.id }
-      : { ...selected, status: 'cancelled', cancelledAt: now });
-    setConfirmAction(null);
+    updateList(action === 'finalize'
+      ? { ...list, status: 'finalized', finalizedAt: now, finalizedById: currentUser.id }
+      : { ...list, status: 'cancelled', cancelledAt: now });
+    setActionTarget(null);
   }
 
   if (selected) {
@@ -241,14 +236,8 @@ export function ShoppingListsPage({
         onBack={() => setSelectedId(null)}
         onChange={updateList}
         onListItemAdded={onListItemAdded}
-        onDuplicate={() => duplicateList(selected)}
-        onFinalize={() => setConfirmAction('finalize')}
-        onCancel={() => setConfirmAction('cancel')}
-      >
-        {confirmAction ? (
-          <ConfirmListAction action={confirmAction} list={selected} onClose={() => setConfirmAction(null)} onConfirm={completeAction} />
-        ) : null}
-      </ShoppingListDetail>
+        openItemSignal={openItemSignal}
+      />
     );
   }
 
@@ -287,6 +276,8 @@ export function ShoppingListsPage({
               onEdit={() => setEditingList(list)}
               onDelete={() => setDeleteTarget(list)}
               onDuplicate={() => duplicateList(list)}
+              onFinalize={() => setActionTarget({ list, action: 'finalize' })}
+              onCancel={() => setActionTarget({ list, action: 'cancel' })}
             />
           ))}
         </section>
@@ -301,6 +292,7 @@ export function ShoppingListsPage({
 
       {createOpen ? <CreateShoppingListModal friends={friends} onClose={() => setCreateOpen(false)} onCreate={createList} /> : null}
       {editingList ? <EditShoppingListModal list={editingList} onClose={() => setEditingList(null)} onSave={saveEditedList} /> : null}
+      {actionTarget ? <ConfirmListAction action={actionTarget.action} list={actionTarget.list} onClose={() => setActionTarget(null)} onConfirm={completeAction} /> : null}
       {deleteTarget ? (
         <div className="modal-overlay">
           <div className="modal-card shopping-confirm-modal">
@@ -318,7 +310,7 @@ export function ShoppingListsPage({
   );
 }
 
-function ShoppingListCard({ list, currentUser, friends, onOpen, onEdit, onDelete, onDuplicate }: { list: ShoppingList; currentUser: FriendUser; friends: FriendUser[]; onOpen: () => void; onEdit: () => void; onDelete: () => void; onDuplicate: () => void }) {
+function ShoppingListCard({ list, currentUser, friends, onOpen, onEdit, onDelete, onDuplicate, onFinalize, onCancel }: { list: ShoppingList; currentUser: FriendUser; friends: FriendUser[]; onOpen: () => void; onEdit: () => void; onDelete: () => void; onDuplicate: () => void; onFinalize: () => void; onCancel: () => void }) {
   const people = [currentUser, ...friends].filter((user) => list.participantIds.includes(user.id));
   const total = listTotal(list);
   const totalItemsCount = list.items.length;
@@ -347,7 +339,14 @@ function ShoppingListCard({ list, currentUser, friends, onOpen, onEdit, onDelete
         </div>
         <div className="shopping-card-footer" style={{ marginTop: '16px', borderTop: '1px solid #edf1f3', paddingTop: '12px' }}><div className="shopping-avatar-stack">{people.slice(0, 4).map((person) => <span key={person.id}>{participantAvatar(person, true)}</span>)}{people.length > 4 ? <em>+{people.length - 4}</em> : null}</div><span>{people.length} {people.length === 1 ? 'participante' : 'participantes'}</span></div>
       </button>
-      {list.status !== 'open' ? <button type="button" className="shopping-duplicate-button" onClick={onDuplicate}><Copy size={15} /> Duplicar</button> : null}
+      {list.status === 'open' ? (
+        <div className="shopping-card-open-actions">
+          <button type="button" className="shopping-card-action shopping-card-action--cancel" onClick={onCancel}><XCircle size={15} /> Cancelar</button>
+          <button type="button" className="shopping-card-action shopping-card-action--finalize" onClick={onFinalize}><CheckCircle2 size={15} /> Finalizar</button>
+        </div>
+      ) : (
+        <button type="button" className="shopping-duplicate-button" onClick={onDuplicate}><Copy size={15} /> Duplicar</button>
+      )}
     </article>
   );
 }
@@ -424,25 +423,38 @@ function CreateShoppingListModal({ friends, onClose, onCreate }: { friends: Frie
   );
 }
 
-function ShoppingListDetail({ list, currentUser, friends, allLists, onBack, onChange, onListItemAdded, onDuplicate, onFinalize, onCancel, children }: { list: ShoppingList; currentUser: FriendUser; friends: FriendUser[]; allLists: ShoppingList[]; onBack: () => void; onChange: (list: ShoppingList) => void; onListItemAdded?: (event: { listId: string; listName: string; itemName: string; participantIds: string[] }) => void; onDuplicate: () => void; onFinalize: () => void; onCancel: () => void; children?: React.ReactNode }) {
+function ShoppingListDetail({ list, currentUser, friends, allLists, onBack, onChange, onListItemAdded, openItemSignal }: { list: ShoppingList; currentUser: FriendUser; friends: FriendUser[]; allLists: ShoppingList[]; onBack: () => void; onChange: (list: ShoppingList) => void; onListItemAdded?: (event: { listId: string; listName: string; itemName: string; participantIds: string[] }) => void; openItemSignal?: number }) {
   const [draft, setDraft] = useState<ItemDraft>(emptyItem);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [itemModalOpen, setItemModalOpen] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const suggestionRef = useRef<HTMLDivElement>(null);
+  const lastProcessedItemSignalRef = useRef(openItemSignal);
   const users = [currentUser, ...friends];
   const userById = new Map(users.map((user) => [user.id, user]));
-  const participants = users.filter((user) => list.participantIds.includes(user.id));
   const canEdit = list.status === 'open';
   const productNames = useMemo(() => [...new Map(allLists.flatMap((entry) => entry.items).map((item) => [normalizeProduct(item.name), item.name])).values()].sort((a, b) => a.localeCompare(b, 'pt-BR')), [allLists]);
   const suggestions = draft.name.trim() ? productNames.filter((name) => normalizeProduct(name).includes(normalizeProduct(draft.name)) && normalizeProduct(name) !== normalizeProduct(draft.name)).slice(0, 6) : [];
+  const draftQuantity = parseDecimal(draft.quantity);
+  const draftUnitPrice = draft.unitPrice.trim() ? parseDecimal(draft.unitPrice) : 0;
+  const itemDraftValid = Boolean(draft.name.trim()) && draftQuantity > 0 && draftUnitPrice >= 0;
 
   useEffect(() => {
     function outside(event: PointerEvent) { if (!suggestionRef.current?.contains(event.target as Node)) setSuggestionsOpen(false); }
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, []);
-
+  useEffect(() => {
+    if (openItemSignal && openItemSignal !== lastProcessedItemSignalRef.current) {
+      lastProcessedItemSignalRef.current = openItemSignal;
+      if (canEdit) {
+        resetDraft();
+        setItemModalOpen(true);
+      }
+    }
+  }, [openItemSignal, canEdit]);
   function resetDraft() { setDraft(emptyItem); setEditingId(null); setSuggestionsOpen(false); }
+  function closeItemModal() { resetDraft(); setItemModalOpen(false); }
   function saveItem(event: FormEvent) {
     event.preventDefault();
     const quantity = parseDecimal(draft.quantity);
@@ -455,49 +467,81 @@ function ShoppingListDetail({ list, currentUser, friends, allLists, onBack, onCh
     onChange({ ...list, items });
     if (!editingId) onListItemAdded?.({ listId: list.id, listName: list.name, itemName: draft.name.trim(), participantIds: list.participantIds.filter((id) => id !== currentUser.id) });
     resetDraft();
+    setItemModalOpen(false);
   }
-  function editItem(item: ShoppingListItem) { setEditingId(item.id); setDraft({ name: item.name, quantity: String(item.quantity).replace('.', ','), unitPrice: item.unitPrice > 0 ? item.unitPrice.toFixed(2).replace('.', ',') : '' }); }
+  function editItem(item: ShoppingListItem) { setEditingId(item.id); setDraft({ name: item.name, quantity: String(item.quantity).replace('.', ','), unitPrice: item.unitPrice > 0 ? item.unitPrice.toFixed(2).replace('.', ',') : '' }); setItemModalOpen(true); }
   function removeItem(id: string) { onChange({ ...list, items: list.items.filter((item) => item.id !== id) }); if (editingId === id) resetDraft(); }
-  function saveList() { onChange(list); onBack(); }
+  function togglePurchased(id: string) { onChange({ ...list, items: list.items.map((item) => item.id === id ? { ...item, purchased: !item.purchased } : item) }); }
   const total = listTotal(list);
+  const byName = (a: ShoppingListItem, b: ShoppingListItem) => a.name.localeCompare(b.name, 'pt-BR');
+  const toBuyItems = list.items.filter((item) => !item.purchased).sort(byName);
+  const boughtItems = list.items.filter((item) => item.purchased).sort(byName);
+
+  const renderItemRow = (item: ShoppingListItem) => {
+    const hasPrice = item.unitPrice > 0;
+    return (
+      <div className={`shopping-item-row${item.purchased ? ' shopping-item-row--done' : ''}`} key={item.id}>
+        <button type="button" className="shopping-item-check" data-checked={item.purchased ? 'true' : 'false'} onClick={() => togglePurchased(item.id)} disabled={!canEdit} aria-label={item.purchased ? `Desmarcar ${item.name}` : `Marcar ${item.name} como comprado`}>{item.purchased ? <Check size={14} /> : null}</button>
+        <strong className="shopping-item-title">{item.name}</strong>
+        <span className="shopping-item-qty" data-label="Qtd">{item.quantity.toLocaleString('pt-BR')}</span>
+        <span className={`shopping-item-value${!hasPrice ? ' shopping-price-pending' : ''}`} data-label="Valor">{hasPrice ? money(item.unitPrice) : 'A definir'}</span>
+        <div className="shopping-item-actions">{canEdit ? <><button type="button" onClick={() => editItem(item)} aria-label={`Editar ${item.name}`}><Pencil size={15} /></button><button type="button" className="danger" onClick={() => removeItem(item.id)} aria-label={`Remover ${item.name}`}><Trash2 size={15} /></button></> : null}</div>
+      </div>
+    );
+  };
 
   return (
     <div className="shopping-page shopping-detail-page">
-      <section className="shopping-detail-head">
-        <div className="shopping-detail-title-row">
-          <div>
-            <span className={`shopping-status shopping-status--${list.status}`}>{list.status === 'open' ? <Clock3 size={13} /> : list.status === 'finalized' ? <CheckCircle2 size={13} /> : <XCircle size={13} />}{list.status === 'open' ? 'Aberta' : list.status === 'finalized' ? 'Finalizada' : 'Cancelada'}</span>
-            <h1>{list.name}</h1>
-            <p><CalendarDays size={14} /> {dateLabel(list.date)}</p>
+      <button type="button" className="shopping-detail-back-button" onClick={onBack}><ChevronLeft size={17} /> Voltar</button>
+      {!canEdit ? <div className="shopping-readonly-note"><CheckCircle2 size={17} /><span><strong>Lista somente para consulta.</strong> Itens de listas {list.status === 'finalized' ? 'finalizadas' : 'canceladas'} não podem ser alterados.</span></div> : null}
+      <section className="shopping-items-panel">
+        {list.items.length ? (
+          <div className="shopping-items-table">
+            <div className="shopping-items-columns"><span aria-hidden="true" /><span>Produto</span><span>Qtd</span><span>Valor</span><span aria-hidden="true" /></div>
+            {toBuyItems.map(renderItemRow)}
+            {boughtItems.map(renderItemRow)}
           </div>
-          <div className="shopping-detail-actions shopping-detail-actions--desktop">
-            {list.status === 'open' ? <><button type="button" className="page-secondary-action shopping-save-action" onClick={saveList}><Save size={16} /> Salvar lista</button><button type="button" className="page-secondary-action shopping-cancel-action" onClick={onCancel}><X size={16} /> Cancelar lista</button><button type="button" className="page-primary-action" onClick={onFinalize}><CheckCircle2 size={16} /> Finalizar compra</button></> : <button type="button" className="page-primary-action" onClick={onDuplicate}><Copy size={16} /> Duplicar lista</button>}
-          </div>
-        </div>
-        <div className="shopping-participants"><span><Users size={15} /> Participantes</span><div>{participants.map((person) => <span className="shopping-participant-chip" key={person.id}>{participantAvatar(person, true)} {person.id === currentUser.id ? 'Você' : person.name}</span>)}</div></div>
+        ) : (
+          <div className="shopping-items-empty"><PackageOpen size={25} /><strong>Nenhum item adicionado</strong><span>{canEdit ? 'Toque em Adicionar para começar a lista.' : 'Esta lista foi encerrada sem itens.'}</span></div>
+        )}
       </section>
-
-      {canEdit ? (
-        <form className="shopping-add-item" onSubmit={saveItem}>
-          <div className="shopping-product-field" ref={suggestionRef}><label htmlFor="shopping-product">Produto</label><div><Search size={16} /><input id="shopping-product" autoComplete="off" value={draft.name} onFocus={() => setSuggestionsOpen(true)} onChange={(event) => { setDraft({ ...draft, name: event.target.value }); setSuggestionsOpen(true); }} placeholder="Digite o nome do item" required /></div>{suggestionsOpen && suggestions.length ? <div className="shopping-suggestions" role="listbox">{suggestions.map((name) => <button type="button" role="option" key={name} onClick={() => { setDraft({ ...draft, name }); setSuggestionsOpen(false); }}><Search size={14} />{name}</button>)}</div> : null}</div>
-          <label><span>Quantidade</span><input inputMode="decimal" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} required /></label>
-          <label><span>Preço unitário <small>opcional</small></span><div className="shopping-money-field"><em>R$</em><input inputMode="decimal" value={draft.unitPrice} onChange={(event) => setDraft({ ...draft, unitPrice: event.target.value })} placeholder="Depois" /></div></label>
-          <div className="shopping-add-actions">{editingId ? <button type="button" className="shopping-inline-cancel" onClick={resetDraft} aria-label="Cancelar edição"><X size={18} /></button> : null}<button type="submit" className="button-primary"><Plus size={17} /> {editingId ? 'Salvar' : 'Adicionar'}</button></div>
-        </form>
-      ) : <div className="shopping-readonly-note"><CheckCircle2 size={17} /><span><strong>Lista somente para consulta.</strong> Itens de listas {list.status === 'finalized' ? 'finalizadas' : 'canceladas'} não podem ser alterados.</span></div>}
-
-      <section className="shopping-items-panel"><div className="shopping-items-head"><div><h2>Itens da lista</h2><span>{list.items.length} {list.items.length === 1 ? 'produto adicionado' : 'produtos adicionados'}</span></div><strong>{money(total)}</strong></div>{list.items.length ? <div className="shopping-items-table"><div className="shopping-items-columns"><span>Produto</span><span>Quantidade</span><span>Preço unitário</span><span>Total</span><span>Adicionado por</span><span aria-hidden="true" /></div>{list.items.map((item) => { const owner = userById.get(item.addedById); const ownItem = item.addedById === currentUser.id; const hasPrice = item.unitPrice > 0; return <div className="shopping-item-row" key={item.id}><div className="shopping-item-name"><span>{item.name.slice(0, 1).toUpperCase()}</span><strong>{item.name}</strong></div><span data-label="Quantidade">{item.quantity.toLocaleString('pt-BR')}</span><span data-label="Preço unitário" className={!hasPrice ? 'shopping-price-pending' : ''}>{hasPrice ? money(item.unitPrice) : 'A definir'}</span><strong data-label="Total" className={!hasPrice ? 'shopping-price-pending' : ''}>{hasPrice ? money(item.quantity * item.unitPrice) : 'A definir'}</strong><span className="shopping-item-owner" data-label="Adicionado por">{owner ? participantAvatar(owner, true) : <span className="shopping-avatar shopping-avatar--small"><UserRound size={13} /></span>}{ownItem ? 'Você' : owner?.name ?? 'Participante'}</span><div className="shopping-item-actions">{canEdit ? <><button type="button" onClick={() => editItem(item)} aria-label={`Editar ${item.name}`}><Pencil size={15} /></button><button type="button" className="danger" onClick={() => removeItem(item.id)} aria-label={`Remover ${item.name}`}><Trash2 size={15} /></button></> : null}</div></div>; })}</div> : <div className="shopping-items-empty"><PackageOpen size={25} /><strong>Nenhum item adicionado</strong><span>{canEdit ? 'Use o formulário acima para começar a lista.' : 'Esta lista foi encerrada sem itens.'}</span></div>}<footer className="shopping-total-footer"><span>Valor final</span><strong>{money(total)}</strong></footer></section>
-
-      {list.status === 'open' ? (
-        <div className="shopping-detail-actions shopping-detail-actions--mobile">
-          <button type="button" className="page-secondary-action shopping-save-action" onClick={saveList}><Save size={16} /> Salvar lista</button>
-          <button type="button" className="page-secondary-action shopping-cancel-action" onClick={onCancel}><X size={16} /> Cancelar lista</button>
-          <button type="button" className="page-primary-action" onClick={onFinalize}><CheckCircle2 size={16} /> Finalizar compra</button>
-        </div>
-      ) : list.status === 'finalized' ? (
+      {list.status === 'finalized' ? (
         <footer className="shopping-completion"><CheckCircle2 size={18} /><span>Finalizada em <strong>{dateLabel(list.finalizedAt)}</strong> por <strong>{list.finalizedById === currentUser.id ? 'você' : userById.get(list.finalizedById ?? '')?.name ?? 'um participante'}</strong>.</span></footer>
       ) : null}
-      {children}
+
+      <div className="shopping-detail-total-bar" aria-label="Total da lista">
+        <span>Total da lista</span>
+        <strong>{money(total)}</strong>
+      </div>
+      {itemModalOpen ? (
+        <div className="modal-overlay shopping-item-modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeItemModal(); }}>
+          <form className="modal-card shopping-create-modal shopping-item-modal" onSubmit={saveItem}>
+            <div className="modal-header">
+              <img src={rubyDiamond} alt="" className="modal-logo" />
+              <div className="modal-title-container">
+                <h2 className="modal-title">{editingId ? 'Editar produto' : 'Adicionar produto'}</h2>
+                <span className="modal-subtitle">Informe nome, quantidade e valor.</span>
+              </div>
+              <button type="button" className="modal-close-button" onClick={closeItemModal} aria-label="Fechar"><X size={18} /></button>
+            </div>
+            <div className="shopping-modal-body shopping-item-modal-body">
+              <div className="shopping-item-modal-grid">
+                <div className="shopping-field shopping-product-field" ref={suggestionRef}>
+                  <label htmlFor="shopping-product-modal">Nome do produto</label>
+                  <div><Search size={16} /><input id="shopping-product-modal" autoFocus autoComplete="off" value={draft.name} onFocus={() => setSuggestionsOpen(true)} onChange={(event) => { setDraft({ ...draft, name: event.target.value }); setSuggestionsOpen(true); }} placeholder="Digite o nome do produto" required /></div>
+                  {suggestionsOpen && suggestions.length ? <div className="shopping-suggestions" role="listbox">{suggestions.map((name) => <button type="button" role="option" key={name} onClick={() => { setDraft({ ...draft, name }); setSuggestionsOpen(false); }}><Search size={14} />{name}</button>)}</div> : null}
+                </div>
+                <label className="shopping-field"><span>Quantidade</span><input inputMode="decimal" value={draft.quantity} onChange={(event) => setDraft({ ...draft, quantity: event.target.value })} required /></label>
+                <label className="shopping-field"><span>Valor</span><div className="shopping-money-field"><em>R$</em><input inputMode="decimal" value={draft.unitPrice} onChange={(event) => setDraft({ ...draft, unitPrice: event.target.value })} placeholder="0,00" /></div></label>
+              </div>
+            </div>
+            <div className="shopping-modal-actions">
+              <button type="button" className="button-secondary" onClick={closeItemModal}>Cancelar</button>
+              <button type="submit" className="button-primary" disabled={!itemDraftValid}>{editingId ? <Check size={16} /> : <Plus size={16} />}{editingId ? 'Salvar' : 'Adicionar'}</button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

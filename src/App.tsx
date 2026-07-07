@@ -1594,12 +1594,17 @@ export function App() {
   const [referenceDate, setReferenceDate] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchType, setLaunchType] = useState<TransactionType>('expense');
+  const [shoppingItemCreateSignal, setShoppingItemCreateSignal] = useState(0);
   const [shoppingCreateSignal, setShoppingCreateSignal] = useState(0);
   const [friendSearchSignal, setFriendSearchSignal] = useState(0);
   const [friendBackSignal, setFriendBackSignal] = useState(0);
   const [activeFriendThreadName, setActiveFriendThreadName] = useState<string | null>(null);
   const [activeShoppingListName, setActiveShoppingListName] = useState<string | null>(null);
-  const [shoppingBackSignal, setShoppingBackSignal] = useState(0);
+  const [activeShoppingListCanAdd, setActiveShoppingListCanAdd] = useState(false);
+  const handleShoppingDetailChange = useCallback((name: string | null, canAdd?: boolean) => {
+    setActiveShoppingListName(name);
+    setActiveShoppingListCanAdd(Boolean(name && canAdd));
+  }, []);
   const [importOpen, setImportOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -2555,19 +2560,21 @@ export function App() {
           <button type="button" onClick={() => setSyncError(null)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.6)', color: '#fff', borderRadius: 6, padding: '2px 8px', cursor: 'pointer' }}>Fechar</button>
         </div>
       )}
-      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} onShoppingDetailBack={() => setShoppingBackSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} transactionFilterOpen={filterOpen} transactionActiveFilterCount={activeFilterCount} onDownloadTransactions={openTransactionExport} onImportTransactions={() => { setTransactionExportOpen(false); setImportOpen(true); }} onOpenAccountFilters={openAccountFilters} onOpenAccountCreate={() => { setEditingAccount(null); setAccountOpen(true); }} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
+      <Topbar activePage={activePage} userName={profileName} userAvatarUrl={storedAvatarUrl} theme={theme} friendDetailName={activePage === 'friends' ? activeFriendThreadName : null} onFriendDetailBack={() => setFriendBackSignal((value) => value + 1)} shoppingDetailName={activePage === 'shopping' ? activeShoppingListName : null} shoppingDetailCanAdd={activeShoppingListCanAdd} onOpenShoppingItemCreate={() => setShoppingItemCreateSignal((value) => value + 1)} onOpenFriendSearch={() => { handleNavigate('friends'); setFriendSearchSignal((value) => value + 1); }} onOpenShoppingCreate={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }} onOpenGoalCreate={() => { setEditingGoal(null); setGoalOpen(true); }} onGoBack={() => handleNavigate(previousPage)} onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))} onNavigate={handleNavigate} onLogout={() => supabase.auth.signOut()} onOpenTransactionFilters={openFilters} transactionFilterOpen={filterOpen} transactionActiveFilterCount={activeFilterCount} onDownloadTransactions={openTransactionExport} onImportTransactions={() => { setTransactionExportOpen(false); setImportOpen(true); }} onOpenAccountFilters={openAccountFilters} onOpenAccountCreate={() => { setEditingAccount(null); setAccountOpen(true); }} accountFilterOpen={accountFilterOpen} accountActiveFilterCount={Number(Boolean(accountFilters.search.trim())) + Number(accountFilters.type !== 'all')} onOpenCategoryFilters={openCategoryPageFilters} categoryFilterOpen={categoryPageFilterOpen} categoryActiveFilterCount={Number(Boolean(categoryPageFilters.search.trim())) + Number(categoryPageFilters.type !== 'all')} onOpenGoalFilters={openGoalFilters} goalFilterOpen={goalFilterOpen} goalActiveFilterCount={Number(Boolean(goalFilters.search.trim())) + Number(goalFilters.status !== 'all')} />
       <div className="content-layout">
         <Sidebar activePage={pendingPage} onNavigate={handleNavigate} />
-        <MobileTabBar
-          activePage={pendingPage}
-          onNavigate={handleNavigate}
-          onNewIncome={() => { setLaunchType('income'); setLaunchOpen(true); }}
-          onNewExpense={() => { setLaunchType('expense'); setLaunchOpen(true); }}
-          onNewGoal={() => { setEditingGoal(null); setGoalOpen(true); }}
-          onNewCategory={() => { setEditingCategory(null); setCategoryOpen(true); }}
-          onNewSharedTransaction={() => { handleNavigate('friends'); }}
-          onNewShoppingList={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }}
-        />
+        {activePage === 'shopping' && activeShoppingListName ? null : (
+          <MobileTabBar
+            activePage={pendingPage}
+            onNavigate={handleNavigate}
+            onNewIncome={() => { setLaunchType('income'); setLaunchOpen(true); }}
+            onNewExpense={() => { setLaunchType('expense'); setLaunchOpen(true); }}
+            onNewGoal={() => { setEditingGoal(null); setGoalOpen(true); }}
+            onNewCategory={() => { setEditingCategory(null); setCategoryOpen(true); }}
+            onNewSharedTransaction={() => { handleNavigate('friends'); }}
+            onNewShoppingList={() => { handleNavigate('shopping'); setShoppingCreateSignal((value) => value + 1); }}
+          />
+        )}
         <main ref={mainContentRef} className={`main-content main-content--${activePage}`}>
           {activePage === 'dashboard' ? (
             <DashboardPage
@@ -3104,7 +3111,7 @@ export function App() {
           ) : activePage === 'reports' ? (
             <ReportsPage transactions={transactions} categoryLookup={categoryLookup} referenceDate={referenceDate} onChangeDate={setReferenceDate} />
           ) : activePage === 'shopping' ? (
-            <ShoppingListsPage currentUser={currentFriendUser} friends={acceptedFriends} openCreateSignal={shoppingCreateSignal} backSignal={shoppingBackSignal} onDetailChange={setActiveShoppingListName} />
+            <ShoppingListsPage currentUser={currentFriendUser} friends={acceptedFriends} openCreateSignal={shoppingCreateSignal} openItemSignal={shoppingItemCreateSignal} onDetailChange={handleShoppingDetailChange} />
           ) : activePage === 'friends' ? (
             <FriendsPage
               currentUser={currentFriendUser}
@@ -5737,7 +5744,7 @@ function shortUserName(name: string): string {
   return `${parts[0]} ${parts[parts.length - 1]}`;
 }
 
-function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, onShoppingDetailBack, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, transactionFilterOpen, transactionActiveFilterCount, onDownloadTransactions, onImportTransactions, onOpenAccountFilters, onOpenAccountCreate, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
+function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, onFriendDetailBack, shoppingDetailName, shoppingDetailCanAdd, onOpenShoppingItemCreate, onToggleTheme, onNavigate, onLogout, onOpenFriendSearch, onOpenShoppingCreate, onOpenGoalCreate, onGoBack, onOpenTransactionFilters, transactionFilterOpen, transactionActiveFilterCount, onDownloadTransactions, onImportTransactions, onOpenAccountFilters, onOpenAccountCreate, accountFilterOpen, accountActiveFilterCount, onOpenCategoryFilters, categoryFilterOpen, categoryActiveFilterCount, onOpenGoalFilters: _onOpenGoalFilters, goalFilterOpen: _goalFilterOpen, goalActiveFilterCount: _goalActiveFilterCount }: {
   activePage: AppPage;
   userName: string;
   userAvatarUrl?: string | null;
@@ -5745,7 +5752,8 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
   friendDetailName?: string | null;
   onFriendDetailBack?: () => void;
   shoppingDetailName?: string | null;
-  onShoppingDetailBack?: () => void;
+  shoppingDetailCanAdd?: boolean;
+  onOpenShoppingItemCreate?: () => void;
   onOpenFriendSearch?: () => void;
   onOpenShoppingCreate?: () => void;
   onOpenGoalCreate?: () => void;
@@ -5852,9 +5860,9 @@ function Topbar({ activePage, userName, userAvatarUrl, theme, friendDetailName, 
             <button type="button" className={`topbar-category-filter-button${categoryFilterOpen || categoryActiveFilterCount > 0 ? ' active' : ''}`} data-category-filter-trigger aria-label="Filtrar categorias" aria-expanded={categoryFilterOpen} aria-haspopup="dialog" onClick={onOpenCategoryFilters}><ListFilter size={19} /></button>
           ) : activePage === 'goals' ? (
             <button type="button" className="topbar-goal-add-button" aria-label="Nova meta" onClick={onOpenGoalCreate}><Plus size={20} /></button>
-          ) : activePage === 'shopping' && shoppingDetailName ? (
-            <button type="button" className="topbar-friend-back-button" aria-label="Voltar para listas" onClick={onShoppingDetailBack}><ChevronLeft size={22} /></button>
-          ) : activePage === 'shopping' ? (
+          ) : activePage === 'shopping' && shoppingDetailName && shoppingDetailCanAdd ? (
+            <button type="button" className="topbar-shopping-add-button" aria-label="Adicionar produto" onClick={onOpenShoppingItemCreate}><Plus size={20} /></button>
+          ) : activePage === 'shopping' && shoppingDetailName ? null : activePage === 'shopping' ? (
             <button type="button" className="topbar-shopping-add-button" aria-label="Nova lista" onClick={onOpenShoppingCreate}><Plus size={20} /></button>
           ) : activePage === 'friends' && friendDetailName ? (
             <button type="button" className="topbar-friend-back-button" aria-label="Voltar para amigos" onClick={onFriendDetailBack}><ChevronLeft size={22} /></button>
