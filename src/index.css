@@ -2851,6 +2851,151 @@ button {
   grid-template-columns: 1fr;
 }
 
+/* Categoria (compacta) + Receitas x Despesas lado a lado. */
+.dashboard-charts--split {
+  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr);
+}
+
+.chart-box--category {
+  height: 340px;
+}
+
+.category-chart-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+}
+
+.category-chart-donut {
+  position: relative;
+  height: 176px;
+  flex-shrink: 0;
+}
+
+.category-chart-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.category-chart-center span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.category-chart-center strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.category-chart-legend {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.category-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 2px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.category-legend-item:last-child {
+  border-bottom: none;
+}
+
+.category-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.category-legend-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #334155;
+  font-weight: 600;
+}
+
+.category-legend-percent {
+  color: #64748b;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.category-legend-value {
+  color: #0f172a;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.category-empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  padding: 18px;
+}
+
+.category-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #eef2f6;
+  color: #94a3b8;
+}
+
+.category-empty-state strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.category-empty-state p {
+  margin: 0;
+  font-size: 12.5px;
+  color: #94a3b8;
+  max-width: 240px;
+}
+
+/* Empilha os gráficos e aumenta a área do donut no tablet/mobile. */
+@media (max-width: 1180px) {
+  .dashboard-charts--split {
+    grid-template-columns: 1fr;
+  }
+
+  .category-chart-donut {
+    height: 200px;
+  }
+}
+
 .chart-panel {
   padding: 18px 18px 14px;
 }
@@ -8528,6 +8673,20 @@ button {
     height: 238px !important;
   }
 
+  /* No mobile a categoria cresce com o conteúdo (donut + legenda embaixo),
+     deixando a página rolar em vez de criar scroll interno na legenda. */
+  .main-content--dashboard .chart-box--category {
+    height: auto !important;
+  }
+
+  .category-chart-body {
+    height: auto;
+  }
+
+  .category-chart-legend {
+    overflow: visible;
+  }
+
   .main-content--dashboard .goals-overview-panel,
   .main-content--dashboard .dashboard-upcoming {
     margin-bottom: 14px;
@@ -13553,6 +13712,24 @@ h1, h2, h3, h4, h5, h6,
 :root[data-theme='dark'] .resource-panel {
   background: var(--surface-color);
   border-color: var(--border-color);
+}
+:root[data-theme='dark'] .category-chart-center strong,
+:root[data-theme='dark'] .category-legend-name,
+:root[data-theme='dark'] .category-legend-value,
+:root[data-theme='dark'] .category-empty-state strong {
+  color: #e2e8f0;
+}
+:root[data-theme='dark'] .category-legend-percent,
+:root[data-theme='dark'] .category-chart-center span,
+:root[data-theme='dark'] .category-empty-state p {
+  color: var(--text-secondary);
+}
+:root[data-theme='dark'] .category-legend-item {
+  border-bottom-color: var(--border-color);
+}
+:root[data-theme='dark'] .category-empty-icon {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
 }
 :root[data-theme='dark'] .chart-head {
   border-bottom-color: var(--border-color);

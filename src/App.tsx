@@ -2,7 +2,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useT
 import type { Row } from 'read-excel-file/browser';
 import type { Cell, SheetData } from 'write-excel-file/browser';
 import { createPortal } from 'react-dom';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell as PieCell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
 import type { Session } from './lib/auth';
 import rubyLogoWhite from './assets/rubylife-white.png';
 import rubyLogoColor from './assets/rubylife-color.png';
@@ -2587,6 +2587,7 @@ export function App() {
           {activePage === 'dashboard' ? (
             <DashboardPage
               transactions={transactions}
+              categoryLookup={categoryLookup}
               referenceDate={referenceDate}
               onChangeDate={setReferenceDate}
               onNavigate={handleNavigate}
@@ -2793,7 +2794,6 @@ export function App() {
                                   onSettle={setSettleTarget}
                                   onDelete={setDeletingTransaction}
                                   onMarkPending={markTransactionAsPending}
-                                  onLongPress={setLongPressTransaction}
                                   categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
                                 />
                               </Fragment>
@@ -3116,7 +3116,6 @@ export function App() {
                                 onSettle={setSettleTarget}
                                 onDelete={setDeletingTransaction}
                                 onMarkPending={markTransactionAsPending}
-                                onLongPress={setLongPressTransaction}
                                 categoryMeta={categoryLookup.get(`${item.type}:${item.category}`)}
                               />
                             </Fragment>
@@ -3545,7 +3544,6 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
   onSettle,
   onDelete,
   onMarkPending,
-  onLongPress,
   categoryMeta,
 }: {
   item: Transaction;
@@ -3556,11 +3554,30 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
   onSettle: (item: Transaction) => void;
   onDelete: (item: Transaction) => void;
   onMarkPending: (id: string) => void;
-  onLongPress: (item: Transaction) => void;
   categoryMeta?: { color: string; icon: CategoryIconKey };
 }) {
+  // Gavetas reveladas ao arrastar. Cada botão ocupa BTN_WIDTH.
+  const BTN_WIDTH = 80;
+  // Esquerda -> direita: Editar (+ Efetivar quando em aberto).
+  const leftDrawer = [
+    { key: 'edit', label: 'Editar', icon: <Pencil size={18} />, bg: '#6b7280', onClick: () => onEdit(item) },
+    ...(item.status === 'open'
+      ? [{ key: 'settle', label: 'Efetivar', icon: <CheckCircle2 size={18} />, bg: '#10b981', onClick: () => onSettle(item) }]
+      : []),
+  ];
+  // Direita -> esquerda: Desefetivar (quando efetivada) + Excluir.
+  const rightDrawer = [
+    ...(item.status === 'settled'
+      ? [{ key: 'pending', label: 'Desefetivar', icon: <RotateCcw size={18} />, bg: '#f59e0b', onClick: () => onMarkPending(item.id) }]
+      : []),
+    { key: 'delete', label: 'Excluir', icon: <Trash2 size={18} />, bg: '#ef4444', onClick: () => onDelete(item) },
+  ];
+  const leftWidth = leftDrawer.length * BTN_WIDTH;
+  const rightWidth = rightDrawer.length * BTN_WIDTH;
+
   const [offsetX, setOffsetX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [openSide, setOpenSide] = useState<'left' | 'right' | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -3569,6 +3586,16 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
+  }
+
+  function closeReveal() {
+    setOpenSide(null);
+    setOffsetX(0);
+  }
+
+  function runDrawerAction(action: () => void) {
+    closeReveal();
+    action();
   }
 
   function handleTouchStart(e: React.TouchEvent | React.PointerEvent) {
@@ -3580,8 +3607,11 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
     setIsSwiping(false);
 
     clearTimer();
+    // Com uma gaveta aberta, o toque serve para arrastar/fechar, não para selecionar.
+    if (openSide) return;
+    // Clicar e segurar entra no modo de seleção marcando esta linha.
     longPressTimerRef.current = setTimeout(() => {
-      onLongPress(item);
+      onToggleSelect(item.id);
       touchStartRef.current = null;
     }, 500);
   }
@@ -3599,7 +3629,8 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
 
     if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 15) {
       setIsSwiping(true);
-      const clamped = Math.max(-110, Math.min(110, dx));
+      const base = openSide === 'left' ? leftWidth : openSide === 'right' ? -rightWidth : 0;
+      const clamped = Math.max(-rightWidth, Math.min(leftWidth, base + dx));
       setOffsetX(clamped);
     }
   }
@@ -3610,44 +3641,46 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
     touchStartRef.current = null;
     setIsSwiping(false);
 
-    if (offsetX <= -70) {
-      setOffsetX(0);
-      onDelete(item);
-    } else if (offsetX >= 70 && item.status === 'open') {
-      setOffsetX(0);
-      onSettle(item);
+    if (leftWidth > 0 && offsetX >= leftWidth * 0.4) {
+      setOpenSide('left');
+      setOffsetX(leftWidth);
+    } else if (rightWidth > 0 && offsetX <= -rightWidth * 0.4) {
+      setOpenSide('right');
+      setOffsetX(-rightWidth);
     } else {
-      setOffsetX(0);
+      closeReveal();
     }
   }
 
   return (
     <div className="swipeable-row-container" style={{ position: 'relative', overflow: 'hidden', borderRadius: '14px' }}>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 20px',
-          borderRadius: '14px',
-          backgroundColor: offsetX < 0 ? '#ef4444' : offsetX > 0 ? '#10b981' : 'transparent',
-          color: '#ffffff',
-          fontWeight: 700,
-          fontSize: '14px',
-          pointerEvents: 'none',
-          transition: 'background-color 0.2s ease',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: offsetX > 20 ? 1 : 0, transition: 'opacity 0.2s ease' }}>
-          <CheckCircle2 size={20} />
-          <span>Efetivado</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: offsetX < -20 ? 1 : 0, transition: 'opacity 0.2s ease' }}>
-          <span>Excluir</span>
-          <Trash2 size={20} />
-        </div>
+      {/* Gaveta esquerda (arrastar da esquerda para a direita) */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: leftWidth, display: 'flex', opacity: offsetX > 0 ? 1 : 0, pointerEvents: offsetX > 0 ? 'auto' : 'none' }}>
+        {leftDrawer.map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); runDrawerAction(action.onClick); }}
+            style={{ flex: 1, border: 'none', backgroundColor: action.bg, color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+          >
+            {action.icon}
+            <span>{action.label}</span>
+          </button>
+        ))}
+      </div>
+      {/* Gaveta direita (arrastar da direita para a esquerda) */}
+      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: rightWidth, display: 'flex', opacity: offsetX < 0 ? 1 : 0, pointerEvents: offsetX < 0 ? 'auto' : 'none' }}>
+        {rightDrawer.map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); runDrawerAction(action.onClick); }}
+            style={{ flex: 1, border: 'none', backgroundColor: action.bg, color: '#ffffff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', fontWeight: 700, fontSize: '12px', cursor: 'pointer' }}
+          >
+            {action.icon}
+            <span>{action.label}</span>
+          </button>
+        ))}
       </div>
       <article
         className={`documents-report-row launches-report-row${isSelected ? ' is-selected' : ''}`}
@@ -3659,6 +3692,7 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
         onPointerMove={handleTouchMove}
         onPointerUp={handleTouchEnd}
         onClick={(event) => {
+          if (openSide) { closeReveal(); return; }
           if (!selectionMode) return;
           if (event.target instanceof HTMLElement && (event.target.closest('button') || event.target.closest('input') || event.target.closest('.row-actions'))) return;
           onToggleSelect(item.id);
@@ -3803,16 +3837,22 @@ function hasChartTooltipOpen(container: HTMLElement | null) {
   return !!wrapper && wrapper.childElementCount > 0 && wrapper.style.visibility !== 'hidden';
 }
 
-const DashboardPage = memo(function DashboardPage({ transactions, referenceDate, onChangeDate, onNavigate }: {
+// Paleta de reserva para categorias sem cor cadastrada (ex.: já removidas).
+const CATEGORY_FALLBACK_COLORS = ['#1B99D8', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
+
+const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup, referenceDate, onChangeDate, onNavigate }: {
   transactions: Transaction[];
+  categoryLookup: Map<string, CategoryItem>;
   referenceDate: Date;
   onChangeDate: (date: Date) => void;
   onNavigate: (page: AppPage) => void;
 }) {
   const incomeExpenseChartRef = useRef<HTMLDivElement>(null);
   const balanceChartRef = useRef<HTMLDivElement>(null);
+  const categoryChartRef = useRef<HTMLDivElement>(null);
   const [incomeExpenseChartKey, setIncomeExpenseChartKey] = useState(0);
   const [balanceChartKey, setBalanceChartKey] = useState(0);
+  const [categoryChartKey, setCategoryChartKey] = useState(0);
 
   // Renderiza apenas o conjunto de gráficos do viewport atual (mobile OU
   // desktop) em vez de montar os dois e esconder metade com CSS.
@@ -3844,6 +3884,9 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
       if (!balanceChartRef.current?.contains(target) && hasChartTooltipOpen(balanceChartRef.current)) {
         setBalanceChartKey((key) => key + 1);
       }
+      if (!categoryChartRef.current?.contains(target) && hasChartTooltipOpen(categoryChartRef.current)) {
+        setCategoryChartKey((key) => key + 1);
+      }
     }
 
     document.addEventListener('pointerdown', closeChartTooltips);
@@ -3867,6 +3910,29 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
   }, [transactions, monthKeyValue]);
 
   const projectedBalance = income - expense;
+
+  // Despesas do mês selecionado agrupadas por categoria, reaproveitando a cor
+  // cadastrada em "Categorias" para manter a consistência visual.
+  const expenseByCategory = useMemo(() => {
+    const totals = new Map<string, number>();
+    transactions.forEach((item) => {
+      if (item.type !== 'expense') return;
+      if (item.dueDate.slice(0, 7) !== monthKeyValue) return;
+      totals.set(item.category, (totals.get(item.category) ?? 0) + item.amount);
+    });
+    const total = Array.from(totals.values()).reduce((sum, value) => sum + value, 0);
+    return {
+      total,
+      slices: Array.from(totals.entries())
+        .map(([name, value], index) => ({
+          name,
+          value,
+          percent: total > 0 ? (value / total) * 100 : 0,
+          color: categoryLookup.get(`expense:${name}`)?.color ?? CATEGORY_FALLBACK_COLORS[index % CATEGORY_FALLBACK_COLORS.length],
+        }))
+        .sort((a, b) => b.value - a.value),
+    };
+  }, [transactions, monthKeyValue, categoryLookup]);
 
   const monthlySeries = useMemo(() => {
     const year = referenceDate.getFullYear();
@@ -3982,7 +4048,50 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
 
       {hasData ? (
         <>
-          <div className="dashboard-charts dashboard-charts--single">
+          <div className="dashboard-charts dashboard-charts--split">
+            <section className="resource-panel chart-panel chart-panel--category">
+              <div className="chart-head"><strong>Despesas por Categoria</strong><span>Mês selecionado</span></div>
+              <div ref={categoryChartRef} className="chart-box chart-box--category">
+                {!chartsReady ? (
+                  <div className="chart-loading" aria-hidden="true" />
+                ) : expenseByCategory.slices.length === 0 ? (
+                  <div className="category-empty-state">
+                    <span className="category-empty-icon"><Tags size={22} /></span>
+                    <strong>Nenhuma despesa registrada neste mês</strong>
+                    <p>Quando você lançar despesas, elas aparecerão aqui divididas por categoria.</p>
+                  </div>
+                ) : (
+                  <div className="category-chart-body">
+                    <div className="category-chart-donut">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart key={`cat-${categoryChartKey}`}>
+                          <Pie data={expenseByCategory.slices} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="62%" outerRadius="90%" paddingAngle={2} stroke="none" isAnimationActive={false}>
+                            {expenseByCategory.slices.map((slice) => (
+                              <PieCell key={slice.name} fill={slice.color} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip formatter={(value, name) => [formatCurrency(Number(value)), name as string]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="category-chart-center" aria-hidden="true">
+                        <span>Total</span>
+                        <strong>{formatCurrency(expenseByCategory.total)}</strong>
+                      </div>
+                    </div>
+                    <ul className="category-chart-legend">
+                      {expenseByCategory.slices.map((slice) => (
+                        <li key={slice.name} className="category-legend-item">
+                          <span className="category-legend-dot" style={{ backgroundColor: slice.color }} />
+                          <span className="category-legend-name">{slice.name}</span>
+                          <span className="category-legend-percent">{slice.percent.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
+                          <span className="category-legend-value">{formatCurrency(slice.value)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </section>
             <section className="resource-panel chart-panel chart-panel--wide">
               <div className="chart-head"><strong>Receitas x Despesas</strong><span className="chart-head-label--desktop">Janeiro a dezembro</span><span className="chart-head-label--mobile">Mês anterior + próximos 4</span></div>
               <div ref={incomeExpenseChartRef} className="chart-box chart-box--wide">
@@ -4023,7 +4132,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
                   <div className="chart-loading" aria-hidden="true" />
                 ) : isMobile ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart key={`mob-area-${balanceChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 8, bottom: 0 }}>
+                    <AreaChart key={`mob-area-${balanceChartKey}`} data={mobileMonthlySeries} margin={{ top: 12, right: 18, left: 12, bottom: 0 }}>
                       <defs>
                         <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#1B99D8" stopOpacity={0.25} />
@@ -4031,7 +4140,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, referenceDate,
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f6" />
-                      <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <XAxis dataKey="month" interval={0} padding={{ left: 12, right: 12 }} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
                       <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
                       <RechartsTooltip formatter={(value) => formatCurrency(Number(value))} cursor={{ stroke: '#94a3b8', strokeWidth: 1 }} />
                       <Area type="monotone" dataKey="Saldo" stroke="#1B99D8" strokeWidth={2.5} fill="url(#balanceGradient)" dot={{ r: 4, fill: '#1B99D8', strokeWidth: 0 }} activeDot={{ r: 6 }} isAnimationActive={false} />
