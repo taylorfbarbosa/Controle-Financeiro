@@ -2,7 +2,7 @@ import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState, useT
 import type { Row } from 'read-excel-file/browser';
 import type { Cell, SheetData } from 'write-excel-file/browser';
 import { createPortal } from 'react-dom';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell as PieCell, LabelList, Legend, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
 import type { Session } from './lib/auth';
 import rubyLogoWhite from './assets/rubylife-white.png';
 import rubyLogoColor from './assets/rubylife-color.png';
@@ -3849,10 +3849,8 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
 }) {
   const incomeExpenseChartRef = useRef<HTMLDivElement>(null);
   const balanceChartRef = useRef<HTMLDivElement>(null);
-  const categoryChartRef = useRef<HTMLDivElement>(null);
   const [incomeExpenseChartKey, setIncomeExpenseChartKey] = useState(0);
   const [balanceChartKey, setBalanceChartKey] = useState(0);
-  const [categoryChartKey, setCategoryChartKey] = useState(0);
 
   // Renderiza apenas o conjunto de gráficos do viewport atual (mobile OU
   // desktop) em vez de montar os dois e esconder metade com CSS.
@@ -3883,9 +3881,6 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
       }
       if (!balanceChartRef.current?.contains(target) && hasChartTooltipOpen(balanceChartRef.current)) {
         setBalanceChartKey((key) => key + 1);
-      }
-      if (!categoryChartRef.current?.contains(target) && hasChartTooltipOpen(categoryChartRef.current)) {
-        setCategoryChartKey((key) => key + 1);
       }
     }
 
@@ -4051,7 +4046,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
           <div className="dashboard-charts dashboard-charts--split">
             <section className="resource-panel chart-panel chart-panel--category">
               <div className="chart-head"><strong>Despesas por Categoria</strong><span>Mês selecionado</span></div>
-              <div ref={categoryChartRef} className="chart-box chart-box--category">
+              <div className="chart-box chart-box--category">
                 {!chartsReady ? (
                   <div className="chart-loading" aria-hidden="true" />
                 ) : expenseByCategory.slices.length === 0 ? (
@@ -4062,32 +4057,23 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
                   </div>
                 ) : (
                   <div className="category-chart-body">
-                    <div className="category-chart-donut">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart key={`cat-${categoryChartKey}`}>
-                          <Pie data={expenseByCategory.slices} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius="62%" outerRadius="90%" paddingAngle={2} stroke="none" isAnimationActive={false}>
-                            {expenseByCategory.slices.map((slice) => (
-                              <PieCell key={slice.name} fill={slice.color} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip formatter={(value, name) => [formatCurrency(Number(value)), name as string]} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="category-chart-center" aria-hidden="true">
-                        <span>Total</span>
-                        <strong>{formatCurrency(expenseByCategory.total)}</strong>
-                      </div>
-                    </div>
-                    <ul className="category-chart-legend">
+                    <ul className="category-bar-list">
                       {expenseByCategory.slices.map((slice) => (
-                        <li key={slice.name} className="category-legend-item">
-                          <span className="category-legend-dot" style={{ backgroundColor: slice.color }} />
-                          <span className="category-legend-name">{slice.name}</span>
-                          <span className="category-legend-percent">{slice.percent.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
-                          <span className="category-legend-value">{formatCurrency(slice.value)}</span>
+                        <li key={slice.name} className="category-bar-item">
+                          <div className="category-bar-top">
+                            <span className="category-bar-name">{slice.name}</span>
+                            <span className="category-bar-amount">{formatCurrency(slice.value)}<em>{slice.percent.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</em></span>
+                          </div>
+                          <div className="category-bar-track">
+                            <div
+                              className="category-bar-fill"
+                              style={{ width: `${expenseByCategory.slices[0].value > 0 ? (slice.value / expenseByCategory.slices[0].value) * 100 : 0}%`, backgroundColor: slice.color }}
+                            />
+                          </div>
                         </li>
                       ))}
                     </ul>
+                    <div className="category-bar-total"><span>Total do mês</span><strong>{formatCurrency(expenseByCategory.total)}</strong></div>
                   </div>
                 )}
               </div>

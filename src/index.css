@@ -2851,81 +2851,58 @@ button {
   grid-template-columns: 1fr;
 }
 
-/* Categoria (compacta) + Receitas x Despesas lado a lado. */
+/* Categoria (compacta) + Receitas x Despesas lado a lado. O card de categoria
+   acompanha a altura do conteúdo (não estica junto com o gráfico maior). */
 .dashboard-charts--split {
   grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr);
+  align-items: start;
 }
 
 .chart-box--category {
-  height: 340px;
+  height: auto;
 }
 
 .category-chart-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   height: 100%;
 }
 
-.category-chart-donut {
-  position: relative;
-  height: 176px;
-  flex-shrink: 0;
-}
-
-.category-chart-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  pointer-events: none;
-}
-
-.category-chart-center span {
-  font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
-}
-
-.category-chart-center strong {
-  font-size: 15px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.category-chart-legend {
+.category-bar-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 2px 2px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Rola sem exibir a barra de rolagem. */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.category-legend-item {
+.category-bar-list::-webkit-scrollbar {
+  display: none;
+}
+
+.category-bar-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 2px;
-  border-bottom: 1px solid #f1f5f9;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.category-bar-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 13px;
 }
 
-.category-legend-item:last-child {
-  border-bottom: none;
-}
-
-.category-legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-
-.category-legend-name {
+.category-bar-name {
   flex: 1;
   min-width: 0;
   white-space: nowrap;
@@ -2935,23 +2912,59 @@ button {
   font-weight: 600;
 }
 
-.category-legend-percent {
-  color: #64748b;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.category-bar-amount {
   flex-shrink: 0;
-}
-
-.category-legend-value {
   color: #0f172a;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+}
+
+.category-bar-amount em {
+  margin-left: 6px;
+  color: #94a3b8;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.category-bar-track {
+  height: 8px;
+  border-radius: 6px;
+  background: #eef2f6;
+  overflow: hidden;
+}
+
+.category-bar-fill {
+  height: 100%;
+  min-width: 3px;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.category-bar-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f6;
   flex-shrink: 0;
 }
 
+.category-bar-total span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.category-bar-total strong {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
 .category-empty-state {
-  height: 100%;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2985,14 +2998,10 @@ button {
   max-width: 240px;
 }
 
-/* Empilha os gráficos e aumenta a área do donut no tablet/mobile. */
+/* Empilha os gráficos no tablet/mobile. */
 @media (max-width: 1180px) {
   .dashboard-charts--split {
     grid-template-columns: 1fr;
-  }
-
-  .category-chart-donut {
-    height: 200px;
   }
 }
 
@@ -8673,8 +8682,8 @@ button {
     height: 238px !important;
   }
 
-  /* No mobile a categoria cresce com o conteúdo (donut + legenda embaixo),
-     deixando a página rolar em vez de criar scroll interno na legenda. */
+  /* No mobile a categoria cresce com o conteúdo (barras empilhadas),
+     deixando a página rolar em vez de criar scroll interno na lista. */
   .main-content--dashboard .chart-box--category {
     height: auto !important;
   }
@@ -8683,7 +8692,7 @@ button {
     height: auto;
   }
 
-  .category-chart-legend {
+  .category-bar-list {
     overflow: visible;
   }
 
@@ -13713,19 +13722,22 @@ h1, h2, h3, h4, h5, h6,
   background: var(--surface-color);
   border-color: var(--border-color);
 }
-:root[data-theme='dark'] .category-chart-center strong,
-:root[data-theme='dark'] .category-legend-name,
-:root[data-theme='dark'] .category-legend-value,
+:root[data-theme='dark'] .category-bar-name,
+:root[data-theme='dark'] .category-bar-amount,
+:root[data-theme='dark'] .category-bar-total strong,
 :root[data-theme='dark'] .category-empty-state strong {
   color: #e2e8f0;
 }
-:root[data-theme='dark'] .category-legend-percent,
-:root[data-theme='dark'] .category-chart-center span,
+:root[data-theme='dark'] .category-bar-amount em,
+:root[data-theme='dark'] .category-bar-total span,
 :root[data-theme='dark'] .category-empty-state p {
   color: var(--text-secondary);
 }
-:root[data-theme='dark'] .category-legend-item {
-  border-bottom-color: var(--border-color);
+:root[data-theme='dark'] .category-bar-track {
+  background: var(--surface-raised);
+}
+:root[data-theme='dark'] .category-bar-total {
+  border-top-color: var(--border-color);
 }
 :root[data-theme='dark'] .category-empty-icon {
   background: var(--surface-raised);
