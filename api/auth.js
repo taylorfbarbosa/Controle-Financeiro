@@ -4,6 +4,7 @@ import {
   clearAuthCookies,
   createSupabase,
   enforceRateLimit,
+  ensureUserProfile,
   getAuthenticatedContext,
   publicSession,
   requestFingerprint,
@@ -85,6 +86,8 @@ export default async function handler(req, res) {
     if (body.action === 'login') {
       const { data, error } = await supabase.auth.signInWithPassword({ email: body.email, password: body.password });
       if (error || !data.session) return sendJson(res, 401, { error: safeAuthError(error) });
+      try { await ensureUserProfile(data.session); }
+      catch (profileError) { console.error('Profile repair after login failed', profileError); }
       setAuthCookies(res, data.session);
       return sendJson(res, 200, { session: publicSession(data.session) });
     }
@@ -99,6 +102,11 @@ export default async function handler(req, res) {
         },
       });
       if (error) return sendJson(res, 400, { error: safeAuthError(error) });
+      const profileContext = data.session || (data.user ? { user: data.user } : null);
+      if (profileContext) {
+        try { await ensureUserProfile(profileContext); }
+        catch (profileError) { console.error('Profile repair after signup failed', profileError); }
+      }
       if (data.session) setAuthCookies(res, data.session);
       return sendJson(res, 200, { session: publicSession(data.session) });
     }

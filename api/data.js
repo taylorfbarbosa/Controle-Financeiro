@@ -1,17 +1,12 @@
 import { z } from 'zod';
 import {
   assertSameOrigin,
-  createServiceRoleClient,
   enforceRateLimit,
+  ensureUserProfile,
   getAuthenticatedContext,
   requestFingerprint,
   sendJson,
 } from './_security.js';
-
-function computeFriendId(userId) {
-  const hex = userId.replace(/-/g, '');
-  return (BigInt('0x' + hex) % 1000000n).toString().padStart(6, '0');
-}
 
 const uuid = z.string().uuid();
 const nullableUuid = uuid.nullable();
@@ -105,12 +100,9 @@ export default async function handler(req, res) {
     if (!context) return sendJson(res, 401, { error: 'Unauthorized' });
 
     if (req.method === 'GET') {
+      try { await ensureUserProfile(context); }
+      catch (profileError) { console.error('Profile repair during data load failed', profileError); }
       const data = await loadAll(context.client, context.user.id);
-      const friendId = computeFriendId(context.user.id);
-      try {
-        const admin = createServiceRoleClient();
-        admin.from('profiles').update({ friend_id: friendId }).eq('id', context.user.id).then(() => {}).catch(() => {});
-      } catch (_) { /* service role unavailable, skip */ }
       return sendJson(res, 200, data);
     }
     if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });

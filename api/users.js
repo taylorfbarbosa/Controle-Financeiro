@@ -1,15 +1,11 @@
 import {
+  computeFriendId,
   createServiceRoleClient,
   enforceRateLimit,
   getAuthenticatedContext,
   requestFingerprint,
   sendJson,
 } from './_security.js';
-
-function computeFriendId(userId) {
-  const hex = userId.replace(/-/g, '');
-  return (BigInt('0x' + hex) % 1000000n).toString().padStart(6, '0');
-}
 
 export default async function handler(req, res) {
   try {
@@ -38,7 +34,7 @@ export default async function handler(req, res) {
       const admin = createServiceRoleClient();
       readClient = admin;
       writeClient = admin;
-    } catch (_) {
+    } catch {
       // No service role key — authenticated client reads fine with the new policy
     }
 
@@ -49,7 +45,7 @@ export default async function handler(req, res) {
       try {
         const { data } = await context.client.rpc('find_profile_by_friend_id', { p_friend_id: numeric6 });
         if (data && data.length > 0) foundProfile = data[0];
-      } catch (_) {}
+      } catch {}
     }
 
     // ── Strategy 2: Direct query on friend_id column ──
@@ -61,7 +57,7 @@ export default async function handler(req, res) {
           .eq('friend_id', numeric6)
           .maybeSingle();
         if (data) foundProfile = data;
-      } catch (_) {}
+      } catch {}
     }
 
     // ── Strategy 3: UUID direct lookup ──
@@ -73,7 +69,7 @@ export default async function handler(req, res) {
           .eq('id', rawInput)
           .maybeSingle();
         if (data) foundProfile = data;
-      } catch (_) {}
+      } catch {}
     }
 
     if (!foundProfile) return sendJson(res, 200, { user: null });

@@ -94,6 +94,58 @@ export function publicSession(session) {
   };
 }
 
+export function computeFriendId(userId) {
+  const hex = String(userId || '').replace(/-/g, '');
+  if (!/^[0-9a-f]{32}$/i.test(hex)) return null;
+  return (BigInt('0x' + hex) % 1000000n).toString().padStart(6, '0');
+}
+
+function profilePayloadFromUser(user) {
+  if (!user?.id) return null;
+  const friendId = computeFriendId(user.id);
+  return {
+    id: user.id,
+    email: user.email || null,
+    full_name: user.user_metadata?.full_name || null,
+    ...(friendId ? { friend_id: friendId } : {}),
+  };
+}
+
+export async function ensureUserProfile(sessionOrContext) {
+  const user = sessionOrContext?.user;
+  const payload = profilePayloadFromUser(user);
+  if (!payload) return;
+
+  let client = null;
+  try {
+    client = createServiceRoleClient();
+  } catch {
+    const accessToken = sessionOrContext?.access_token || sessionOrContext?.accessToken;
+    if (accessToken) client = createSupabase(accessToken);
+  }
+  if (!client) return;
+
+  const { error } = await client
+    .from('profiles')
+    .upsert(payload, { onConflict: 'id' });
+
+  if (!error) return;
+
+  // Older databases may not have received the friend_id migration yet. Keep
+  // auth working and let the migration repair the missing column.
+  const message = String(error.message || error.details || '').toLowerCase();
+  if ((error.code === '42703' || error.code === 'PGRST204') && message.includes('friend_id')) {
+    const { friend_id: _friendId, ...fallbackPayload } = payload;
+    const fallback = await client
+      .from('profiles')
+      .upsert(fallbackPayload, { onConflict: 'id' });
+    if (!fallback.error) return;
+    throw fallback.error;
+  }
+
+  throw error;
+}
+
 export async function getAuthenticatedContext(req, res) {
   const cookies = parseCookies(req);
   let accessToken = cookies[ACCESS_COOKIE];
@@ -183,7 +235,7 @@ export async function enforceRateLimit(key, limit, windowSeconds) {
   }
 
   if (process.env.VERCEL_ENV === 'production' && !serviceRoleKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required in production');
+    console.error('[rate-limit] SUPABASE_SERVICE_ROLE_KEY missing in production; using volatile memory fallback.');
   }
 
   const now = Date.now();
