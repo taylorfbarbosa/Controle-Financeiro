@@ -5009,9 +5009,16 @@ button {
     top: auto;
     bottom: calc(92px + env(safe-area-inset-bottom));
     width: auto;
+    max-width: calc(100vw - 32px);
     border: 0;
     border-radius: 26px;
     box-shadow: 0 22px 60px rgba(15, 23, 42, 0.22);
+    transform: none;
+  }
+
+  .month-nav-popover {
+    top: clamp(204px, 30vh, 260px);
+    bottom: auto;
   }
 }
 
