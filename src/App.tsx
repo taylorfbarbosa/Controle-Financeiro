@@ -95,7 +95,7 @@ const PAGE_LABELS: Record<AppPage, string> = {
   transactions: 'Transações',
   categories: 'Categorias',
   goals: 'Metas',
-  reports: 'Relatórios',
+  reports: 'Relatório',
   accounts: 'Contas',
   shopping: 'Listas de compras',
   friends: 'Amigos',
@@ -164,6 +164,28 @@ type ReportFilters = {
 
 type TransactionExportFilters = ReportFilters;
 
+type MultiReportFilters = {
+  description: string;
+  categories: string[];
+  types: TransactionType[];
+  statuses: TransactionStatus[];
+  accountIds: string[];
+};
+
+type CompleteReportFilters = MultiReportFilters & {
+  months: number[];
+  years: number[];
+};
+
+type MonthlyReportSummary = {
+  key: string;
+  label: string;
+  income: number;
+  expense: number;
+  balance: number;
+  count: number;
+};
+
 const DEFAULT_TRANSACTION_EXPORT_FILTERS: TransactionExportFilters = {
   date: '',
   description: '',
@@ -172,6 +194,24 @@ const DEFAULT_TRANSACTION_EXPORT_FILTERS: TransactionExportFilters = {
   status: 'all',
   accountId: 'all',
 };
+
+function createEmptyMultiReportFilters(): MultiReportFilters {
+  return { description: '', categories: [], types: [], statuses: [], accountIds: [] };
+}
+
+function createCompleteReportFilters(year: number): CompleteReportFilters {
+  return { ...createEmptyMultiReportFilters(), months: [], years: [year] };
+}
+
+const REPORT_TYPE_OPTIONS: { value: TransactionType; label: string }[] = [
+  { value: 'income', label: 'Receita' },
+  { value: 'expense', label: 'Despesa' },
+];
+
+const REPORT_STATUS_OPTIONS: { value: TransactionStatus; label: string }[] = [
+  { value: 'open', label: 'Em aberto' },
+  { value: 'settled', label: 'Efetivadas' },
+];
 
 export type Transaction = {
   id: string;
@@ -530,17 +570,114 @@ function reportTotals(items: Transaction[]) {
   return { income, expense, balance: income - expense, settledIncome, settledExpense, pendingIncome, pendingExpense };
 }
 
+function toggleFilterValue<T extends string>(values: T[], value: T) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
+}
+
+function toggleNumberFilter(values: number[], value: number) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value].sort((a, b) => a - b);
+}
+
+function monthLabelFromKey(value: string) {
+  const year = Number(value.slice(0, 4));
+  const monthIndex = Number(value.slice(5, 7)) - 1;
+  const monthLabel = MONTH_OPTIONS[monthIndex]?.label ?? value.slice(5, 7);
+  return `${monthLabel} de ${year}`;
+}
+
+function buildMonthlyReportSummaries(items: Transaction[]): MonthlyReportSummary[] {
+  const map = new Map<string, MonthlyReportSummary>();
+  items.forEach((item) => {
+    const key = item.dueDate.slice(0, 7);
+    const current = map.get(key) ?? { key, label: monthLabelFromKey(key), income: 0, expense: 0, balance: 0, count: 0 };
+    if (item.type === 'income') current.income += item.amount;
+    else current.expense += item.amount;
+    current.balance = current.income - current.expense;
+    current.count += 1;
+    map.set(key, current);
+  });
+  return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function groupTransactionsByMonth(items: Transaction[]) {
+  const groups = new Map<string, Transaction[]>();
+  items.forEach((item) => {
+    const key = item.dueDate.slice(0, 7);
+    const current = groups.get(key) ?? [];
+    current.push(item);
+    groups.set(key, current);
+  });
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, groupItems]) => ({
+      key,
+      label: monthLabelFromKey(key),
+      items: [...groupItems].sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+      totals: reportTotals(groupItems),
+    }));
+}
+
+function transactionExcelRow(item: Transaction): Cell[] {
+  return [
+    { value: item.type === 'income' ? 'Receita' : 'Despesa' },
+    { value: item.description },
+    { value: item.category },
+    { value: formatDate(item.dueDate) },
+    excelCurrency(item.amount),
+    item.status === 'settled' ? excelCurrency(item.settledAmount ?? item.amount) : { value: '' },
+    { value: item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto' },
+    { value: item.status === 'settled' ? (item.account ?? '') : '' },
+  ];
+}
+
 type PdfDocument = {
-  internal: { pageSize: { getWidth: () => number } };
+  internal: { pageSize: { getWidth: () => number; getHeight: () => number } };
   setFontSize: (size: number) => void;
   setFont: (family: string, style?: string) => void;
   setTextColor: (...rgb: number[]) => void;
   text: (text: string, x: number, y: number) => void;
   setFillColor: (...rgb: number[]) => void;
   roundedRect: (x: number, y: number, w: number, h: number, rx: number, ry: number, style?: string) => void;
+  addPage: () => void;
   save: (filename: string) => void;
 };
 
+
+function drawPdfTotalCards(
+  doc: PdfDocument,
+  totals: ReturnType<typeof reportTotals>,
+  x: number,
+  y: number,
+  width: number,
+) {
+  const cardH = 30;
+  const cardGap = 6;
+  const cardW = (width - cardGap * 2) / 3;
+  const balancePct = totals.income > 0 ? `${Math.round((totals.balance / totals.income) * 100)}% da receita` : '—';
+  const cardDefs: { label: string; value: number; sub: string; rgb: [number, number, number] }[] = [
+    { label: 'Total de receitas', value: totals.income, sub: `Recebido: ${formatCurrency(totals.settledIncome)}`, rgb: [27, 153, 216] },
+    { label: 'Total de despesas', value: totals.expense, sub: `Pago: ${formatCurrency(totals.settledExpense)}`, rgb: [239, 68, 68] },
+    { label: 'Saldo final', value: totals.balance, sub: balancePct, rgb: totals.balance >= 0 ? [27, 153, 216] : [239, 68, 68] },
+  ];
+
+  cardDefs.forEach((card, index) => {
+    const cx = x + index * (cardW + cardGap);
+    doc.setFillColor(...card.rgb);
+    doc.roundedRect(cx, y, cardW, cardH, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(card.label, cx + 8, y + 8);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatCurrency(card.value), cx + 8, y + 19);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text(card.sub, cx + 8, y + 27);
+  });
+
+  return y + cardH;
+}
 
 function drawHorizontalBarChart(
   doc: PdfDocument,
@@ -582,47 +719,30 @@ function drawHorizontalBarChart(
   });
 }
 
-async function exportReportPdf(items: Transaction[], title: string) {
+async function exportReportPdf(items: Transaction[], title: string, details = '', monthlySummaries: MonthlyReportSummary[] = []) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ orientation: 'landscape' });
   const totals = reportTotals(items);
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 14;
   const contentW = pageW - margin * 2;
+  const normalizedDetails = details.trim();
 
   // ── Title ──
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(27, 153, 216);
   doc.text(title, margin, 16);
-
-  // ── Cards ──
-  const cardY = 24;
-  const cardH = 30;
-  const cardGap = 6;
-  const cardW = (contentW - cardGap * 2) / 3;
-  const balance = totals.income - totals.expense;
-  const balancePct = totals.income > 0 ? `${Math.round((balance / totals.income) * 100)}% da receita` : '—';
-  const cardDefs: { label: string; value: number; sub: string; rgb: [number, number, number] }[] = [
-    { label: 'Receitas', value: totals.income,  sub: `Recebido: ${formatCurrency(totals.settledIncome)}`, rgb: [27, 153, 216] },
-    { label: 'Despesas', value: totals.expense, sub: `Pago: ${formatCurrency(totals.settledExpense)}`,    rgb: [239, 68, 68]  },
-    { label: 'Saldo',    value: balance,         sub: balancePct,                                          rgb: balance >= 0 ? [27, 153, 216] : [239, 68, 68] },
-  ];
-  cardDefs.forEach((card, i) => {
-    const cx = margin + i * (cardW + cardGap);
-    doc.setFillColor(...card.rgb);
-    doc.roundedRect(cx, cardY, cardW, cardH, 3, 3, 'F');
-    doc.setTextColor(255, 255, 255);
+  if (normalizedDetails) {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(card.label, cx + 8, cardY + 8);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(card.value), cx + 8, cardY + 19);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.text(card.sub, cx + 8, cardY + 27);
-  });
+    doc.setTextColor(100, 116, 139);
+    doc.text(normalizedDetails.length > 145 ? `${normalizedDetails.slice(0, 142)}…` : normalizedDetails, margin, 22);
+  }
+
+  // ── Cards ──
+  const cardY = normalizedDetails ? 28 : 24;
+  const cardsBottom = drawPdfTotalCards(doc, totals, margin, cardY, contentW);
 
   // ── Horizontal bar charts side by side ──
   const buildCatMap = (type: 'income' | 'expense') => {
@@ -633,7 +753,7 @@ async function exportReportPdf(items: Transaction[], title: string) {
   const expCats = buildCatMap('expense');
   const incCats = buildCatMap('income');
 
-  const chartsY = cardY + cardH + 8;
+  const chartsY = cardsBottom + 8;
   const halfW = (contentW - 10) / 2;
   const maxRows = Math.max(expCats.length, incCats.length, 1);
   const chartsH = maxRows * 8 + 6;
@@ -655,8 +775,232 @@ async function exportReportPdf(items: Transaction[], title: string) {
     drawHorizontalBarChart(doc, incCats, rx, chartsY + 4, halfW, [27, 153, 216]);
   }
 
-  // ── Transactions table ──
-  const tableY = chartsY + chartsH + 6;
+  let tableY = chartsY + chartsH + 6;
+  if (monthlySummaries.length > 0) {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(50, 50, 50);
+    doc.text('Somatório por mês', margin, tableY);
+    autoTable(doc, {
+      head: [['Mês', 'Receitas', 'Despesas', 'Saldo', 'Lançamentos']],
+      body: monthlySummaries.map((row) => [
+        row.label,
+        formatCurrency(row.income),
+        formatCurrency(row.expense),
+        formatCurrency(row.balance),
+        String(row.count),
+      ]),
+      startY: tableY + 4,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      didParseCell: (data) => {
+        if (data.section !== 'body') return;
+        if (data.column.index === 1) data.cell.styles.textColor = [27, 153, 216];
+        if (data.column.index === 2) data.cell.styles.textColor = [239, 68, 68];
+        if (data.column.index === 3) {
+          const row = monthlySummaries[data.row.index];
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = row && row.balance >= 0 ? [27, 153, 216] : [239, 68, 68];
+        }
+      },
+    });
+    tableY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? tableY + 12) + 8;
+  }
+
+  const monthlyGroups = monthlySummaries.length > 0 ? groupTransactionsByMonth(items) : [];
+  if (monthlyGroups.length > 0) {
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(50, 50, 50);
+    doc.text(`Lançamentos separados por mês (${items.length})`, margin, tableY);
+    tableY += 7;
+
+    monthlyGroups.forEach((group) => {
+      if (tableY > doc.internal.pageSize.getHeight() - 34) {
+        doc.addPage();
+        tableY = 18;
+      }
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(group.label, margin, tableY);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Receitas: ${formatCurrency(group.totals.income)}   Despesas: ${formatCurrency(group.totals.expense)}   Saldo: ${formatCurrency(group.totals.balance)}   Lançamentos: ${group.items.length}`,
+        margin + 44,
+        tableY,
+      );
+
+      autoTable(doc, {
+        head: [REPORT_COLUMNS],
+        body: group.items.map((item) => [
+          item.type === 'income' ? 'Receita' : 'Despesa',
+          item.description,
+          item.category,
+          formatDate(item.dueDate),
+          formatCurrency(item.amount),
+          item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—',
+          item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+          item.status === 'settled' ? (item.account ?? '') : '—',
+        ]),
+        foot: [[
+          'Total do mês',
+          '',
+          '',
+          '',
+          `Receitas: ${formatCurrency(group.totals.income)}`,
+          `Despesas: ${formatCurrency(group.totals.expense)}`,
+          `Saldo: ${formatCurrency(group.totals.balance)}`,
+          `${group.items.length} lanç.`,
+        ]],
+        startY: tableY + 4,
+        styles: { fontSize: 7.5, cellPadding: 1.8 },
+        headStyles: { fillColor: [27, 153, 216], textColor: 255 },
+        footStyles: { fillColor: [241, 247, 251], textColor: [15, 23, 42], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [244, 249, 252] },
+        showFoot: 'lastPage',
+        rowPageBreak: 'avoid',
+        didParseCell: (data) => {
+          if (data.section !== 'body') return;
+          const item = group.items[data.row.index];
+          if (!item) return;
+          const isIncome = item.type === 'income';
+          if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
+          }
+        },
+      });
+      tableY = ((doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY ?? tableY + 18) + 8;
+    });
+  } else {
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(50, 50, 50);
+    doc.text(`Transações (${items.length})`, margin, tableY);
+
+    autoTable(doc, {
+      head: [REPORT_COLUMNS],
+      body: items.map((item) => [
+        item.type === 'income' ? 'Receita' : 'Despesa',
+        item.description,
+        item.category,
+        formatDate(item.dueDate),
+        formatCurrency(item.amount),
+        item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—',
+        item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+        item.status === 'settled' ? (item.account ?? '') : '—',
+      ]),
+      startY: tableY + 4,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [27, 153, 216], textColor: 255 },
+      alternateRowStyles: { fillColor: [244, 249, 252] },
+      didParseCell: (data) => {
+        if (data.section !== 'body') return;
+        const item = items[data.row.index];
+        if (!item) return;
+        const isIncome = item.type === 'income';
+        if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
+        }
+      },
+    });
+  }
+
+  doc.save(`${slugifyFileName(title)}.pdf`);
+}
+
+const excelHeader = (value: string): Cell => ({ value, fontWeight: 'bold', backgroundColor: '#1B99D8', textColor: '#FFFFFF' });
+const excelCurrency = (value: number): Cell => ({ value, type: Number, format: '"R$" #,##0.00' });
+
+function buildSummarySheetData(totals: ReturnType<typeof reportTotals>, title: string, details = ''): SheetData {
+  const data: SheetData = [
+    [excelHeader('Relatório'), title, '', ''],
+  ];
+  if (details.trim()) data.push([excelHeader('Filtros'), details.trim(), '', '']);
+  data.push(
+    ['', excelHeader('Receitas'), excelHeader('Despesas'), excelHeader('Saldo')],
+    [excelHeader('Previsto'), excelCurrency(totals.income), excelCurrency(totals.expense), excelCurrency(totals.balance)],
+    [excelHeader('Realizado'), excelCurrency(totals.settledIncome), excelCurrency(totals.settledExpense), excelCurrency(totals.settledIncome - totals.settledExpense)],
+    [excelHeader('Pendente'), excelCurrency(totals.pendingIncome), excelCurrency(totals.pendingExpense), excelCurrency(totals.pendingIncome - totals.pendingExpense)],
+  );
+  return data;
+}
+
+async function exportReportExcel(items: Transaction[], title: string, details = '', monthlySummaries: MonthlyReportSummary[] = []) {
+  const totals = reportTotals(items);
+  const summaryData = buildSummarySheetData(totals, title, details);
+  const monthlyGroups = monthlySummaries.length > 0 ? groupTransactionsByMonth(items) : [];
+  const monthlyData: SheetData = [
+    ['Mês', 'Receitas', 'Despesas', 'Saldo', 'Lançamentos'].map(excelHeader),
+    ...monthlySummaries.map((row) => [
+      row.label,
+      excelCurrency(row.income),
+      excelCurrency(row.expense),
+      excelCurrency(row.balance),
+      { value: row.count, type: Number },
+    ]),
+  ];
+  const groupedTransactionData: SheetData = monthlyGroups.flatMap((group, index) => [
+    ...(index > 0 ? [['', '', '', '', '', '', '', '']] : []),
+    [
+      excelHeader(group.label),
+      { value: `${group.items.length} lançamentos` },
+      excelCurrency(group.totals.income),
+      excelCurrency(group.totals.expense),
+      excelCurrency(group.totals.balance),
+      '',
+      '',
+      '',
+    ],
+    REPORT_COLUMNS.map(excelHeader),
+    ...group.items.map(transactionExcelRow),
+    [
+      excelHeader('Total do mês'),
+      '',
+      '',
+      '',
+      excelCurrency(group.totals.income),
+      excelCurrency(group.totals.expense),
+      excelCurrency(group.totals.balance),
+      { value: group.items.length, type: Number },
+    ],
+  ]);
+  const transactionData: SheetData = [
+    REPORT_COLUMNS.map(excelHeader),
+    ...items.map(transactionExcelRow),
+  ];
+  const { default: writeXlsxFile } = await import('write-excel-file/browser');
+  const sheets = [
+    { data: summaryData, sheet: 'Resumo', columns: [14, 18, 18, 18].map((width) => ({ width })) },
+    ...(monthlySummaries.length ? [{ data: monthlyData, sheet: 'Somatório mensal', columns: [22, 16, 16, 16, 14].map((width) => ({ width })), stickyRowsCount: 1 }] : []),
+    monthlyGroups.length
+      ? { data: groupedTransactionData, sheet: 'Lançamentos por mês', columns: [18, 30, 18, 12, 15, 15, 14, 16].map((width) => ({ width })) }
+      : { data: transactionData, sheet: 'Transações', columns: [10, 28, 18, 12, 15, 15, 12, 16].map((width) => ({ width })), stickyRowsCount: 1 },
+  ];
+  await writeXlsxFile(sheets).toFile(`${slugifyFileName(title)}.xlsx`);
+}
+
+async function exportTransactionsPdf(items: Transaction[], title: string) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+  const doc = new jsPDF({ orientation: 'landscape' });
+  const totals = reportTotals(items);
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const contentW = pageW - margin * 2;
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(27, 153, 216);
+  doc.text(title, margin, 16);
+
+  const cardsBottom = drawPdfTotalCards(doc, totals, margin, 24, contentW);
+  const tableY = cardsBottom + 10;
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(50, 50, 50);
@@ -693,80 +1037,8 @@ async function exportReportPdf(items: Transaction[], title: string) {
   doc.save(`${slugifyFileName(title)}.pdf`);
 }
 
-const excelHeader = (value: string): Cell => ({ value, fontWeight: 'bold', backgroundColor: '#1B99D8', textColor: '#FFFFFF' });
-const excelCurrency = (value: number): Cell => ({ value, type: Number, format: '"R$" #,##0.00' });
-
-async function exportReportExcel(items: Transaction[], title: string) {
-  const totals = reportTotals(items);
-  const summaryData: SheetData = [
-    ['', excelHeader('Receitas'), excelHeader('Despesas'), excelHeader('Saldo')],
-    [excelHeader('Previsto'), excelCurrency(totals.income), excelCurrency(totals.expense), excelCurrency(totals.balance)],
-    [excelHeader('Realizado'), excelCurrency(totals.settledIncome), excelCurrency(totals.settledExpense), excelCurrency(totals.settledIncome - totals.settledExpense)],
-    [excelHeader('Pendente'), excelCurrency(totals.pendingIncome), excelCurrency(totals.pendingExpense), excelCurrency(totals.pendingIncome - totals.pendingExpense)],
-  ];
-  const transactionData: SheetData = [
-    REPORT_COLUMNS.map(excelHeader),
-    ...items.map((item) => [
-      item.type === 'income' ? 'Receita' : 'Despesa', item.description, item.category, formatDate(item.dueDate),
-      excelCurrency(item.amount), item.status === 'settled' ? excelCurrency(item.settledAmount ?? item.amount) : '',
-      item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
-      item.status === 'settled' ? (item.account ?? '') : '',
-    ]),
-  ];
-  const { default: writeXlsxFile } = await import('write-excel-file/browser');
-  await writeXlsxFile([
-    { data: summaryData, sheet: 'Resumo', columns: [14, 18, 18, 18].map((width) => ({ width })) },
-    { data: transactionData, sheet: 'Transações', columns: [10, 28, 18, 12, 15, 15, 12, 16].map((width) => ({ width })), stickyRowsCount: 1 },
-  ]).toFile(`${slugifyFileName(title)}.xlsx`);
-}
-
-async function exportTransactionsPdf(items: Transaction[], title: string) {
-  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
-  const doc = new jsPDF({ orientation: 'landscape' });
-  const margin = 14;
-
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(27, 153, 216);
-  doc.text(title, margin, 16);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(50, 50, 50);
-  doc.text(`Transações (${items.length})`, margin, 26);
-
-  autoTable(doc, {
-    head: [REPORT_COLUMNS],
-    body: items.map((item) => [
-      item.type === 'income' ? 'Receita' : 'Despesa',
-      item.description,
-      item.category,
-      formatDate(item.dueDate),
-      formatCurrency(item.amount),
-      item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—',
-      item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
-      item.status === 'settled' ? (item.account ?? '') : '—',
-    ]),
-    startY: 30,
-    styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [27, 153, 216], textColor: 255 },
-    alternateRowStyles: { fillColor: [244, 249, 252] },
-    didParseCell: (data) => {
-      if (data.section !== 'body') return;
-      const item = items[data.row.index];
-      if (!item) return;
-      const isIncome = item.type === 'income';
-      if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
-      }
-    },
-  });
-
-  doc.save(`${slugifyFileName(title)}.pdf`);
-}
-
 async function exportTransactionsExcel(items: Transaction[], title: string) {
+  const summaryData = buildSummarySheetData(reportTotals(items), title);
   const transactionData: SheetData = [
     REPORT_COLUMNS.map(excelHeader),
     ...items.map((item) => [
@@ -778,6 +1050,7 @@ async function exportTransactionsExcel(items: Transaction[], title: string) {
   ];
   const { default: writeXlsxFile } = await import('write-excel-file/browser');
   await writeXlsxFile([
+    { data: summaryData, sheet: 'Resumo', columns: [14, 32, 18, 18].map((width) => ({ width })) },
     { data: transactionData, sheet: 'Transações', columns: [10, 28, 18, 12, 15, 15, 12, 16].map((width) => ({ width })), stickyRowsCount: 1 },
   ]).toFile(`${slugifyFileName(title)}.xlsx`);
 }
@@ -3169,7 +3442,7 @@ export function App() {
               onWithdraw={(goal) => setGoalMovementTarget({ goal, type: 'withdraw' })}
             />
           ) : activePage === 'reports' ? (
-            <ReportsPage transactions={transactions} categoryLookup={categoryLookup} referenceDate={referenceDate} onChangeDate={setReferenceDate} />
+            <ReportsPage transactions={transactions} accounts={accounts} categoryLookup={categoryLookup} referenceDate={referenceDate} onChangeDate={setReferenceDate} />
           ) : activePage === 'shopping' ? (
             <ShoppingListsPage currentUser={currentFriendUser} friends={acceptedFriends} openCreateSignal={shoppingCreateSignal} openItemSignal={shoppingItemCreateSignal} onDetailChange={handleShoppingDetailChange} />
           ) : activePage === 'friends' ? (
@@ -4421,16 +4694,91 @@ function ReportExportMenu({ onPdf, onExcel }: { onPdf: () => void; onExcel: () =
   );
 }
 
-function ReportsPage({ transactions, categoryLookup, referenceDate, onChangeDate }: { transactions: Transaction[]; categoryLookup: Map<string, CategoryItem>; referenceDate: Date; onChangeDate: (date: Date) => void }) {
-  const monthKeyValue = monthKey(referenceDate);
+function ReportsPage({ transactions, accounts, categoryLookup, referenceDate, onChangeDate }: { transactions: Transaction[]; accounts: Account[]; categoryLookup: Map<string, CategoryItem>; referenceDate: Date; onChangeDate: (date: Date) => void }) {
+  const [reportFilters, setReportFilters] = useState<CompleteReportFilters>(() => createCompleteReportFilters(referenceDate.getFullYear()));
+  const [reportFilterOpen, setReportFilterOpen] = useState(false);
+  const reportFilterRef = useRef<HTMLDivElement>(null);
+  void onChangeDate;
 
-  const filtered = useMemo(() => {
-    return transactions
-      .filter((item) => item.dueDate.slice(0, 7) === monthKeyValue)
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [transactions, monthKeyValue]);
+  useEffect(() => {
+    if (!reportFilterOpen) return;
+    function onDown(event: PointerEvent) { if (!reportFilterRef.current?.contains(event.target as Node)) setReportFilterOpen(false); }
+    function onEsc(event: KeyboardEvent) { if (event.key === 'Escape') setReportFilterOpen(false); }
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onEsc);
+    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onEsc); };
+  }, [reportFilterOpen]);
 
-  const title = `Relatório de ${MONTH_OPTIONS[referenceDate.getMonth()]?.label ?? ''} de ${referenceDate.getFullYear()}`;
+  const yearOptions = useMemo(() => {
+    const years = Array.from(new Set(transactions.map((item) => Number(item.dueDate.slice(0, 4))).filter(Number.isFinite)));
+    if (!years.includes(referenceDate.getFullYear())) years.push(referenceDate.getFullYear());
+    return years.sort((a, b) => b - a);
+  }, [referenceDate, transactions]);
+
+  const sourceTransactions = useMemo(() => (
+    transactions
+      .filter((item) => !reportFilters.years.length || reportFilters.years.includes(Number(item.dueDate.slice(0, 4))))
+      .filter((item) => !reportFilters.months.length || reportFilters.months.includes(Number(item.dueDate.slice(5, 7))))
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  ), [reportFilters.months, reportFilters.years, transactions]);
+
+  const reportCategoryOptions = useMemo(() => (
+    Array.from(new Set(sourceTransactions.map((item) => item.category))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  ), [sourceTransactions]);
+  const reportAccountOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    accounts.forEach((account) => map.set(account.id, { id: account.id, name: account.name }));
+    sourceTransactions.forEach((item) => {
+      if (item.accountId && item.account && !map.has(item.accountId)) map.set(item.accountId, { id: item.accountId, name: item.account });
+      if (!item.accountId && item.account) map.set(`name:${item.account}`, { id: `name:${item.account}`, name: item.account });
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [accounts, sourceTransactions]);
+  const accountNameById = useMemo(() => new Map(accounts.map((account) => [account.id, account.name])), [accounts]);
+  const normalizedReportDescription = reportFilters.description.trim().toLowerCase();
+  const filtered = useMemo(() => (
+    sourceTransactions.filter((item) => (
+      (!normalizedReportDescription
+        || item.description.toLowerCase().includes(normalizedReportDescription)
+        || item.category.toLowerCase().includes(normalizedReportDescription)
+        || (item.account ?? '').toLowerCase().includes(normalizedReportDescription))
+      && (!reportFilters.categories.length || reportFilters.categories.includes(item.category))
+      && (!reportFilters.types.length || reportFilters.types.includes(item.type))
+      && (!reportFilters.statuses.length || reportFilters.statuses.includes(item.status))
+      && (!reportFilters.accountIds.length || reportFilters.accountIds.some((accountId) => (
+        accountId.startsWith('name:')
+          ? item.account === accountId.slice(5)
+          : item.accountId === accountId || accountNameById.get(accountId) === item.account
+      )))
+    ))
+  ), [accountNameById, sourceTransactions, normalizedReportDescription, reportFilters]);
+
+  const reportActiveFilterCount = Number(Boolean(reportFilters.description.trim()))
+    + reportFilters.months.length
+    + reportFilters.years.length
+    + reportFilters.categories.length
+    + reportFilters.types.length
+    + reportFilters.statuses.length
+    + reportFilters.accountIds.length;
+  const monthlySummaries = useMemo(() => buildMonthlyReportSummaries(filtered), [filtered]);
+  const reportFilterDetails = useMemo(() => {
+    const parts: string[] = [];
+    if (reportFilters.years.length) parts.push(`anos: ${reportFilters.years.join(', ')}`);
+    if (reportFilters.months.length) parts.push(`meses: ${reportFilters.months.map((month) => MONTH_OPTIONS[month - 1]?.label ?? String(month)).join(', ')}`);
+    if (reportFilters.description.trim()) parts.push(`pesquisa: ${reportFilters.description.trim()}`);
+    if (reportFilters.categories.length) parts.push(`categorias: ${reportFilters.categories.join(', ')}`);
+    if (reportFilters.types.length) parts.push(`tipos: ${reportFilters.types.map((type) => REPORT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type).join(', ')}`);
+    if (reportFilters.statuses.length) parts.push(`status: ${reportFilters.statuses.map((status) => REPORT_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status).join(', ')}`);
+    if (reportFilters.accountIds.length) {
+      const selectedNames = reportFilters.accountIds
+        .map((id) => reportAccountOptions.find((account) => account.id === id)?.name)
+        .filter((name): name is string => Boolean(name));
+      parts.push(`contas: ${selectedNames.join(', ')}`);
+    }
+    return parts.length ? `Filtros: ${parts.join(' · ')}` : 'Filtros: todos os lançamentos';
+  }, [reportAccountOptions, reportFilters]);
+
+  const title = `Relatório completo${reportActiveFilterCount > 0 ? ' filtrado' : ''}`;
   const totals = reportTotals(filtered);
   const groupedTransactions = useMemo(() => {
     return filtered.reduce<Array<{ date: string; items: Transaction[] }>>((groups, item) => {
@@ -4447,17 +4795,176 @@ function ReportsPage({ transactions, categoryLookup, referenceDate, onChangeDate
     <>
       <section className="page-header page-header-split">
         <div className="page-header-left">
-          <h1 className="page-title">Relatórios</h1>
+          <h1 className="page-title">Relatório</h1>
+          <p className="page-subtitle">Monte um relatório completo por anos, meses, categorias e pesquisa livre.</p>
         </div>
-        <div className="page-header-center">
-          <MonthNavigator date={referenceDate} onChange={onChangeDate} />
+        <div className="page-header-center complete-report-kpi">
+          <span>{monthlySummaries.length} {monthlySummaries.length === 1 ? 'mês' : 'meses'}</span>
+          <strong>{filtered.length} lançamentos</strong>
         </div>
         <div className="page-header-actions">
-          <button type="button" className="page-secondary-action report-export-desktop" onClick={() => { void exportReportPdf(filtered, title); }}><FileText size={16} /> Baixar PDF</button>
-          <button type="button" className="page-primary-action report-export-desktop" onClick={() => { void exportReportExcel(filtered, title); }}><FileSpreadsheet size={16} /> Baixar Excel</button>
-          <ReportExportMenu onPdf={() => { void exportReportPdf(filtered, title); }} onExcel={() => { void exportReportExcel(filtered, title); }} />
+          <div className="filter-control report-filter-control" ref={reportFilterRef}>
+            <button type="button" className={`page-secondary-action report-filter-button${reportFilterOpen || reportActiveFilterCount > 0 ? ' active' : ''}`} onClick={() => setReportFilterOpen((open) => !open)} aria-expanded={reportFilterOpen} aria-haspopup="dialog">
+              <ListFilter size={16} /> Filtros
+              {reportActiveFilterCount > 0 ? <span className="filter-badge">{reportActiveFilterCount}</span> : null}
+            </button>
+            {reportFilterOpen ? (
+              <div className="filter-popover report-filter-popover" role="dialog" aria-label="Filtros do relatório">
+                <div className="filter-popover-header">
+                  <strong>Filtrar relatório</strong>
+                  <button type="button" className="filter-popover-close" onClick={() => setReportFilterOpen(false)} aria-label="Fechar filtros"><X size={18} /></button>
+                </div>
+                <div className="filter-grid report-filter-grid">
+                  <label className="filter-field filter-field--wide">
+                    <span>Pesquisa</span>
+                    <input type="text" placeholder="Descrição, categoria ou conta..." value={reportFilters.description} onChange={(event) => setReportFilters((current) => ({ ...current, description: event.target.value }))} />
+                  </label>
+                  <fieldset className="report-multi-filter report-multi-filter--wide">
+                    <legend>Anos</legend>
+                    <div>
+                      {yearOptions.map((year) => {
+                        const checked = reportFilters.years.includes(year);
+                        return (
+                          <label key={year} className={checked ? 'is-selected' : ''}>
+                            <input type="checkbox" checked={checked} onChange={() => setReportFilters((current) => ({ ...current, years: toggleNumberFilter(current.years, year) }))} />
+                            <span>{year}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  <fieldset className="report-multi-filter report-multi-filter--wide">
+                    <legend>Meses</legend>
+                    <div>
+                      {MONTH_OPTIONS.map((month, index) => {
+                        const value = index + 1;
+                        const checked = reportFilters.months.includes(value);
+                        return (
+                          <label key={month.label} className={checked ? 'is-selected' : ''}>
+                            <input type="checkbox" checked={checked} onChange={() => setReportFilters((current) => ({ ...current, months: toggleNumberFilter(current.months, value) }))} />
+                            <span>{month.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  <fieldset className="report-multi-filter">
+                    <legend>Tipo</legend>
+                    <div>
+                      {REPORT_TYPE_OPTIONS.map((option) => {
+                        const checked = reportFilters.types.includes(option.value);
+                        return (
+                          <label key={option.value} className={checked ? 'is-selected' : ''}>
+                            <input type="checkbox" checked={checked} onChange={() => setReportFilters((current) => ({ ...current, types: toggleFilterValue(current.types, option.value) }))} />
+                            <span>{option.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  <fieldset className="report-multi-filter">
+                    <legend>Status</legend>
+                    <div>
+                      {REPORT_STATUS_OPTIONS.map((option) => {
+                        const checked = reportFilters.statuses.includes(option.value);
+                        return (
+                          <label key={option.value} className={checked ? 'is-selected' : ''}>
+                            <input type="checkbox" checked={checked} onChange={() => setReportFilters((current) => ({ ...current, statuses: toggleFilterValue(current.statuses, option.value) }))} />
+                            <span>{option.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  <fieldset className="report-multi-filter report-multi-filter--wide">
+                    <legend>Categorias</legend>
+                    <div>
+                      {reportCategoryOptions.length ? reportCategoryOptions.map((category) => {
+                        const checked = reportFilters.categories.includes(category);
+                        return (
+                          <label key={category} className={checked ? 'is-selected' : ''}>
+                            <input type="checkbox" checked={checked} onChange={() => setReportFilters((current) => ({ ...current, categories: toggleFilterValue(current.categories, category) }))} />
+                            <span>{category}</span>
+                          </label>
+                        );
+                      }) : <span className="report-filter-empty">Nenhuma categoria no mês</span>}
+                    </div>
+                  </fieldset>
+                  <fieldset className="report-multi-filter report-multi-filter--wide">
+                    <legend>Contas</legend>
+                    <div>
+                      {reportAccountOptions.length ? reportAccountOptions.map((account) => {
+                        const checked = reportFilters.accountIds.includes(account.id);
+                        return (
+                          <label key={account.id} className={checked ? 'is-selected' : ''}>
+                            <input type="checkbox" checked={checked} onChange={() => setReportFilters((current) => ({ ...current, accountIds: toggleFilterValue(current.accountIds, account.id) }))} />
+                            <span>{account.name}</span>
+                          </label>
+                        );
+                      }) : <span className="report-filter-empty">Nenhuma conta cadastrada</span>}
+                    </div>
+                  </fieldset>
+                </div>
+                <div className="filter-popover-actions">
+                  <button type="button" className="filter-clear" onClick={() => setReportFilters(createCompleteReportFilters(referenceDate.getFullYear()))}><RotateCcw size={14} /> Limpar</button>
+                  <button type="button" className="filter-apply" onClick={() => setReportFilterOpen(false)}>Aplicar filtros</button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <button type="button" className="page-secondary-action report-export-desktop" onClick={() => { void exportReportPdf(filtered, title, reportFilterDetails, monthlySummaries); }}><FileText size={16} /> Baixar PDF</button>
+          <button type="button" className="page-primary-action report-export-desktop" onClick={() => { void exportReportExcel(filtered, title, reportFilterDetails, monthlySummaries); }}><FileSpreadsheet size={16} /> Baixar Excel</button>
+          <ReportExportMenu onPdf={() => { void exportReportPdf(filtered, title, reportFilterDetails, monthlySummaries); }} onExcel={() => { void exportReportExcel(filtered, title, reportFilterDetails, monthlySummaries); }} />
         </div>
       </section>
+
+      {reportActiveFilterCount > 0 ? (
+        <div className="active-filters-bar report-active-filters">
+          {reportFilters.years.length ? (
+            <span className="active-filter-chip">
+              Anos: <strong>{reportFilters.years.join(', ')}</strong>
+              <button type="button" onClick={() => setReportFilters((current) => ({ ...current, years: [] }))} aria-label="Remover filtros de ano"><X size={12} /></button>
+            </span>
+          ) : null}
+          {reportFilters.months.length ? (
+            <span className="active-filter-chip">
+              Meses: <strong>{reportFilters.months.length}</strong>
+              <button type="button" onClick={() => setReportFilters((current) => ({ ...current, months: [] }))} aria-label="Remover filtros de mês"><X size={12} /></button>
+            </span>
+          ) : null}
+          {reportFilters.description.trim() ? (
+            <span className="active-filter-chip">
+              Pesquisa: <strong>{reportFilters.description.trim()}</strong>
+              <button type="button" onClick={() => setReportFilters((current) => ({ ...current, description: '' }))} aria-label="Remover filtro de pesquisa"><X size={12} /></button>
+            </span>
+          ) : null}
+          {reportFilters.categories.length ? (
+            <span className="active-filter-chip">
+              Categorias: <strong>{reportFilters.categories.length}</strong>
+              <button type="button" onClick={() => setReportFilters((current) => ({ ...current, categories: [] }))} aria-label="Remover filtros de categoria"><X size={12} /></button>
+            </span>
+          ) : null}
+          {reportFilters.types.length ? (
+            <span className="active-filter-chip">
+              Tipos: <strong>{reportFilters.types.length}</strong>
+              <button type="button" onClick={() => setReportFilters((current) => ({ ...current, types: [] }))} aria-label="Remover filtros de tipo"><X size={12} /></button>
+            </span>
+          ) : null}
+          {reportFilters.statuses.length ? (
+            <span className="active-filter-chip">
+              Status: <strong>{reportFilters.statuses.length}</strong>
+              <button type="button" onClick={() => setReportFilters((current) => ({ ...current, statuses: [] }))} aria-label="Remover filtros de status"><X size={12} /></button>
+            </span>
+          ) : null}
+          {reportFilters.accountIds.length ? (
+            <span className="active-filter-chip">
+              Contas: <strong>{reportFilters.accountIds.length}</strong>
+              <button type="button" onClick={() => setReportFilters((current) => ({ ...current, accountIds: [] }))} aria-label="Remover filtros de conta"><X size={12} /></button>
+            </span>
+          ) : null}
+          <span className="active-filter-chip">Resultado: <strong>{filtered.length}</strong></span>
+        </div>
+      ) : null}
 
       <div className="reports-summary-desktop">
         <TransactionSummaryStats summary={totals} />
@@ -4486,6 +4993,41 @@ function ReportsPage({ transactions, categoryLookup, referenceDate, onChangeDate
           <strong className={`report-summary-value ${totals.balance >= 0 ? 'report-positive' : 'report-negative'}`}>{formatCurrency(totals.balance)}</strong>
         </div>
       </div>
+
+      <section className="resource-panel complete-report-monthly">
+        <div className="report-preview-title">
+          <strong>Somatório por mês</strong>
+          <span>{monthlySummaries.length ? `${monthlySummaries.length} períodos no recorte` : 'Sem meses no recorte'}</span>
+        </div>
+        {monthlySummaries.length ? (
+          <div className="complete-report-monthly-table" role="table" aria-label="Somatório por mês">
+            <div className="complete-report-monthly-head" role="row">
+              <span>Mês</span>
+              <span>Lançamentos</span>
+              <span>Receitas</span>
+              <span>Despesas</span>
+              <span>Saldo</span>
+            </div>
+            {monthlySummaries.map((row) => (
+              <div className="complete-report-monthly-row" role="row" key={row.key}>
+                <strong>{row.label}</strong>
+                <span data-label="Lançamentos">{row.count}</span>
+                <span data-label="Receitas" className="report-positive">{formatCurrency(row.income)}</span>
+                <span data-label="Despesas" className="report-negative">{formatCurrency(row.expense)}</span>
+                <span data-label="Saldo" className={row.balance >= 0 ? 'report-positive' : 'report-negative'}>{formatCurrency(row.balance)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="complete-report-monthly-empty">
+            <div className="resource-empty-state">
+              <ReceiptText size={30} />
+              <strong>Nenhum mês encontrado</strong>
+              <p>Ajuste anos, meses, categorias ou pesquisa para montar o relatório.</p>
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="resource-panel reports-desktop-table">
         <div className="documents-report launches-report">
@@ -6085,6 +6627,33 @@ function MobileSettingsSheet({
           </button>
         </div>
         <div className="settings-group">
+          <button type="button" className="settings-row" onClick={() => { onNavigate('dashboard'); onClose(); }}>
+            <span className="settings-row-icon settings-row-icon--blue"><LayoutGrid size={16} /></span>
+            <span className="settings-row-label">Visão Geral</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+          <button type="button" className="settings-row" onClick={() => { onNavigate('transactions'); onClose(); }}>
+            <span className="settings-row-icon settings-row-icon--green"><ReceiptText size={16} /></span>
+            <span className="settings-row-label">Transações</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+          <button type="button" className="settings-row" onClick={() => { onNavigate('reports'); onClose(); }}>
+            <span className="settings-row-icon settings-row-icon--blue"><FileSpreadsheet size={16} /></span>
+            <span className="settings-row-label">Relatório</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+          <button type="button" className="settings-row" onClick={() => { onNavigate('goals'); onClose(); }}>
+            <span className="settings-row-icon settings-row-icon--purple"><Target size={16} /></span>
+            <span className="settings-row-label">Metas</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+          <button type="button" className="settings-row" onClick={() => { onNavigate('shopping'); onClose(); }}>
+            <span className="settings-row-icon settings-row-icon--orange"><ShoppingCart size={16} /></span>
+            <span className="settings-row-label">Listas</span>
+            <ChevronRight className="settings-chevron" size={16} />
+          </button>
+        </div>
+        <div className="settings-group">
           <button type="button" className="settings-row" onClick={() => { onNavigate('accounts'); onClose(); }}>
             <span className="settings-row-icon settings-row-icon--green"><CreditCard size={16} /></span>
             <span className="settings-row-label">Contas</span>
@@ -6123,6 +6692,7 @@ function Sidebar({ activePage, onNavigate }: { activePage: AppPage; onNavigate: 
     { label: 'Transações', icon: ReceiptText, page: 'transactions' as const },
     { label: 'Categorias', icon: Tags, page: 'categories' as const },
     { label: 'Metas', icon: Target, page: 'goals' as const },
+    { label: 'Relatório', icon: FileSpreadsheet, page: 'reports' as const },
     { label: 'Contas', icon: CreditCard, page: 'accounts' as const },
     { label: 'Listas', icon: ShoppingCart, page: 'shopping' as const },
     { label: 'Amigos', icon: Users, page: 'friends' as const },
