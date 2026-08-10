@@ -696,6 +696,12 @@
     bottom: 27px;
   }
 
+  .radial-menu-item--transfer {
+    left: 50%;
+    top: -6px;
+    transform: translateX(-50%);
+  }
+
   /* Cores especÃ­ficas dos botÃµes no arco */
   .radial-menu-icon--meta {
     background: #1B99D8 !important;
@@ -711,6 +717,10 @@
 
   .radial-menu-icon--category {
     background: #ff9500 !important;
+  }
+
+  .radial-menu-icon--transfer {
+    background: #5856d6 !important;
   }
 
   /* BotÃ£o fechar centralizado exatamente sobre o FAB */
