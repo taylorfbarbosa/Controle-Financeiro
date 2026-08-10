@@ -4372,6 +4372,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
         </div>
         <div className="page-header-center">
           <MonthNavigator date={referenceDate} onChange={onChangeDate} />
+          {hasData ? <DashboardExportMenu onPdf={exportPdf} onExcel={exportExcel} /> : null}
         </div>
         <div className="page-header-actions">
           {hasData ? (
@@ -4531,9 +4532,6 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
           </div>
         </section>
       )}
-      {hasData ? (
-        <DashboardExportMenu onPdf={exportPdf} onExcel={exportExcel} />
-      ) : null}
     </>
   );
 });
@@ -4749,8 +4747,8 @@ function DashboardExportMenu({ onPdf, onExcel }: { onPdf: () => void; onExcel: (
 
   return (
     <div className={`dashboard-export-menu${open ? ' open' : ''}`} ref={ref}>
-      <button type="button" className="dashboard-export-fab" onClick={() => setOpen((value) => !value)} aria-label="Exportar relatório" aria-haspopup="menu" aria-expanded={open} title="Exportar relatório">
-        <Share size={22} />
+      <button type="button" className="dashboard-export-fab" onClick={() => setOpen((value) => !value)} aria-label="Baixar relatório" aria-haspopup="menu" aria-expanded={open} title="Baixar relatório">
+        <Download size={20} />
       </button>
       {open ? (
         <div className="dashboard-export-popover" role="menu">
@@ -6891,6 +6889,11 @@ function MobileTabBar({
               <span className="radial-menu-label">Despesa</span>
             </button>
 
+            <button type="button" className="radial-menu-item radial-menu-item--transfer" onClick={() => { setActionOpen(false); onNewTransfer(); }}>
+              <span className="radial-menu-icon radial-menu-icon--transfer"><ArrowLeftRight size={22} /></span>
+              <span className="radial-menu-label">Transferência</span>
+            </button>
+
             <button type="button" className="radial-menu-item radial-menu-item--income" onClick={() => { setActionOpen(false); onNewIncome(); }}>
               <span className="radial-menu-icon radial-menu-icon--income"><ArrowDownLeft size={24} /></span>
               <span className="radial-menu-label">Receita</span>
@@ -6899,11 +6902,6 @@ function MobileTabBar({
             <button type="button" className="radial-menu-item radial-menu-item--category" onClick={() => { setActionOpen(false); onNewCategory(); }}>
               <span className="radial-menu-icon radial-menu-icon--category"><Tags size={24} /></span>
               <span className="radial-menu-label">Categoria</span>
-            </button>
-
-            <button type="button" className="radial-menu-item radial-menu-item--transfer" onClick={() => { setActionOpen(false); onNewTransfer(); }}>
-              <span className="radial-menu-icon radial-menu-icon--transfer"><ArrowLeftRight size={22} /></span>
-              <span className="radial-menu-label">Transferência</span>
             </button>
 
             <button type="button" className="radial-menu-close" onClick={() => setActionOpen(false)} aria-label="Fechar menu">

@@ -2758,6 +2758,19 @@ button {
   box-shadow: none !important;
 }
 
+/* Substitui a seta nativa do <select> (feia/dobrada no Safari iOS) por um
+   chevron único consistente com o resto do app. */
+select.form-input,
+.filter-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+}
+
 .transaction-type-body {
   padding-bottom: 24px;
 }
@@ -9072,10 +9085,16 @@ button {
     text-align: center !important;
   }
 
+  .main-content--dashboard .page-header-center {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
   .main-content--dashboard .page-header-center .month-nav {
     width: fit-content !important;
     max-width: none !important;
-    margin-inline: auto !important;
+    margin-inline: 0 !important;
     justify-content: center !important;
     gap: 12px !important;
   }
@@ -13671,30 +13690,28 @@ h1, h2, h3, h4, h5, h6,
 
 @media (max-width: 760px) {
   .dashboard-export-menu {
-    position: fixed;
-    right: 18px;
-    bottom: calc(64px + env(safe-area-inset-bottom));
+    position: relative;
     z-index: 70;
-    display: block;
+    display: inline-flex;
   }
 
   .dashboard-export-fab {
     display: grid;
-    width: 52px;
-    height: 52px;
+    width: 36px;
+    height: 36px;
     place-items: center;
     border: 0;
     border-radius: 50%;
     background: linear-gradient(135deg, #1B99D8 0%, #0579b8 100%);
     color: #ffffff;
-    box-shadow: none;
+    box-shadow: 0 6px 14px rgba(27, 153, 216, 0.28);
     cursor: pointer;
     transition: transform 180ms ease, background 180ms ease;
     will-change: transform;
   }
 
   .dashboard-export-menu.open .dashboard-export-fab {
-    transform: translateY(-2px) rotate(4deg);
+    transform: translateY(-1px) rotate(4deg);
   }
 
   .dashboard-export-fab:active {
@@ -13704,7 +13721,7 @@ h1, h2, h3, h4, h5, h6,
   .dashboard-export-popover {
     position: absolute;
     right: 0;
-    bottom: calc(100% + 10px);
+    top: calc(100% + 10px);
     z-index: 71;
     display: grid;
     gap: 4px;
@@ -13714,8 +13731,9 @@ h1, h2, h3, h4, h5, h6,
     border: 1px solid rgba(203, 213, 225, 0.8);
     border-radius: 16px;
     background: #ffffff;
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
     animation: dashboardExportMenuIn 160ms ease-out;
-    transform-origin: right bottom;
+    transform-origin: right top;
   }
 
   .dashboard-export-popover button {
@@ -15540,6 +15558,13 @@ h1, h2, h3, h4, h5, h6,
   background: var(--surface-raised) !important;
   border-color: var(--border-color) !important;
   color: var(--text-primary) !important;
+}
+:root[data-theme='dark'] select.form-input,
+:root[data-theme='dark'] .filter-field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 14px !important;
 }
 :root[data-theme='dark'] .form-input::placeholder {
   color: var(--text-muted) !important;

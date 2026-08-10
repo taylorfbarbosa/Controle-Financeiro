@@ -477,6 +477,17 @@
     color: var(--ios-label-3);
   }
 
+  /* Substitui a seta nativa (dupla, estilo iOS) do <select> por um chevron
+     único consistente com o resto do app. */
+  select.form-input,
+  .filter-field select {
+    padding-right: 38px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 14px center !important;
+    background-size: 14px !important;
+  }
+
   .form-input:focus,
   .form-input-wrap:focus-within,
   .filter-field input:focus,
@@ -615,11 +626,11 @@
 
   .radial-menu-container {
     position: fixed;
-    bottom: calc(env(safe-area-inset-bottom) + 2px);
+    bottom: calc(env(safe-area-inset-bottom) + 4px);
     left: 50%;
     transform: translateX(-50%);
-    width: 280px;
-    height: 180px;
+    width: min(360px, calc(100vw - 20px));
+    height: 280px;
     z-index: 1000;
     pointer-events: auto;
     animation: quickAddMenuIn 0.28s cubic-bezier(0.32, 0.72, 0, 1);
@@ -640,26 +651,26 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     background: transparent;
     border: none;
     outline: none;
     cursor: pointer;
-    width: 68px;
+    width: 98px;
     text-align: center;
     z-index: 5;
     padding: 0 !important;
   }
 
   .radial-menu-icon {
-    width: 48px;
-    height: 48px;
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     color: #ffffff;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.18);
-    margin-bottom: 6px;
+    box-shadow: 0 9px 20px rgba(0, 0, 0, 0.24);
     transition: transform 0.15s ease;
   }
 
@@ -669,40 +680,48 @@
 
   .radial-menu-label {
     color: #fff;
-    font-size: 11px;
-    font-weight: 600;
-    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    max-width: 96px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(28, 28, 30, 0.4);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.34);
     white-space: nowrap;
   }
 
-  /* Posicionamentos especÃ­ficos na curva do arco */
+  /* Posicionamentos no leque, com folga extra entre o item do topo
+     (TransferÃªncia) e os da linha do meio (Despesa/Receita). */
   .radial-menu-item--meta {
-    left: 2px;
-    bottom: 27px;
+    left: -4px;
+    bottom: 44px;
   }
 
   .radial-menu-item--expense {
-    left: 54px;
-    top: 20px;
+    left: 58px;
+    top: 100px;
   }
 
   .radial-menu-item--income {
-    right: 54px;
-    top: 20px;
+    right: 58px;
+    top: 100px;
   }
 
   .radial-menu-item--category {
-    right: 2px;
-    bottom: 27px;
+    right: -4px;
+    bottom: 44px;
   }
 
   .radial-menu-item--transfer {
     left: 50%;
-    top: -6px;
+    top: 16px;
     transform: translateX(-50%);
   }
 
-  /* Cores especÃ­ficas dos botÃµes no arco */
+  /* Cores especÃ­ficas dos botÃµes do menu rÃ¡pido */
   .radial-menu-icon--meta {
     background: #1B99D8 !important;
   }
@@ -726,11 +745,11 @@
   /* BotÃ£o fechar centralizado exatamente sobre o FAB */
   .radial-menu-close {
     position: absolute;
-    bottom: 0;
+    bottom: 6px;
     left: 50%;
     transform: translateX(-50%);
-    width: 56px;
-    height: 56px;
+    width: 54px;
+    height: 54px;
     border-radius: 50%;
     background: #1c1c1e !important;
     color: #ffffff !important;
@@ -2783,5 +2802,13 @@
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
+  }
+
+  :root[data-theme='dark'] select.form-input,
+  :root[data-theme='dark'] .filter-field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23c7c7cc' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 14px center !important;
+    background-size: 14px !important;
   }
 }
