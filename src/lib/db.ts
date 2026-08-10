@@ -71,6 +71,8 @@ function transactionToRow(t: Transaction): Row {
     settled_amount: t.settledAmount ?? null,
     account_id: asUuid(t.accountId),
     account: t.account ?? null,
+    to_account_id: asUuid(t.toAccountId),
+    to_account: t.toAccount ?? null,
     notes: t.notes ?? null,
   };
 }
@@ -91,6 +93,8 @@ function rowToTransaction(r: Row): Transaction {
     settledAmount: num(r.settled_amount),
     accountId: str(r.account_id),
     account: str(r.account),
+    toAccountId: str(r.to_account_id),
+    toAccount: str(r.to_account),
     notes: str(r.notes),
   };
 }

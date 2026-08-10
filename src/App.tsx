@@ -88,7 +88,7 @@ import {
   X,
 } from 'lucide-react';
 
-type TransactionType = 'income' | 'expense';
+type TransactionType = 'income' | 'expense' | 'transfer';
 type AppPage = 'dashboard' | 'transactions' | 'categories' | 'goals' | 'reports' | 'accounts' | 'shopping' | 'friends' | 'profile' | 'help';
 const PAGE_LABELS: Record<AppPage, string> = {
   dashboard: 'Visão Geral',
@@ -206,12 +206,47 @@ function createCompleteReportFilters(year: number): CompleteReportFilters {
 const REPORT_TYPE_OPTIONS: { value: TransactionType; label: string }[] = [
   { value: 'income', label: 'Receita' },
   { value: 'expense', label: 'Despesa' },
+  { value: 'transfer', label: 'Transferência' },
 ];
 
 const REPORT_STATUS_OPTIONS: { value: TransactionStatus; label: string }[] = [
   { value: 'open', label: 'Em aberto' },
   { value: 'settled', label: 'Efetivadas' },
 ];
+
+const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
+  income: 'Receita',
+  expense: 'Despesa',
+  transfer: 'Transferência',
+};
+
+const TRANSACTION_SETTLED_LABELS: Record<TransactionType, string> = {
+  income: 'Recebido',
+  expense: 'Pago',
+  transfer: 'Transferido',
+};
+
+function TransactionTypeIcon({ type, size = 16 }: { type: TransactionType; size?: number }) {
+  if (type === 'income') return <ArrowUpRight size={size} />;
+  if (type === 'expense') return <ArrowDownLeft size={size} />;
+  return <ArrowLeftRight size={size} />;
+}
+
+function transactionAmountPrefix(type: TransactionType) {
+  return type === 'income' ? '+ ' : type === 'expense' ? '- ' : '';
+}
+
+function transactionPdfColor(type: TransactionType): [number, number, number] {
+  if (type === 'income') return [27, 153, 216];
+  if (type === 'expense') return [239, 68, 68];
+  return [10, 109, 158];
+}
+
+function transactionAccountLabel(item: Transaction) {
+  if (item.status !== 'settled') return '—';
+  if (item.type === 'transfer') return item.account && item.toAccount ? `${item.account} → ${item.toAccount}` : (item.account ?? '—');
+  return item.account ?? '—';
+}
 
 export type Transaction = {
   id: string;
@@ -229,6 +264,8 @@ export type Transaction = {
   settledAmount?: number;
   accountId?: string;
   account?: string;
+  toAccountId?: string;
+  toAccount?: string;
   notes?: string;
   sharedRequestId?: string;
   sharedCreatedBy?: string;
@@ -318,6 +355,7 @@ type LaunchForm = {
   description: string;
   category: string;
   accountId: string;
+  toAccountId: string;
   amount: string;
   dueDate: string;
   recurrence: RecurrenceType;
@@ -494,6 +532,7 @@ const initialForm: LaunchForm = {
   description: '',
   category: 'Outros',
   accountId: '',
+  toAccountId: '',
   amount: '',
   dueDate: new Date().toISOString().slice(0, 10),
   recurrence: 'single',
@@ -591,7 +630,7 @@ function buildMonthlyReportSummaries(items: Transaction[]): MonthlyReportSummary
     const key = item.dueDate.slice(0, 7);
     const current = map.get(key) ?? { key, label: monthLabelFromKey(key), income: 0, expense: 0, balance: 0, count: 0 };
     if (item.type === 'income') current.income += item.amount;
-    else current.expense += item.amount;
+    else if (item.type === 'expense') current.expense += item.amount;
     current.balance = current.income - current.expense;
     current.count += 1;
     map.set(key, current);
@@ -619,13 +658,13 @@ function groupTransactionsByMonth(items: Transaction[]) {
 
 function transactionExcelRow(item: Transaction): Cell[] {
   return [
-    { value: item.type === 'income' ? 'Receita' : 'Despesa' },
+    { value: TRANSACTION_TYPE_LABELS[item.type] },
     { value: item.description },
     { value: item.category },
     { value: formatDate(item.dueDate) },
     excelCurrency(item.amount),
     item.status === 'settled' ? excelCurrency(item.settledAmount ?? item.amount) : { value: '' },
-    { value: item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto' },
+    { value: item.status === 'settled' ? TRANSACTION_SETTLED_LABELS[item.type] : 'Aberto' },
     { value: item.status === 'settled' ? (item.account ?? '') : '' },
   ];
 }
@@ -837,13 +876,13 @@ async function exportReportPdf(items: Transaction[], title: string, details = ''
       autoTable(doc, {
         head: [REPORT_COLUMNS],
         body: group.items.map((item) => [
-          item.type === 'income' ? 'Receita' : 'Despesa',
+          TRANSACTION_TYPE_LABELS[item.type],
           item.description,
           item.category,
           formatDate(item.dueDate),
           formatCurrency(item.amount),
           item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—',
-          item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+          item.status === 'settled' ? TRANSACTION_SETTLED_LABELS[item.type] : 'Aberto',
           item.status === 'settled' ? (item.account ?? '') : '—',
         ]),
         foot: [[
@@ -867,10 +906,9 @@ async function exportReportPdf(items: Transaction[], title: string, details = ''
           if (data.section !== 'body') return;
           const item = group.items[data.row.index];
           if (!item) return;
-          const isIncome = item.type === 'income';
           if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
+            data.cell.styles.textColor = transactionPdfColor(item.type);
           }
         },
       });
@@ -885,13 +923,13 @@ async function exportReportPdf(items: Transaction[], title: string, details = ''
     autoTable(doc, {
       head: [REPORT_COLUMNS],
       body: items.map((item) => [
-        item.type === 'income' ? 'Receita' : 'Despesa',
+        TRANSACTION_TYPE_LABELS[item.type],
         item.description,
         item.category,
         formatDate(item.dueDate),
         formatCurrency(item.amount),
         item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—',
-        item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+        item.status === 'settled' ? TRANSACTION_SETTLED_LABELS[item.type] : 'Aberto',
         item.status === 'settled' ? (item.account ?? '') : '—',
       ]),
       startY: tableY + 4,
@@ -902,10 +940,9 @@ async function exportReportPdf(items: Transaction[], title: string, details = ''
         if (data.section !== 'body') return;
         const item = items[data.row.index];
         if (!item) return;
-        const isIncome = item.type === 'income';
         if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
+          data.cell.styles.textColor = transactionPdfColor(item.type);
         }
       },
     });
@@ -1009,13 +1046,13 @@ async function exportTransactionsPdf(items: Transaction[], title: string) {
   autoTable(doc, {
     head: [REPORT_COLUMNS],
     body: items.map((item) => [
-      item.type === 'income' ? 'Receita' : 'Despesa',
+      TRANSACTION_TYPE_LABELS[item.type],
       item.description,
       item.category,
       formatDate(item.dueDate),
       formatCurrency(item.amount),
       item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—',
-      item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+      item.status === 'settled' ? TRANSACTION_SETTLED_LABELS[item.type] : 'Aberto',
       item.status === 'settled' ? (item.account ?? '') : '—',
     ]),
     startY: tableY + 4,
@@ -1026,10 +1063,9 @@ async function exportTransactionsPdf(items: Transaction[], title: string) {
       if (data.section !== 'body') return;
       const item = items[data.row.index];
       if (!item) return;
-      const isIncome = item.type === 'income';
       if (data.column.index === 0 || data.column.index === 4 || data.column.index === 5) {
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.textColor = isIncome ? [27, 153, 216] : [239, 68, 68];
+        data.cell.styles.textColor = transactionPdfColor(item.type);
       }
     },
   });
@@ -1042,9 +1078,9 @@ async function exportTransactionsExcel(items: Transaction[], title: string) {
   const transactionData: SheetData = [
     REPORT_COLUMNS.map(excelHeader),
     ...items.map((item) => [
-      item.type === 'income' ? 'Receita' : 'Despesa', item.description, item.category, formatDate(item.dueDate),
+      TRANSACTION_TYPE_LABELS[item.type], item.description, item.category, formatDate(item.dueDate),
       excelCurrency(item.amount), item.status === 'settled' ? excelCurrency(item.settledAmount ?? item.amount) : '',
-      item.status === 'settled' ? (item.type === 'income' ? 'Recebido' : 'Pago') : 'Aberto',
+      item.status === 'settled' ? TRANSACTION_SETTLED_LABELS[item.type] : 'Aberto',
       item.status === 'settled' ? (item.account ?? '') : '',
     ]),
   ];
@@ -1426,6 +1462,7 @@ async function parseExcelTransactions(file: File): Promise<ImportPreviewRow[]> {
       dueDate,
       category,
       accountId: '',
+      toAccountId: '',
       recurrence,
       installments,
       fixedUntil: '',
@@ -1447,16 +1484,24 @@ async function parseExcelTransactions(file: File): Promise<ImportPreviewRow[]> {
 function generateTransactions(form: LaunchForm, type: TransactionType): Transaction[] {
   const amount = parseAmount(form.amount);
   const groupId = crypto.randomUUID();
+  const isTransfer = type === 'transfer';
   const base = {
     groupId,
     description: form.description.trim().slice(0, TRANSACTION_DESCRIPTION_MAX_LENGTH),
     category: form.category,
     accountId: form.accountId || undefined,
+    toAccountId: isTransfer ? (form.toAccountId || undefined) : undefined,
     amount,
     type,
-    recurrence: form.recurrence,
-    status: 'open' as const,
+    recurrence: isTransfer ? ('single' as const) : form.recurrence,
+    status: isTransfer ? ('settled' as const) : ('open' as const),
+    ...(isTransfer ? { settledAt: form.dueDate, settledAmount: amount } : {}),
   };
+
+  // Transferências são executadas de imediato entre as duas contas, sem recorrência.
+  if (isTransfer) {
+    return [{ ...base, id: crypto.randomUUID(), dueDate: form.dueDate }];
+  }
 
   if (form.recurrence === 'installment') {
     const total = Math.max(1, Number(form.installments || 1));
@@ -1866,6 +1911,13 @@ export function App() {
   const [referenceDate, setReferenceDate] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchType, setLaunchType] = useState<TransactionType>('expense');
+  const [newTransactionMenuOpen, setNewTransactionMenuOpen] = useState(false);
+  const newTransactionMenuRef = useRef<HTMLDivElement>(null);
+  const openLaunch = useCallback((type: TransactionType) => {
+    setLaunchType(type);
+    setLaunchOpen(true);
+    setNewTransactionMenuOpen(false);
+  }, []);
   const [shoppingCreateSignal, setShoppingCreateSignal] = useState(0);
   const [shoppingItemCreateSignal, setShoppingItemCreateSignal] = useState(0);
   const [friendSearchSignal, setFriendSearchSignal] = useState(0);
@@ -2215,6 +2267,26 @@ export function App() {
   }, [transactionActionsOpen]);
 
   useEffect(() => {
+    if (!newTransactionMenuOpen) return;
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      const target = event.target as Element | null;
+      if (!newTransactionMenuRef.current?.contains(target)) setNewTransactionMenuOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setNewTransactionMenuOpen(false);
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [newTransactionMenuOpen]);
+
+  useEffect(() => {
     if (!accountFilterOpen) return;
 
     function closeOnOutsideClick(event: PointerEvent) {
@@ -2516,6 +2588,7 @@ export function App() {
   })), [categoryItems]);
   const incomeCategories = categoryGroups.find((group) => group.key === 'income')?.categories ?? [];
   const expenseCategories = categoryGroups.find((group) => group.key === 'expense')?.categories ?? [];
+  const transferCategories = categoryGroups.find((group) => group.key === 'transfer')?.categories ?? [];
   const transactionCategoryOptions = [...new Set([...incomeCategories, ...expenseCategories])];
   const categoryLookup = useMemo(() => {
     const map = new Map<string, CategoryItem>();
@@ -2530,7 +2603,7 @@ export function App() {
       .filter((item) => categoryFilter === 'all' || item.category === categoryFilter)
       .filter((item) => typeFilter === 'all' || item.type === typeFilter)
       .filter((item) => statusFilter === 'all' || item.status === statusFilter)
-      .filter((item) => accountFilter === 'all' || item.accountId === accountFilter || (!!filterAccount && item.account === filterAccount.name))
+      .filter((item) => accountFilter === 'all' || item.accountId === accountFilter || item.toAccountId === accountFilter || (!!filterAccount && (item.account === filterAccount.name || item.toAccount === filterAccount.name)))
       .filter((item) => !appliedDescriptionFilter || item.description.toLowerCase().includes(appliedDescriptionFilter))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [transactions, dateFilter, currentMonth, categoryFilter, typeFilter, statusFilter, accountFilter, accounts, appliedDescriptionFilter]);
@@ -2557,7 +2630,7 @@ export function App() {
       .filter((item) => transactionExportFilters.category === 'all' || item.category === transactionExportFilters.category)
       .filter((item) => transactionExportFilters.type === 'all' || item.type === transactionExportFilters.type)
       .filter((item) => transactionExportFilters.status === 'all' || item.status === transactionExportFilters.status)
-      .filter((item) => transactionExportFilters.accountId === 'all' || item.accountId === transactionExportFilters.accountId || (!!selectedAccount && item.account === selectedAccount.name))
+      .filter((item) => transactionExportFilters.accountId === 'all' || item.accountId === transactionExportFilters.accountId || item.toAccountId === transactionExportFilters.accountId || (!!selectedAccount && (item.account === selectedAccount.name || item.toAccount === selectedAccount.name)))
       .filter((item) => !normalizedDescription || item.description.toLowerCase().includes(normalizedDescription))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   }, [accounts, currentMonth, transactionExportFilters, transactions]);
@@ -2650,6 +2723,7 @@ export function App() {
     let expenseMax = 0;
     let allMax = 0;
     for (const item of monthItems) {
+      if (item.type === 'transfer') continue;
       const meta = categoryLookup.get(`${item.type}:${item.category}`);
       const color = meta?.color ?? (item.type === 'income' ? '#10b981' : '#ef4444');
       const currentAll = allMap.get(item.category) ?? { total: 0, color };
@@ -2674,9 +2748,16 @@ export function App() {
   const accountBalances = useMemo(() => {
     const balances = Object.fromEntries(accounts.map((account) => [account.id, account.initialBalance])) as Record<string, number>;
     transactions.filter((item) => item.status === 'settled').forEach((item) => {
+      const settledAmount = item.settledAmount ?? item.amount;
+      if (item.type === 'transfer') {
+        const fromAccount = accounts.find((candidate) => candidate.id === item.accountId || candidate.name === item.account);
+        const toAccount = accounts.find((candidate) => candidate.id === item.toAccountId || candidate.name === item.toAccount);
+        if (fromAccount) balances[fromAccount.id] = (balances[fromAccount.id] ?? 0) - settledAmount;
+        if (toAccount) balances[toAccount.id] = (balances[toAccount.id] ?? 0) + settledAmount;
+        return;
+      }
       const account = accounts.find((candidate) => candidate.id === item.accountId || candidate.name === item.account);
       if (!account) return;
-      const settledAmount = item.settledAmount ?? item.amount;
       balances[account.id] = (balances[account.id] ?? 0) + (item.type === 'income' ? settledAmount : -settledAmount);
     });
     return balances;
@@ -2768,6 +2849,7 @@ export function App() {
             <option value="all">Todos</option>
             <option value="income">Receita</option>
             <option value="expense">Despesa</option>
+            <option value="transfer">Transferência</option>
           </select>
         </label>
         <label className="filter-field">
@@ -2848,8 +2930,9 @@ export function App() {
           <MobileTabBar
             activePage={pendingPage}
             onNavigate={handleNavigate}
-            onNewIncome={() => { setLaunchType('income'); setLaunchOpen(true); }}
-            onNewExpense={() => { setLaunchType('expense'); setLaunchOpen(true); }}
+            onNewIncome={() => openLaunch('income')}
+            onNewExpense={() => openLaunch('expense')}
+            onNewTransfer={() => openLaunch('transfer')}
             onNewGoal={() => { setEditingGoal(null); setGoalOpen(true); }}
             onNewCategory={() => { setEditingCategory(null); setCategoryOpen(true); }}
             onNewSharedTransaction={() => { handleNavigate('friends'); }}
@@ -2893,7 +2976,7 @@ export function App() {
                         ) : null}
                         {typeFilter !== 'all' ? (
                           <span className="active-filter-chip">
-                            Tipo: <strong>{typeFilter === 'income' ? 'Receita' : 'Despesa'}</strong>
+                            Tipo: <strong>{TRANSACTION_TYPE_LABELS[typeFilter]}</strong>
                             <button type="button" onClick={() => setTypeFilter('all')} aria-label="Remover filtro de tipo"><X size={12} /></button>
                           </span>
                         ) : null}
@@ -2949,6 +3032,7 @@ export function App() {
                                 <option value="all">Todos</option>
                                 <option value="income">Receita</option>
                                 <option value="expense">Despesa</option>
+                                <option value="transfer">Transferência</option>
                               </select>
                             </label>
                             <label className="filter-field">
@@ -2989,10 +3073,19 @@ export function App() {
                       ) : null}
                       {transactionExportOpen ? renderTransactionExportPanel('desktop') : null}
                     </div>
-                    <button type="button" className="page-primary-action" onClick={() => setLaunchOpen(true)}>
-                      <Plus size={16} />
-                      Nova transação
-                    </button>
+                    <div className="transaction-actions-control" ref={newTransactionMenuRef}>
+                      <button type="button" className="page-primary-action" aria-haspopup="menu" aria-expanded={newTransactionMenuOpen} onClick={() => setNewTransactionMenuOpen((open) => !open)}>
+                        <Plus size={16} />
+                        Nova transação
+                      </button>
+                      {newTransactionMenuOpen ? (
+                        <div className="transaction-actions-popover new-transaction-type-popover" role="menu">
+                          <button type="button" role="menuitem" onClick={() => openLaunch('expense')}><ArrowDownLeft size={16} /> Despesa</button>
+                          <button type="button" role="menuitem" onClick={() => openLaunch('income')}><ArrowUpRight size={16} /> Receita</button>
+                          <button type="button" role="menuitem" onClick={() => openLaunch('transfer')}><ArrowLeftRight size={16} /> Transferência</button>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </section>
 
@@ -3110,7 +3203,7 @@ export function App() {
                       ) : null}
                       {typeFilter !== 'all' ? (
                         <span className="active-filter-chip">
-                          Tipo: <strong>{typeFilter === 'income' ? 'Receita' : 'Despesa'}</strong>
+                          Tipo: <strong>{TRANSACTION_TYPE_LABELS[typeFilter]}</strong>
                           <button type="button" onClick={() => setTypeFilter('all')} aria-label="Remover filtro de tipo"><X size={12} /></button>
                         </span>
                       ) : null}
@@ -3300,6 +3393,7 @@ export function App() {
                           <option value="all">Todos</option>
                           <option value="income">Receita</option>
                           <option value="expense">Despesa</option>
+                          <option value="transfer">Transferência</option>
                         </select>
                       </label>
                       <label className="filter-field">
@@ -3526,6 +3620,7 @@ export function App() {
           accounts={accounts}
           incomeCategories={incomeCategories}
           expenseCategories={expenseCategories}
+          transferCategories={transferCategories}
           initialType={launchType}
           onClose={() => setLaunchOpen(false)}
           onCreate={(items) => {
@@ -3610,6 +3705,7 @@ export function App() {
           accounts={accounts}
           incomeCategories={incomeCategories}
           expenseCategories={expenseCategories}
+          transferCategories={transferCategories}
           onClose={() => setEditingTransaction(null)}
           onSave={(updated) => {
             commitTransactions(transactions.map((item) => (item.id === updated.id ? updated : item)));
@@ -4001,17 +4097,17 @@ const SwipeableTransactionRow = memo(function SwipeableTransactionRow({
           {categoryMeta ? (
             <CategoryIconGraphic icon={categoryMeta.icon} size={20} />
           ) : (
-            item.type === 'income' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />
+            <TransactionTypeIcon type={item.type} size={16} />
           )}
-          <span className="status-icon-text">{item.type === 'income' ? 'Receita' : 'Despesa'}</span>
+          <span className="status-icon-text">{TRANSACTION_TYPE_LABELS[item.type]}</span>
         </span>
         <span className="recurrence-pill launch-recurrence">{recurrenceLabel(item)}</span>
         <span className="launch-date">{formatDate(item.dueDate)}</span>
-        <strong className={`launch-value launch-value--${item.type}`}>{item.type === 'income' ? '+ ' : '- '}{formatCurrency(item.amount)}</strong>
+        <strong className={`launch-value launch-value--${item.type}`}>{transactionAmountPrefix(item.type)}{formatCurrency(item.amount)}</strong>
         <span className={`launch-real${item.status === 'settled' ? ` launch-real--${item.type}` : ' launch-real--pending'}`}>
           {item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—'}
         </span>
-        <span className="launch-muted">{item.status === 'settled' && item.account ? item.account : '—'}</span>
+        <span className="launch-muted">{transactionAccountLabel(item)}</span>
         <span className="launch-status-cell">
           <StatusIcon status={item.status} dueDate={item.dueDate} />
         </span>
@@ -4169,7 +4265,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
       if (item.type === 'income') {
         totals.income += item.amount;
         if (item.status === 'open') totals.pendingIncome += item.amount;
-      } else {
+      } else if (item.type === 'expense') {
         totals.expense += item.amount;
         if (item.status === 'open') totals.pendingExpense += item.amount;
       }
@@ -4210,7 +4306,7 @@ const DashboardPage = memo(function DashboardPage({ transactions, categoryLookup
       const monthIndex = Number(item.dueDate.slice(5, 7)) - 1;
       if (monthIndex < 0 || monthIndex > 11) return;
       if (item.type === 'income') totals[monthIndex].income += item.amount;
-      else totals[monthIndex].expense += item.amount;
+      else if (item.type === 'expense') totals[monthIndex].expense += item.amount;
     });
     return totals.map((item, index) => {
       const date = new Date(year, index, 1);
@@ -4747,8 +4843,8 @@ function ReportsPage({ transactions, accounts, categoryLookup, referenceDate, on
       && (!reportFilters.statuses.length || reportFilters.statuses.includes(item.status))
       && (!reportFilters.accountIds.length || reportFilters.accountIds.some((accountId) => (
         accountId.startsWith('name:')
-          ? item.account === accountId.slice(5)
-          : item.accountId === accountId || accountNameById.get(accountId) === item.account
+          ? item.account === accountId.slice(5) || item.toAccount === accountId.slice(5)
+          : item.accountId === accountId || item.toAccountId === accountId || accountNameById.get(accountId) === item.account || accountNameById.get(accountId) === item.toAccount
       )))
     ))
   ), [accountNameById, sourceTransactions, normalizedReportDescription, reportFilters]);
@@ -5060,12 +5156,12 @@ function ReportsPage({ transactions, accounts, categoryLookup, referenceDate, on
                     <span className="launch-category-name">{item.category}</span>
                   </span>
                   <span className={`status-icon launch-type launch-type--${item.type}`}>
-                    {item.type === 'income' ? <ArrowUpRight size={16} /> : <ArrowDownLeft size={16} />}
-                    <span className="status-icon-text">{item.type === 'income' ? 'Receita' : 'Despesa'}</span>
+                    <TransactionTypeIcon type={item.type} size={16} />
+                    <span className="status-icon-text">{TRANSACTION_TYPE_LABELS[item.type]}</span>
                   </span>
                   <span className="recurrence-pill launch-recurrence">{recurrenceLabel(item)}</span>
                   <span className="launch-date">{formatDate(item.dueDate)}</span>
-                  <strong className={`launch-value launch-value--${item.type}`}>{item.type === 'income' ? '+ ' : '- '}{formatCurrency(item.amount)}</strong>
+                  <strong className={`launch-value launch-value--${item.type}`}>{transactionAmountPrefix(item.type)}{formatCurrency(item.amount)}</strong>
                   <span className={`launch-real${item.status === 'settled' ? ` launch-real--${item.type}` : ' launch-real--pending'}`}>
                     {item.status === 'settled' ? formatCurrency(item.settledAmount ?? item.amount) : '—'}
                   </span>
@@ -5094,7 +5190,7 @@ function ReportsPage({ transactions, accounts, categoryLookup, referenceDate, on
                   return (
                     <article className="report-transaction-card" key={item.id}>
                       <div className={`report-card-icon report-card-icon--${item.type}`}>
-                        {item.type === 'income' ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
+                        <TransactionTypeIcon type={item.type} size={20} />
                       </div>
 
                       <div className="report-card-main">
@@ -5112,7 +5208,7 @@ function ReportsPage({ transactions, accounts, categoryLookup, referenceDate, on
 
                       <div className="report-card-right">
                         <strong className={`report-card-amount report-card-amount--${item.type}`}>
-                          {item.type === 'income' ? '+ ' : '- '}{formatCurrency(item.amount)}
+                          {transactionAmountPrefix(item.type)}{formatCurrency(item.amount)}
                         </strong>
                         <span className="report-card-date">{formatDate(item.dueDate)}</span>
                       </div>
@@ -6721,6 +6817,7 @@ function MobileTabBar({
   onNavigate,
   onNewIncome,
   onNewExpense,
+  onNewTransfer,
   onNewGoal,
   onNewCategory,
   onNewSharedTransaction: _onNewSharedTransaction,
@@ -6730,6 +6827,7 @@ function MobileTabBar({
   onNavigate: (page: AppPage) => void;
   onNewIncome: () => void;
   onNewExpense: () => void;
+  onNewTransfer: () => void;
   onNewGoal: () => void;
   onNewCategory: () => void;
   onNewSharedTransaction?: () => void;
@@ -6801,6 +6899,11 @@ function MobileTabBar({
             <button type="button" className="radial-menu-item radial-menu-item--category" onClick={() => { setActionOpen(false); onNewCategory(); }}>
               <span className="radial-menu-icon radial-menu-icon--category"><Tags size={24} /></span>
               <span className="radial-menu-label">Categoria</span>
+            </button>
+
+            <button type="button" className="radial-menu-item radial-menu-item--transfer" onClick={() => { setActionOpen(false); onNewTransfer(); }}>
+              <span className="radial-menu-icon radial-menu-icon--transfer"><ArrowLeftRight size={22} /></span>
+              <span className="radial-menu-label">Transferência</span>
             </button>
 
             <button type="button" className="radial-menu-close" onClick={() => setActionOpen(false)} aria-label="Fechar menu">
@@ -7221,7 +7324,7 @@ function DeleteTransactionModal({ item, relatedCount, onClose, onConfirmOne, onC
     </div>
   );
 }
-function EditTransactionModal({ item, accounts, incomeCategories, expenseCategories, onClose, onSave }: { item: Transaction; accounts: Account[]; incomeCategories: string[]; expenseCategories: string[]; onClose: () => void; onSave: (updated: Transaction) => void }) {
+function EditTransactionModal({ item, accounts, incomeCategories, expenseCategories, transferCategories, onClose, onSave }: { item: Transaction; accounts: Account[]; incomeCategories: string[]; expenseCategories: string[]; transferCategories: string[]; onClose: () => void; onSave: (updated: Transaction) => void }) {
   const [type, setType] = useState<TransactionType>(item.type);
   const [description, setDescription] = useState(item.description);
   const [category, setCategory] = useState(item.category);
@@ -7229,13 +7332,16 @@ function EditTransactionModal({ item, accounts, incomeCategories, expenseCategor
   const [dueDate, setDueDate] = useState(item.dueDate);
   const [recurrence, setRecurrence] = useState<RecurrenceType>(item.recurrence);
   const [accountId, setAccountId] = useState(item.accountId ?? '');
+  const [toAccountId, setToAccountId] = useState(item.toAccountId ?? '');
   const [error, setError] = useState('');
+  const isTransfer = type === 'transfer';
 
-  const categories = type === 'income' ? incomeCategories : expenseCategories;
+  const categories = type === 'income' ? incomeCategories : type === 'transfer' ? transferCategories : expenseCategories;
 
   function selectType(next: TransactionType) {
     setType(next);
-    const list = next === 'income' ? incomeCategories : expenseCategories;
+    setError('');
+    const list = next === 'income' ? incomeCategories : next === 'transfer' ? transferCategories : expenseCategories;
     if (!list.includes(category)) setCategory(list[0] ?? '');
   }
 
@@ -7245,8 +7351,26 @@ function EditTransactionModal({ item, accounts, incomeCategories, expenseCategor
     const value = parseAmount(amount);
     if (!normalizedDescription) { setError('Informe uma descrição.'); return; }
     if (value <= 0) { setError('Informe um valor válido.'); return; }
+    if (isTransfer) {
+      if (!accountId || !toAccountId) { setError('Selecione as contas de origem e destino.'); return; }
+      if (accountId === toAccountId) { setError('As contas de origem e destino devem ser diferentes.'); return; }
+    }
     const account = accounts.find((candidate) => candidate.id === accountId);
-    onSave({ ...item, type, description: normalizedDescription, category, amount: value, dueDate, recurrence, accountId: account?.id, account: account?.name });
+    const toAccount = accounts.find((candidate) => candidate.id === toAccountId);
+    onSave({
+      ...item,
+      type,
+      description: normalizedDescription,
+      category,
+      amount: value,
+      dueDate,
+      recurrence: isTransfer ? 'single' : recurrence,
+      accountId: account?.id,
+      account: account?.name,
+      toAccountId: isTransfer ? toAccount?.id : undefined,
+      toAccount: isTransfer ? toAccount?.name : undefined,
+      ...(isTransfer ? { status: 'settled' as const, settledAt: dueDate, settledAmount: value } : {}),
+    });
   }
 
   return (
@@ -7269,6 +7393,10 @@ function EditTransactionModal({ item, accounts, incomeCategories, expenseCategor
                   <span><ArrowUpRight size={20} /></span>
                   <strong>Receita</strong>
                 </button>
+                <button type="button" className={`transaction-type-option transaction-type-option--transfer${type === 'transfer' ? ' active' : ''}`} aria-pressed={type === 'transfer'} onClick={() => selectType('transfer')}>
+                  <span><ArrowLeftRight size={20} /></span>
+                  <strong>Transferência</strong>
+                </button>
               </div>
             </div>
             <label className="form-field form-field-full">
@@ -7283,7 +7411,7 @@ function EditTransactionModal({ item, accounts, incomeCategories, expenseCategor
               </div>
             </label>
             <label className="form-field">
-              <span className="form-label">Vencimento</span>
+              <span className="form-label">{isTransfer ? 'Data' : 'Vencimento'}</span>
               <div className="form-input-wrap">
                 <CalendarDays size={16} />
                 <input className="form-input" type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
@@ -7295,21 +7423,32 @@ function EditTransactionModal({ item, accounts, incomeCategories, expenseCategor
                 {categories.map((option) => <option key={option}>{option}</option>)}
               </select>
             </label>
-            <label className="form-field">
-              <span className="form-label">Recorrência</span>
-              <select className="form-input" value={recurrence} onChange={(event) => setRecurrence(event.target.value as RecurrenceType)}>
-                <option value="single">Única</option>
-                <option value="fixed">Fixa</option>
-                <option value="installment">Parcelada</option>
-              </select>
-            </label>
+            {isTransfer ? null : (
+              <label className="form-field">
+                <span className="form-label">Recorrência</span>
+                <select className="form-input" value={recurrence} onChange={(event) => setRecurrence(event.target.value as RecurrenceType)}>
+                  <option value="single">Única</option>
+                  <option value="fixed">Fixa</option>
+                  <option value="installment">Parcelada</option>
+                </select>
+              </label>
+            )}
             <label className="form-field form-field-full">
-              <span className="form-label form-label-optional">Banco / conta</span>
+              <span className={isTransfer ? 'form-label' : 'form-label form-label-optional'}>{isTransfer ? 'Conta de origem' : 'Banco / conta'}</span>
               <select className="form-input" value={accountId} onChange={(event) => setAccountId(event.target.value)}>
                 <option value="">Nenhum banco ou conta selecionado</option>
                 {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
             </label>
+            {isTransfer ? (
+              <label className="form-field form-field-full">
+                <span className="form-label">Conta de destino</span>
+                <select className="form-input" value={toAccountId} onChange={(event) => setToAccountId(event.target.value)}>
+                  <option value="">Selecione um banco ou conta</option>
+                  {accounts.filter((account) => account.id !== accountId).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+            ) : null}
             {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
           </div>
         </div>
@@ -7711,48 +7850,44 @@ function MetricCard({ label, value, icon, tone, sub1, sub2 }: { label: string; v
   );
 }
 
-function LaunchModal({ accounts, incomeCategories, expenseCategories, initialType = 'expense', onClose, onCreate }: { accounts: Account[]; incomeCategories: string[]; expenseCategories: string[]; initialType?: TransactionType; onClose: () => void; onCreate: (items: Transaction[]) => void }) {
-  const [type, setType] = useState<TransactionType>(initialType);
-  const [form, setForm] = useState<LaunchForm>(() => ({ ...initialForm, category: (initialType === 'income' ? incomeCategories[0] : expenseCategories[0]) ?? '' }));
+function LaunchModal({ accounts, incomeCategories, expenseCategories, transferCategories, initialType, onClose, onCreate }: { accounts: Account[]; incomeCategories: string[]; expenseCategories: string[]; transferCategories: string[]; initialType: TransactionType; onClose: () => void; onCreate: (items: Transaction[]) => void }) {
+  const type = initialType;
+  const [form, setForm] = useState<LaunchForm>(() => ({ ...initialForm, category: (initialType === 'income' ? incomeCategories[0] : initialType === 'transfer' ? transferCategories[0] : expenseCategories[0]) ?? '' }));
+  const [error, setError] = useState('');
+  const isTransfer = type === 'transfer';
+  const categoriesForType = type === 'income' ? incomeCategories : type === 'transfer' ? transferCategories : expenseCategories;
 
   function update<K extends keyof LaunchForm>(key: K, value: LaunchForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function selectTransactionType(nextType: TransactionType) {
-    const categories = nextType === 'income' ? incomeCategories : expenseCategories;
-    setType(nextType);
-    setForm((current) => ({ ...current, category: categories[0] ?? '' }));
-  }
-
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!form.description.trim() || parseAmount(form.amount) <= 0) return;
+    if (isTransfer) {
+      if (!form.accountId || !form.toAccountId) { setError('Selecione as contas de origem e destino.'); return; }
+      if (form.accountId === form.toAccountId) { setError('As contas de origem e destino devem ser diferentes.'); return; }
+    }
     const account = accounts.find((candidate) => candidate.id === form.accountId);
-    onCreate(generateTransactions(form, type).map((item) => ({ ...item, accountId: account?.id, account: account?.name })));
+    const toAccount = accounts.find((candidate) => candidate.id === form.toAccountId);
+    onCreate(generateTransactions(form, type).map((item) => ({
+      ...item,
+      accountId: account?.id,
+      account: account?.name,
+      ...(isTransfer ? { toAccountId: toAccount?.id, toAccount: toAccount?.name } : {}),
+    })));
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <form className="modal-card" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
-          <h2 className="modal-title modal-title-only">Nova transação</h2>
+          <h2 className="modal-title modal-title-only">Nova {TRANSACTION_TYPE_LABELS[type].toLowerCase()}</h2>
           <button type="button" className="modal-close-button" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
         </div>
 
         <div className="modal-body">
           <div className="modal-form-grid">
-            <div className="form-field form-field-full">
-              <span className="form-label">Tipo</span>
-              <div className="launch-type-segmented" role="group" aria-label="Tipo da transação">
-                <button type="button" className={`launch-type-segment launch-type-segment--expense${type === 'expense' ? ' active' : ''}`} aria-pressed={type === 'expense'} onClick={() => selectTransactionType('expense')}>
-                  <ArrowDownLeft size={17} /> Despesa
-                </button>
-                <button type="button" className={`launch-type-segment launch-type-segment--income${type === 'income' ? ' active' : ''}`} aria-pressed={type === 'income'} onClick={() => selectTransactionType('income')}>
-                  <ArrowUpRight size={17} /> Receita
-                </button>
-              </div>
-            </div>
             <label className="form-field form-field-full">
               <span className="form-label">Descrição</span>
               <input className="form-input" value={form.description} maxLength={TRANSACTION_DESCRIPTION_MAX_LENGTH} onChange={(event) => update('description', event.target.value)} placeholder="Ex.: Aluguel, internet, venda..." />
@@ -7765,7 +7900,7 @@ function LaunchModal({ accounts, incomeCategories, expenseCategories, initialTyp
               </div>
             </label>
             <label className="form-field">
-              <span className="form-label">Vencimento</span>
+              <span className="form-label">{isTransfer ? 'Data' : 'Vencimento'}</span>
               <div className="form-input-wrap">
                 <CalendarDays size={16} />
                 <input className="form-input" type="date" value={form.dueDate} onChange={(event) => {
@@ -7777,39 +7912,51 @@ function LaunchModal({ accounts, incomeCategories, expenseCategories, initialTyp
             <label className="form-field">
               <span className="form-label">Categoria</span>
               <select className="form-input" value={form.category} onChange={(event) => update('category', event.target.value)}>
-                {(type === 'income' ? incomeCategories : expenseCategories).map((category) => <option key={category}>{category}</option>)}
+                {categoriesForType.map((category) => <option key={category}>{category}</option>)}
               </select>
             </label>
-            <label className="form-field">
-              <span className="form-label">Recorrência</span>
-              <select className="form-input" value={form.recurrence} onChange={(event) => {
-                const next = event.target.value as RecurrenceType;
-                setForm((current) => ({ ...current, recurrence: next, fixedUntil: next === 'fixed' && !current.fixedUntil ? `${current.dueDate.slice(0, 4)}-12` : current.fixedUntil }));
-              }}>
-                <option value="single">Única</option>
-                <option value="fixed">Fixa</option>
-                <option value="installment">Parcelada</option>
-              </select>
-            </label>
+            {isTransfer ? null : (
+              <label className="form-field">
+                <span className="form-label">Recorrência</span>
+                <select className="form-input" value={form.recurrence} onChange={(event) => {
+                  const next = event.target.value as RecurrenceType;
+                  setForm((current) => ({ ...current, recurrence: next, fixedUntil: next === 'fixed' && !current.fixedUntil ? `${current.dueDate.slice(0, 4)}-12` : current.fixedUntil }));
+                }}>
+                  <option value="single">Única</option>
+                  <option value="fixed">Fixa</option>
+                  <option value="installment">Parcelada</option>
+                </select>
+              </label>
+            )}
             <label className="form-field form-field-full">
-              <span className="form-label form-label-optional">Banco / conta</span>
+              <span className={isTransfer ? 'form-label' : 'form-label form-label-optional'}>{isTransfer ? 'Conta de origem' : 'Banco / conta'}</span>
               <select className="form-input" value={form.accountId} onChange={(event) => update('accountId', event.target.value)}>
                 <option value="">Selecione um banco ou conta</option>
                 {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
             </label>
-            {form.recurrence === 'fixed' ? (
+            {isTransfer ? (
+              <label className="form-field form-field-full">
+                <span className="form-label">Conta de destino</span>
+                <select className="form-input" value={form.toAccountId} onChange={(event) => update('toAccountId', event.target.value)}>
+                  <option value="">Selecione um banco ou conta</option>
+                  {accounts.filter((account) => account.id !== form.accountId).map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+            ) : null}
+            {!isTransfer && form.recurrence === 'fixed' ? (
               <label className="form-field">
                 <span className="form-label">Repetir até</span>
                 <input className="form-input" type="month" min={form.dueDate.slice(0, 7)} value={form.fixedUntil || form.dueDate.slice(0, 7)} onChange={(event) => update('fixedUntil', event.target.value)} />
               </label>
             ) : null}
-            {form.recurrence === 'installment' ? (
+            {!isTransfer && form.recurrence === 'installment' ? (
               <label className="form-field">
                 <span className="form-label">Parcelas</span>
                 <input className="form-input" type="number" min="1" max="120" value={form.installments} onChange={(event) => update('installments', event.target.value)} />
               </label>
             ) : null}
+            {error ? <div className="form-error form-field-full"><AlertCircle size={15} /> {error}</div> : null}
           </div>
         </div>
 

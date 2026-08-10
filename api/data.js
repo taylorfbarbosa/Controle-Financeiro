@@ -25,10 +25,11 @@ const schemas = {
   }).strict(),
   transactions: z.object({
     id: uuid, group_id: uuid, description: z.string().trim().min(1).max(200), category: shortText,
-    category_id: nullableUuid, amount: z.number().finite().min(0).max(1e12), type: z.enum(['income', 'expense']),
+    category_id: nullableUuid, amount: z.number().finite().min(0).max(1e12), type: z.enum(['income', 'expense', 'transfer']),
     due_date: date, recurrence: z.enum(['single', 'fixed', 'installment']), installment_number: z.number().int().min(1).max(120).nullable(),
     installment_total: z.number().int().min(1).max(120).nullable(), status: z.enum(['open', 'settled']), settled_at: date.nullable(),
-    settled_amount: z.number().finite().min(0).max(1e12).nullable(), account_id: nullableUuid, account: z.string().trim().max(160).nullable(), notes: optionalText,
+    settled_amount: z.number().finite().min(0).max(1e12).nullable(), account_id: nullableUuid, account: z.string().trim().max(160).nullable(),
+    to_account_id: nullableUuid, to_account: z.string().trim().max(160).nullable(), notes: optionalText,
   }).strict(),
   goals: z.object({
     id: uuid, name: shortText, target_amount: z.number().finite().positive().max(1e12), deadline: date.nullable(),
