@@ -1311,6 +1311,10 @@ button {
   color: var(--primary);
 }
 
+.new-transaction-type-popover button:nth-child(1) svg { color: #dc2626; }
+.new-transaction-type-popover button:nth-child(2) svg { color: var(--primary); }
+.new-transaction-type-popover button:nth-child(3) svg { color: #0a6d9e; }
+
 .transaction-export-popover {
   z-index: 84;
   width: 430px;
@@ -2856,15 +2860,21 @@ button {
   grid-template-columns: 1fr;
 }
 
-/* Categoria (compacta) + Receitas x Despesas lado a lado. O card de categoria
-   acompanha a altura do conteúdo (não estica junto com o gráfico maior). */
+/* Categoria (compacta) + Receitas x Despesas lado a lado, com a mesma altura. */
 .dashboard-charts--split {
   grid-template-columns: minmax(0, 0.6fr) minmax(0, 1fr);
-  align-items: start;
+  align-items: stretch;
+}
+
+.chart-panel--category {
+  display: flex;
+  flex-direction: column;
 }
 
 .chart-box--category {
+  flex: 1;
   height: auto;
+  min-height: 0;
 }
 
 .category-chart-body {
@@ -8252,6 +8262,34 @@ button {
   box-shadow: 0 2px 8px rgba(27, 153, 216, 0.1);
 }
 
+/* Transferência usa um azul-acinzentado neutro, distinto de receita/despesa */
+.launch-type--transfer,
+.launch-value--transfer,
+.launch-real--transfer,
+.transaction-kind--transfer,
+.report-card-amount--transfer {
+  color: #0a6d9e !important;
+}
+
+.report-card-icon--transfer {
+  background: #e6f5fb !important;
+  color: #0a6d9e !important;
+}
+
+.transaction-type-option--transfer {
+  color: #0a6d9e;
+}
+
+.transaction-type-option--transfer span {
+  background: #e6f5fb;
+}
+
+.transaction-type-option--transfer:hover {
+  border-color: #a9d8eb;
+  background: #f2faff;
+}
+
+
 @media (max-width: 760px) {
   .main-content--reports .report-summary-card:nth-child(1) {
     background:
@@ -13548,6 +13586,11 @@ h1, h2, h3, h4, h5, h6,
     color: #dc2626 !important;
   }
 
+  .tx-desktop-view .transaction-kind--transfer,
+  .tx-desktop-view .transaction-kind--transfer .status-icon-text {
+    color: #0a6d9e !important;
+  }
+
   .tx-desktop-view .launch-recurrence {
     width: fit-content;
     padding: 0;
@@ -14164,6 +14207,10 @@ h1, h2, h3, h4, h5, h6,
   background: #1a2e22;
   border-color: #2a5c36;
 }
+:root[data-theme='dark'] .transaction-type-option--transfer:hover {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.4);
+}
 
 /* Import modal */
 :root[data-theme='dark'] .import-upload {
@@ -14358,6 +14405,10 @@ h1, h2, h3, h4, h5, h6,
 :root[data-theme='dark'] .transaction-type-option--income:hover {
   background: #1a2e22;
   border-color: #2a5c36;
+}
+:root[data-theme='dark'] .transaction-type-option--transfer:hover {
+  background: rgba(148, 163, 184, 0.12);
+  border-color: rgba(148, 163, 184, 0.4);
 }
 
 /* Import modal */
@@ -15777,6 +15828,19 @@ h1, h2, h3, h4, h5, h6,
 }
 
 :root[data-theme='dark'] .category-type--transfer {
+  background: rgba(148, 163, 184, 0.16) !important;
+  color: #cbd5e1 !important;
+}
+
+:root[data-theme='dark'] .launch-type--transfer,
+:root[data-theme='dark'] .launch-value--transfer,
+:root[data-theme='dark'] .launch-real--transfer,
+:root[data-theme='dark'] .transaction-kind--transfer,
+:root[data-theme='dark'] .report-card-amount--transfer {
+  color: #cbd5e1 !important;
+}
+
+:root[data-theme='dark'] .report-card-icon--transfer {
   background: rgba(148, 163, 184, 0.16) !important;
   color: #cbd5e1 !important;
 }
